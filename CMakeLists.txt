@@ -8,14 +8,16 @@ project(SysYCompiler)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# antlr 目录下所有 .h 文件
-file(GLOB HEADERS "antlr/*.h")
+# 添加头文件
+include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# antlr 目录下所有 .cpp 文件
-file(GLOB SOURCES "antlr/*.cpp")
+# 链接antlr
+set(ANTLR_SOURCES src/antlr/SysYLexer.cpp src/antlr/SysYParser.cpp)
+add_library(antlr_lib SHARED ${ANTLR_SOURCES})
 
 # 添加源文件
-add_executable(SysYCompiler ./src/main.cpp ${SOURCES})
+add_executable(SysYCompiler src/main.cpp)
+target_link_libraries(SysYCompiler PRIVATE antlr_lib)
 
 # 链接 antlr4-runtime 库
 target_link_libraries(SysYCompiler PRIVATE antlr4-runtime)

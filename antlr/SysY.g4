@@ -3,6 +3,45 @@ grammar SysY;
 
 //////////////////////////////////语法////////////////////////////////////////////////////
 
+//关键字
+INT : 'int';
+FLOAT : 'float';
+VOID : 'void';
+IF : 'if';
+ELSE : 'else';
+WHILE : 'while';
+CONTINUE : 'continue';
+BREAK : 'break';
+RETURN : 'return';
+CONST : 'const';
+
+ASSIGN : '=' ;
+
+ADD : '+' ;
+SUB : '-' ;
+MUL : '*' ;
+DIV : '/' ;
+MOD : '%' ;
+
+EQ : '==' ;
+NE : '!=' ;
+LT : '<' ;
+GT : '>' ;
+LE : '<=' ;
+GE : '>=' ;
+
+OR : '||' ;
+AND : '&&' ;
+NOT : '!' ;
+
+LPAREN : '(' ;
+RPAREN : ')' ;
+LBRACK : '[' ;
+RBRACK : ']' ;
+LBRACE : '{' ;
+RBRACE : '}' ;
+COMMA : ',' ;
+
 //编译单元
 compUnit : (decl | funcDef)+ EOF;
 
@@ -71,22 +110,22 @@ lVal : ID ('[' exp ']')*;
 primaryExp : '(' exp ')' | lVal | number;
 
 //数值
-number : INT | FLOAT;
+number : IntConst | FloatConst;
 
 //一元表达式
 unaryExp : primaryExp | ID '(' (funcRParams)? ')' | unaryOp unaryExp;
 
 //单目运算符(注： '!'仅出现在条件表达式中) 这是语法分析未检查的 该语法也许不允许 !(a == b)
-unaryOp : '+' | '−' | '!';
+unaryOp : '+' | '-' | '!';
 
 //函数实参表
-funcRParams : exp ( ',' exp )?;
+funcRParams : exp ( ',' exp )*;
 
 //乘除模表达式
 mulExp : unaryExp | mulExp ('*' | '/' | '%') unaryExp;
 
 //加减表达式
-addExp : mulExp | addExp ('+' | '−') mulExp;
+addExp : mulExp | addExp ('+' | '-') mulExp;
 
 //关系表达式
 relExp : addExp | relExp ('<' | '>' | '<=' | '>=') addExp;
@@ -95,10 +134,10 @@ relExp : addExp | relExp ('<' | '>' | '<=' | '>=') addExp;
 eqExp : relExp | eqExp ('==' | '!=') relExp;
 
 //逻辑与表达式
-lAndExp : eqExp | lAndExp '&&' eqExp;
+lAndExp : eqExp ( '&&' eqExp )* ;
 
 //逻辑或表达式
-lOrExp : lAndExp | lOrExp '||' lAndExp;
+lOrExp : lAndExp ( '||' lAndExp )* ;
 
 //常量表达式(注：使用的 ID 必须是常量)
 constExp : addExp;
@@ -113,9 +152,9 @@ fragment NonDigit : [a-zA-Z_];
 fragment Digit : [0-9];
 
 //整形常量
-INT : DecimalConst | OctalConst | HexAdecimalConst;
+IntConst : DecimalConst | OctalConst | HexAdecimalConst;
 
-fragment DecimalConst : Digit NonZeroDigit* ;
+fragment DecimalConst : NonZeroDigit Digit* ;
 
 fragment NonZeroDigit : [1-9];
 
@@ -130,7 +169,7 @@ fragment HexAdecimalPrefix : '0'[xX];
 fragment HexAdecimalDigit : [0-9a-fA-F];
 
 //浮点常量
-FLOAT : DecimalFloatConst | HexadecimalFloatConst;
+FloatConst : DecimalFloatConst | HexadecimalFloatConst;
 
 fragment DecimalFloatConst : (Digit+)? '.' Digit+ ExponentPart?
 							| Digit+ '.' ExponentPart?
