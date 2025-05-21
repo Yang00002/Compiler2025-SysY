@@ -17,6 +17,12 @@
 
 - 为 ANTLR4 添加了配置和使用指南。
 
+### 2025-5-20
+
+#### Features
+
+- 实现了测试脚本，并配置了它的文档。
+
 ### 2025-5-22
 
 #### FIXED or IMPROVED
@@ -27,7 +33,7 @@
   - funcRParams：{',' Exp}可以出现任意次数，也就是( ',' exp )*。
   - lAndExp和lOrExp：修改了文法以支持短路计算。
 
-#### IMPLEMENTED
+#### IMPLEMENTED Features
 
 - IR: 有了IR Builder的接口声明和大部分实现。
 
@@ -47,3 +53,4 @@
 - IR Builder: 生成更多指令，例如srem。
 
 - 输出中间代码。
+

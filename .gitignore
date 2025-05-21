@@ -1,4 +1,9 @@
 /.vs/
+/.vscode/
 /.cache/
 /build/
-/tests/
+lib/sylib.a
+lib/sylib.o
+test
+/tests/arm/
+/tests/functional/
