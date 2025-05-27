@@ -27,7 +27,7 @@ class Type
 	friend Type* basicType(TypeIDs id);
 
 protected:
-	TypeIDs basic_type_;
+	TypeIDs _basic_type;
 	explicit Type(const TypeIDs& id);
 
 public:
@@ -43,6 +43,14 @@ public:
 	[[nodiscard]] TypeIDs getTypeID() const;
 	// 是否是 Arrays 或 ArrayInParameter
 	[[nodiscard]] bool isArrayType() const;
+	// 是否是函数类型
+	[[nodiscard]] bool isFunctionType() const;
+	// 是否是复杂类型, 即数组或函数类型
+	[[nodiscard]] bool isComplexType() const;
+	// 是否是基本类型, 即非数组非函数类型
+	[[nodiscard]] bool isBasicType() const;
+	// 是否是基本数值类型, 即 FLOAT / INT / BOOL
+	[[nodiscard]] bool isBasicValueType() const;
 };
 
 namespace Types
@@ -74,9 +82,9 @@ class ArrayType final : public Type
 	friend struct CompareArrayType;
 
 protected:
-	TypeIDs contained_;
-	std::vector<unsigned> arrayDims_;
-	unsigned size_;
+	TypeIDs _contained;
+	std::vector<unsigned> _arrayDims;
+	unsigned _size;
 	ArrayType(const TypeIDs& contained, bool inParameter, std::initializer_list<unsigned> dims);
 	ArrayType(const TypeIDs& contained, bool inParameter, const std::vector<unsigned>& dims);
 
@@ -115,8 +123,8 @@ class FuncType final : public Type
 	friend FuncType* Types::functionType(const TypeIDs& returnType, std::initializer_list<Type*> argTypes);
 	friend FuncType* Types::functionType(const TypeIDs& returnType, const std::vector<Type*>& argTypes);
 	friend struct CompareFuncType;
-	TypeIDs returnType_;
-	std::vector<Type*> argTypes_;
+	TypeIDs _returnType;
+	std::vector<Type*> _argTypes;
 	FuncType(const TypeIDs& returnType, std::initializer_list<Type*> argTypes);
 	FuncType(const TypeIDs& returnType, const std::vector<Type*>& argTypes);
 

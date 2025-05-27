@@ -233,7 +233,7 @@ bool validateFile(const string &filePath, string shell = "compileTest.sh",
   }
   string name = last2LineRight(namePath);
   string compileOutPut =
-      (example ? "./build/example/" : "build/custom") + name + ".out";
+      (example ? "./build/example/" : "./build/custom/") + name + ".out";
   if (example && filesystem::exists(compileOutPut))
     return true;
   string res =
@@ -269,6 +269,7 @@ std::string normalizeString(const std::string &input) {
 void validate(const string &commonPathName, list<string> &fileList,
               bool shouldReturn, string shell) {
   makeDir("build/example/" + commonPathName);
+  makeDir("build/custom/" + commonPathName);
   fileList.remove_if([](const string &v) -> bool { return !validateFile(v); });
   if (filesystem::exists("build/example_diff/" + commonPathName))
     filesystem::remove_all("build/example_diff/" + commonPathName);

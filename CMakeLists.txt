@@ -8,16 +8,26 @@ project(SysYCompiler)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# 添加头文件
+# antlr 文件集
+aux_source_directory(${CMAKE_SOURCE_DIR}/antlr antlr_sources)
+# 构建 antlr_lib 作为 antlr sysY 库
+add_library(antlr_sysy SHARED ${antlr_sources})
+# 定义一个通用的 antlr_lib 库目标
+add_library(antlr_lib INTERFACE)
+target_link_libraries(antlr_lib INTERFACE antlr_sysy antlr4-runtime)
+
+# 添加头文件搜索路径
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
-# 链接antlr
-set(ANTLR_SOURCES src/antlr/SysYLexer.cpp src/antlr/SysYParser.cpp)
-add_library(antlr_lib SHARED ${ANTLR_SOURCES})
+# ast 源文件集 
+aux_source_directory(src/ast astSource)
+# ir 源文件集 
+aux_source_directory(src/IR IR)
+
 
 # 添加源文件
-add_executable(SysYCompiler src/main.cpp)
-target_link_libraries(SysYCompiler PRIVATE antlr_lib)
+add_executable(SysYCompiler src/main.cpp ${astSource} ${IR})
+add_executable(ASTTest src/ast/main.cpp ${astSource})
 
-# 链接 antlr4-runtime 库
-target_link_libraries(SysYCompiler PRIVATE antlr4-runtime)
+target_link_libraries(SysYCompiler PRIVATE antlr_lib)
+target_link_libraries(ASTTest PRIVATE antlr_lib)

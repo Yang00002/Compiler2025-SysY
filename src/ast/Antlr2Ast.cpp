@@ -14,7 +14,7 @@ ASTCompUnit* Antlr2AstVisitor::astTree(antlr4::tree::ParseTree* parseTree)
 std::any Antlr2AstVisitor::visitCompUnit(SysYParser::CompUnitContext* context)
 {
 	auto comp_unit = new ASTCompUnit();
-	structConstraint.emplace_back(comp_unit);
+	_structConstraint.emplace_back(comp_unit);
 	for (const auto& decl : context->compDecl())
 	{
 		auto any_get = decl->accept(this);
@@ -22,14 +22,14 @@ std::any Antlr2AstVisitor::visitCompUnit(SysYParser::CompUnitContext* context)
 		{
 			auto l = *fd;
 			for (auto& i : l)
-				comp_unit->var_declarations_.emplace_back(i);
+				comp_unit->_var_declarations.emplace_back(i);
 		}
 	}
 	auto main_ = dynamic_cast<ASTFuncDecl*>(comp_unit->findScope("main", true));
 	if (main_ == nullptr) throw runtime_error("Expected a main function");
 	if (!main_->args().empty()) throw runtime_error("Expected main function don't have args");
 	if (main_->returnType() != INT) throw runtime_error("Expected main function return int");
-	structConstraint.pop_back();
+	_structConstraint.pop_back();
 	return comp_unit;
 }
 
@@ -52,16 +52,16 @@ std::any Antlr2AstVisitor::visitDecl(SysYParser::DeclContext* context)
 std::any Antlr2AstVisitor::visitConstDecl(SysYParser::ConstDeclContext* context)
 {
 	list<ASTVarDecl*> defList;
-	const auto block = structConstraint.back();
+	const auto block = _structConstraint.back();
 	for (const auto& d : context->constDef())
 	{
-		declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
+		_declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
 		auto decl = any_cast<ASTVarDecl*>(d->accept(this));
 		defList.emplace_back(decl);
 		if (!block->pushScope(decl))
 			throw runtime_error("duplicate var declaration of id " + decl->id());
-		decl->parent_ = block;
-		declarationTypeConstraint.pop();
+		decl->_parent = block;
+		_declarationTypeConstraint.pop();
 	}
 	return defList;
 }
@@ -85,25 +85,25 @@ std::any Antlr2AstVisitor::visitConstDef(SysYParser::ConstDefContext* context)
 		dims.emplace_back(n->toInteger());
 		delete n;
 	}
-	Type* t = declarationTypeConstraint.top();
+	Type* t = _declarationTypeConstraint.top();
 	if (!dims.empty())
 		t = arrayType(t, false, dims);
-	auto decl = new ASTVarDecl(true, structConstraint.size() == 1, t);
-	decl->id_ = context->ID()->toString();
+	auto decl = new ASTVarDecl(true, _structConstraint.size() == 1, t);
+	decl->_id = context->ID()->toString();
 	if (t->getTypeID() == TypeIDs::Array)
 		t = dynamic_cast<ArrayType*>(t)->typeContained();
 	if (t == INT)
-		decl->initList_ = new Tensor{dims, InitializeValue{0}};
-	else decl->initList_ = new Tensor{dims, InitializeValue{0.0f}};
-	initTensorConstraint.push(decl->initList_->getData());
+		decl->_initList = new Tensor{dims, InitializeValue{0}};
+	else decl->_initList = new Tensor{dims, InitializeValue{0.0f}};
+	_initTensorConstraint.push(decl->_initList->getData());
 	context->constInitVal()->accept(this);
-	initTensorConstraint.pop();
+	_initTensorConstraint.pop();
 	return decl;
 }
 
 std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* context)
 {
-	const auto t = initTensorConstraint.top();
+	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->constExp() != nullptr)
 	{
@@ -130,13 +130,15 @@ std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* co
 
 std::any Antlr2AstVisitor::visitConstArrayInitVal(SysYParser::ConstArrayInitValContext* ctx)
 {
-	const auto t = initTensorConstraint.top();
+	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (ctx->constExp() != nullptr)
 	{
 		const auto exp = any_cast<ASTNumber*>(ctx->constExp()->accept(this));
-		if (const auto exp2 = dynamic_cast<ASTNumber*>(exp->castTypeTo(dft.getExpressionType())); !t->append(
-			exp2->toInitializeValue()))
+		if (const auto exp2 = dynamic_cast<ASTNumber*>(exp->castTypeTo(dft.getExpressionType(),
+		                                                               TypeCastEnvironment::INITIALIZE_LIST)); !t->
+			append(
+				exp2->toInitializeValue()))
 			throw runtime_error(
 				"fail to append value to initialize list. context " + ctx->constExp()->toString());
 		delete exp;
@@ -146,28 +148,28 @@ std::any Antlr2AstVisitor::visitConstArrayInitVal(SysYParser::ConstArrayInitValC
 	if (tensor == nullptr)
 		throw runtime_error(
 			"fail to make new dimension in initialize list. context " + ctx->constExp()->toString());
-	initTensorConstraint.push(tensor);
+	_initTensorConstraint.push(tensor);
 	for (const auto& i : ctx->constArrayInitVal())
 	{
 		i->accept(this);
 	}
-	initTensorConstraint.pop();
+	_initTensorConstraint.pop();
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitVarDecl(SysYParser::VarDeclContext* context)
 {
 	list<ASTVarDecl*> defList;
-	const auto block = structConstraint.back();
+	const auto block = _structConstraint.back();
 	for (const auto& d : context->varDef())
 	{
-		declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
+		_declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
 		auto decl = any_cast<ASTVarDecl*>(d->accept(this));
 		defList.emplace_back(decl);
 		if (!block->pushScope(decl))
 			throw runtime_error("duplicate var declaration of id " + decl->id());
-		decl->parent_ = block;
-		declarationTypeConstraint.pop();
+		decl->_parent = block;
+		_declarationTypeConstraint.pop();
 	}
 	return defList;
 }
@@ -185,37 +187,37 @@ std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 		dims.emplace_back(n->toInteger());
 		delete n;
 	}
-	Type* t = declarationTypeConstraint.top();
+	Type* t = _declarationTypeConstraint.top();
 	if (!dims.empty())
 		t = arrayType(t, false, dims);
-	auto decl = new ASTVarDecl(false, structConstraint.size() == 1, t);
-	decl->id_ = context->ID()->toString();
+	auto decl = new ASTVarDecl(false, _structConstraint.size() == 1, t);
+	decl->_id = context->ID()->toString();
 	if (t->getTypeID() == TypeIDs::Array)
 		t = dynamic_cast<ArrayType*>(t)->typeContained();
 	if (context->initVal() == nullptr)
 	{
-		if (decl->is_global_)
+		if (decl->_is_global)
 		{
 			if (t == INT)
-				decl->initList_ = new Tensor{dims, InitializeValue{0}};
-			else decl->initList_ = new Tensor{dims, InitializeValue{0.0f}};
+				decl->_initList = new Tensor{dims, InitializeValue{0}};
+			else decl->_initList = new Tensor{dims, InitializeValue{0.0f}};
 		}
 		return decl;
 	}
 	if (t == INT)
-		decl->initList_ = new Tensor{dims, InitializeValue{0}};
-	else decl->initList_ = new Tensor{dims, InitializeValue{0.0f}};
-	initTensorConstraint.push(decl->initList_->getData());
-	initVarNodeConstraint.push(decl);
+		decl->_initList = new Tensor{dims, InitializeValue{0}};
+	else decl->_initList = new Tensor{dims, InitializeValue{0.0f}};
+	_initTensorConstraint.push(decl->_initList->getData());
+	_initVarNodeConstraint.push(decl);
 	context->initVal()->accept(this);
-	initVarNodeConstraint.pop();
-	initTensorConstraint.pop();
+	_initVarNodeConstraint.pop();
+	_initTensorConstraint.pop();
 	return decl;
 }
 
 std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 {
-	const auto t = initTensorConstraint.top();
+	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->exp() != nullptr)
 	{
@@ -223,7 +225,7 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 			throw runtime_error(
 				"designate an array to a number. context " + context->exp()->toString());
 		const auto exp = any_cast<ASTExpression*>(context->exp()->accept(this));
-		if (structConstraint.size() == 1 && dynamic_cast<ASTNumber*>(exp) == nullptr)
+		if (_structConstraint.size() == 1 && dynamic_cast<ASTNumber*>(exp) == nullptr)
 			throw runtime_error(
 				"global variable must have const init value. context " + context->exp()->toString());
 		const auto exp2 = exp->castTypeTo(dft.getExpressionType());
@@ -240,7 +242,7 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 			if (!t->append(InitializeValue{exp2}))
 				throw runtime_error(
 					"fail to append value to initialize list. context " + context->exp()->toString());
-			initVarNodeConstraint.top()->expressions_.emplace_back(exp2);
+			_initVarNodeConstraint.top()->_expressions.emplace_back(exp2);
 		}
 		return {};
 	}
@@ -256,18 +258,19 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 
 std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ctx)
 {
-	const auto t = initTensorConstraint.top();
+	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (ctx->exp() != nullptr)
 	{
 		const auto exp = any_cast<ASTExpression*>(ctx->exp()->accept(this));
-		if (structConstraint.size() == 1 && dynamic_cast<ASTNumber*>(exp) == nullptr)
+		if (_structConstraint.size() == 1 && dynamic_cast<ASTNumber*>(exp) == nullptr)
 			throw runtime_error(
 				"global variable must have const init value. context " + ctx->exp()->toString());
 		if (exp->getExpressionType() == FLOAT && dft.getExpressionType() == INT)
 			throw runtime_error(
 				"Can not case array init expression type from float to int");
-		const auto exp2 = exp->castTypeTo(dft.getExpressionType());
+		const auto exp2 = exp->castTypeTo(dft.getExpressionType(),
+		                                  TypeCastEnvironment::INITIALIZE_LIST);
 		if (const auto num = dynamic_cast<ASTNumber*>(exp2); num != nullptr)
 		{
 			const InitializeValue ret = num->toInitializeValue();
@@ -281,41 +284,42 @@ std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ct
 			if (!t->append(InitializeValue{exp2}))
 				throw runtime_error(
 					"fail to append value to initialize list. context " + ctx->exp()->toString());
-			initVarNodeConstraint.top()->expressions_.emplace_back(exp2);
+			_initVarNodeConstraint.top()->_expressions.emplace_back(exp2);
 		}
+		return {};
 	}
 	const auto tensor = t->makeSubTensor();
 	if (tensor == nullptr)
 		throw runtime_error(
 			"fail to make new dimension in initialize list. context " + ctx->exp()->toString());
-	initTensorConstraint.push(tensor);
+	_initTensorConstraint.push(tensor);
 	for (const auto& i : ctx->arrayInitVal())
 	{
 		i->accept(this);
 	}
-	initTensorConstraint.pop();
+	_initTensorConstraint.pop();
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitFuncDef(SysYParser::FuncDefContext* context)
 {
 	const auto decl = new ASTFuncDecl(context->ID()->toString(), any_cast<Type*>(context->funcType()->accept(this)));
-	const auto top = dynamic_cast<ASTCompUnit*>(structConstraint.front());
-	decl->parent_ = top;
-	top->func_declarations_.push_back(decl);
+	const auto top = dynamic_cast<ASTCompUnit*>(_structConstraint.front());
+	decl->_parent = top;
+	top->_func_declarations.push_back(decl);
 	if (!decl->pushScope(decl))
 		throw runtime_error("duplicate function " + decl->id());
-	structConstraint.emplace_back(decl->block_);
+	_structConstraint.emplace_back(decl->_block);
 	vector<ASTVarDecl*> paras;
 	if (context->funcFParams() != nullptr)
 		paras = any_cast<vector<ASTVarDecl*>>(context->funcFParams()->accept(this));
 	for (auto& i : paras)
 	{
-		i->parent_ = decl;
-		decl->args_.emplace_back(i);
+		i->_parent = decl;
+		decl->_args.emplace_back(i);
 	}
 	context->block()->accept(this);
-	structConstraint.pop_back();
+	_structConstraint.pop_back();
 	return {};
 }
 
@@ -354,10 +358,10 @@ std::any Antlr2AstVisitor::visitFuncFParam(SysYParser::FuncFParamContext* contex
 		dims.emplace_back(n);
 	}
 	auto decl = new ASTVarDecl(false, false, btype);
-	decl->id_ = id;
+	decl->_id = id;
 	if (!context->LBRACK().empty())
-		decl->type_ = arrayType(btype, true, dims);
-	if (!structConstraint.back()->pushScope(decl))
+		decl->_type = arrayType(btype, true, dims);
+	if (!_structConstraint.back()->pushScope(decl))
 		throw runtime_error("duplicate scope " + decl->id());
 	return decl;
 }
@@ -373,17 +377,17 @@ std::any Antlr2AstVisitor::visitBlock(SysYParser::BlockContext* context)
 
 std::any Antlr2AstVisitor::visitBlockItem(SysYParser::BlockItemContext* context)
 {
-	const auto block = dynamic_cast<ASTBlock*>(structConstraint.back());
+	const auto block = dynamic_cast<ASTBlock*>(_structConstraint.back());
 	if (context->decl() != nullptr)
 	{
 		auto decl = any_cast<list<ASTVarDecl*>>(context->decl()->accept(this));
 		for (auto& d : decl)
-			block->stmts_.emplace_back(d);
+			block->_stmts.emplace_back(d);
 	}
 	else
 	{
 		for (auto& stmt : any_cast<list<ASTStmt*>>(context->stmt()->accept(this)))
-			block->stmts_.emplace_back(stmt);
+			block->_stmts.emplace_back(stmt);
 	}
 	return {};
 }
@@ -401,18 +405,18 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		auto v = any_cast<ASTExpression*>(context->exp()->accept(this));
 		v = v->castTypeTo(lv->getExpressionType());
 		const auto stmt = new ASTAssign(lv, v);
-		lv->parent_ = stmt;
-		v->parent_ = stmt;
-		stmt->parent_ = structConstraint.back();
+		lv->_parent = stmt;
+		v->_parent = stmt;
+		stmt->_parent = _structConstraint.back();
 		return list<ASTStmt*>{stmt};
 	}
 	if (context->block() != nullptr)
 	{
 		auto block = new ASTBlock();
-		block->parent_ = structConstraint.back();
-		structConstraint.push_back(block);
+		block->_parent = _structConstraint.back();
+		_structConstraint.push_back(block);
 		context->block()->accept(this);
-		structConstraint.pop_back();
+		_structConstraint.pop_back();
 		if (block->isEmpty())
 		{
 			delete block;
@@ -427,31 +431,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		list<ASTStmt*> else_st;
 		if (context->ELSE() != nullptr)
 			else_st = any_cast<list<ASTStmt*>>(context->stmt()[1]->accept(this));
-		if (cond->getExpressionType() != BOOL)
-		{
-			auto condNum = dynamic_cast<ASTNumber*>(cond);
-			if (condNum != nullptr)
-			{
-				if (condNum->getExpressionType() == INT)
-				{
-					condNum->type_ = BOOL;
-					condNum->field_.b_value_ = condNum->field_.i_value_ != 0;
-				}
-				else
-				{
-					condNum->type_ = BOOL;
-					condNum->field_.b_value_ = condNum->field_.f_value_ != 0.0f;
-				}
-			}
-			else
-			{
-				auto n = new ASTMath2Logic(cond);
-				n->not_ = false;
-				cond->parent_ = n;
-				cond = n;
-			}
-		}
-		cond->parent_ = structConstraint.back();
+		cond->_parent = _structConstraint.back();
 		auto condNum = dynamic_cast<ASTNumber*>(cond);
 		if (condNum != nullptr)
 		{
@@ -468,13 +448,13 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		auto condLogic = dynamic_cast<ASTLogicExp*>(cond);
 		if (condLogic != nullptr)
 		{
-			if (condLogic->have_result_ != ASTLogicExp::UNDEFINE)
+			if (condLogic->_have_result != ASTLogicExp::UNDEFINE)
 			{
-				cond->parent_ = structConstraint.back();
-				if (condLogic->have_result_ == ASTLogicExp::TRUE)
+				cond->_parent = _structConstraint.back();
+				if (condLogic->_have_result == ASTLogicExp::TRUE)
 				{
-					if_st.push_front(cond);
 					for (auto& i : else_st) delete i;
+					if_st.push_front(cond);
 					return if_st;
 				}
 				for (auto& i : if_st) delete i;
@@ -486,20 +466,20 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		{
 			if (else_st.empty())
 			{
-				auto l = AST::cutExpressionToOnlyLeaveFuncCall(condLogic);
+				auto l = AST::cutExpressionToOnlyLeaveFuncCall(cond);
 				list<ASTStmt*> ret;
 				for (auto& i : l) ret.emplace_back(i);
 				return ret;
 			}
 			cond = new ASTEqual{true, condLogic, new ASTNumber{false}};
-			condLogic->parent_ = cond;
+			condLogic->_parent = cond;
 			auto if_node = new ASTIf{cond};
 			for (auto& i : else_st)
 			{
-				if_node->if_stmt_.emplace_back(i);
-				i->parent_ = if_node;
+				if_node->_if_stmt.emplace_back(i);
+				i->_parent = if_node;
 			}
-			cond->parent_ = if_node;
+			cond->_parent = if_node;
 			return list<ASTStmt*>{if_node};
 		}
 		if (else_st.empty())
@@ -507,99 +487,77 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			auto if_node = new ASTIf{cond};
 			for (auto& i : if_st)
 			{
-				if_node->if_stmt_.emplace_back(i);
-				i->parent_ = if_node;
+				if_node->_if_stmt.emplace_back(i);
+				i->_parent = if_node;
 			}
-			cond->parent_ = if_node;
+			cond->_parent = if_node;
 			return list<ASTStmt*>{if_node};
 		}
 		auto if_node = new ASTIf{cond};
-		if_node->parent_ = structConstraint.back();
+		if_node->_parent = _structConstraint.back();
 		for (auto& i : if_st)
 		{
-			if_node->if_stmt_.emplace_back(i);
-			i->parent_ = if_node;
+			if_node->_if_stmt.emplace_back(i);
+			i->_parent = if_node;
 		}
 		for (auto& i : else_st)
 		{
-			if_node->else_stmt_.emplace_back(i);
-			i->parent_ = if_node;
+			if_node->_else_stmt.emplace_back(i);
+			i->_parent = if_node;
 		}
-		cond->parent_ = if_node;
+		cond->_parent = if_node;
 		return list<ASTStmt*>{if_node};
 	}
 	if (context->WHILE() != nullptr)
 	{
 		auto cond = any_cast<ASTExpression*>(context->cond()->accept(this));
-		if (cond->getExpressionType() != BOOL)
-		{
-			auto condNum = dynamic_cast<ASTNumber*>(cond);
-			if (condNum != nullptr)
-			{
-				if (condNum->getExpressionType() == INT)
-				{
-					condNum->type_ = BOOL;
-					condNum->field_.b_value_ = condNum->field_.i_value_ != 0;
-				}
-				else
-				{
-					condNum->type_ = BOOL;
-					condNum->field_.b_value_ = condNum->field_.f_value_ != 0.0f;
-				}
-			}
-			else
-			{
-				auto n = new ASTMath2Logic(cond);
-				n->not_ = false;
-				cond->parent_ = n;
-				cond = n;
-			}
-		}
 		auto loop = new ASTWhile{cond};
-		loop->parent_ = structConstraint.back();
-		cond->parent_ = loop;
-		structConstraint.push_back(loop);
+		loop->_parent = _structConstraint.back();
+		cond->_parent = loop;
+		_structConstraint.push_back(loop);
 		auto stmt = any_cast<list<ASTStmt*>>(context->stmt()[0]->accept(this));
-		structConstraint.pop_back();
-		for (auto& i : stmt) loop->stmt_.emplace_back(i);
+		_structConstraint.pop_back();
+		for (auto& i : stmt) loop->_stmt.emplace_back(i);
 		auto condNum = dynamic_cast<ASTNumber*>(cond);
 		if (condNum != nullptr)
 		{
-			if (condNum->toBoolean())
-				throw runtime_error("Infinite While Loop at context " + context->toString());
-			delete loop;
-			return list<ASTStmt*>{};
+			if (condNum->toBoolean() == false)
+			{
+				delete loop;
+				return list<ASTStmt*>{};
+			}
 		}
 		auto condLogic = dynamic_cast<ASTLogicExp*>(cond);
 		if (condLogic != nullptr)
 		{
-			if (condLogic->have_result_ != ASTLogicExp::UNDEFINE)
+			if (condLogic->_have_result != ASTLogicExp::UNDEFINE)
 			{
-				if (condLogic->have_result_ == ASTLogicExp::TRUE)
-					throw runtime_error("Infinite While Loop at context " + context->toString());
-				cond->parent_ = structConstraint.back();
-				loop->cond_ = nullptr;
-				delete loop;
-				return list<ASTStmt*>{condLogic};
+				if (condLogic->_have_result == ASTLogicExp::FALSE)
+				{
+					cond->_parent = _structConstraint.back();
+					loop->_cond = nullptr;
+					delete loop;
+					return list<ASTStmt*>{condLogic};
+				}
 			}
 		}
 		return list<ASTStmt*>{loop};
 	}
 	if (context->BREAK() != nullptr)
 	{
-		auto get = dynamic_cast<ASTWhile*>(structConstraint.back()->findParent([](const ASTNode* n)-> bool
+		auto get = dynamic_cast<ASTWhile*>(_structConstraint.back()->findParent([](const ASTNode* n)-> bool
 		{
 			return dynamic_cast<const ASTWhile*>(n) != nullptr;
 		}));
 		if (get == nullptr)
 			throw runtime_error("break must be in an while loop!");
 		auto ret = new ASTBreak{get};
-		ret->parent_ = structConstraint.back();
+		ret->_parent = _structConstraint.back();
 		return list<ASTStmt*>{ret};
 	}
 	if (context->RETURN() != nullptr)
 	{
-		auto get = dynamic_cast<ASTFuncDecl*>(structConstraint.back()->findParent([](const ASTNode* n)-> bool
+		auto get = dynamic_cast<ASTFuncDecl*>(_structConstraint.back()->findParent([](const ASTNode* n)-> bool
 		{
 			return dynamic_cast<const ASTFuncDecl*>(n) != nullptr;
 		}));
@@ -614,7 +572,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 					"function with return type " + get->returnType()->toString() + " must return a value");
 			}
 			auto r = new ASTReturn{nullptr, get};
-			r->parent_ = structConstraint.back();
+			r->_parent = _structConstraint.back();
 			return list<ASTStmt*>{r};
 		}
 		if (get->returnType() == VOID)
@@ -625,7 +583,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		auto ret = any_cast<ASTExpression*>(context->exp()->accept(this));
 		ret = ret->castTypeTo(get->returnType());
 		auto r = new ASTReturn{ret, get};
-		r->parent_ = structConstraint.back();
+		r->_parent = _structConstraint.back();
 		return list<ASTStmt*>{r};
 	}
 	if (context->exp() != nullptr)
@@ -635,7 +593,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		auto r = list<ASTStmt*>{};
 		for (auto& i : ret)
 		{
-			i->parent_ = structConstraint.back();
+			i->_parent = _structConstraint.back();
 			r.emplace_back(i);
 		}
 		return r;
@@ -650,35 +608,16 @@ std::any Antlr2AstVisitor::visitExp(SysYParser::ExpContext* context)
 
 std::any Antlr2AstVisitor::visitCond(SysYParser::CondContext* context)
 {
-	auto exp = any_cast<ASTExpression*>(context->lOrExp()->accept(this));
-	if (exp->getExpressionType() == BOOL) return exp;
-	auto num = dynamic_cast<ASTNumber*>(exp);
-	if (num != nullptr)
-	{
-		if (num->getExpressionType() == INT)
-		{
-			num->field_.b_value_ = num->field_.i_value_ != 0;
-			num->type_ = BOOL;
-		}
-		else
-		{
-			num->field_.b_value_ = num->field_.f_value_ != 0.0f;
-			num->type_ = BOOL;
-		}
-		return static_cast<ASTExpression*>(num);
-	}
-	if (exp->getExpressionType() != INT && exp->getExpressionType() != BOOL)
-	{
-		throw runtime_error("Expression type " + exp->getExpressionType()->toString() + " can not convert to bool");
-	}
-	auto ret = new ASTMath2Logic{exp};
-	ret->not_ = false;
-	return static_cast<ASTExpression*>(ret);
+	_allowLogic = true;
+	auto cond = any_cast<ASTExpression*>(context->lOrExp()->accept(this));
+	_allowLogic = false;
+	cond = cond->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
+	return cond;
 }
 
 std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 {
-	const auto d = structConstraint.back()->findScope(context->ID()->toString(), false);
+	const auto d = _structConstraint.back()->findScope(context->ID()->toString(), false);
 	if (d == nullptr)
 		throw runtime_error("undefined scope " + context->ID()->toString() + " . context " + context->toString());
 	const auto decl = dynamic_cast<ASTVarDecl*>(d);
@@ -703,8 +642,15 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 				throw runtime_error("array index must be integer instead of " + idx->getExpressionType()->toString());
 			if (const auto num = dynamic_cast<ASTNumber*>(idx); num != nullptr)
 			{
+				int m = INT_MAX;
+				if (ar->getTypeID() == TypeIDs::Array)
+				{
+					m = static_cast<int>(ar->dimensions()[dimIdx]);
+				}
+				else if (dimIdx > 0)
+					m = static_cast<int>(ar->dimensions()[dimIdx - 1]);
 				if (const int n = num->toInteger();
-					n <= 0 || n >= static_cast<int>(ar->dimensions()[dimIdx]))
+					n < 0 || n >= m)
 					throw runtime_error(
 						"array index out of bound. expect [0, " + to_string(ar->dimensions()[dimIdx]) + "], get " +
 						to_string(n));
@@ -722,17 +668,18 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 				delete i;
 			}
 			const auto l = decl->getInitList();
-			return new ASTNumber(l->visitData()->getElement(constIndexes));
+			return static_cast<ASTExpression*>(new ASTNumber(l->visitData()->getElement(constIndexes)));
 		}
 		auto ret = static_cast<ASTExpression*>(new ASTLVal(decl, indexes));
 		for (auto& i : indexes)
 		{
-			i->parent_ = ret;
-			ret->haveFuncCall_ = ret->haveFuncCall_ || i->haveFuncCall_;
+			i->_parent = ret;
+			ret->_haveFuncCall = ret->_haveFuncCall || i->_haveFuncCall;
 		}
 		return ret;
 	}
 	if (indexCount > 0) throw runtime_error("Scalar " + context->ID()->toString() + " has no index");
+	if (decl->isConst()) return static_cast<ASTExpression*>(new ASTNumber{decl->_initList->getData()->getElement({})});
 	const auto exp = new ASTLVal(decl, {});
 	return static_cast<ASTExpression*>(exp);
 }
@@ -760,10 +707,12 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 	if (context->ID() != nullptr)
 	{
 		const auto id = context->ID()->toString();
-		const auto f = structConstraint.front()->findScope(id, true);
+		const auto f = _structConstraint.front()->findScope(id, true);
 		if (f == nullptr) throw runtime_error("Undeclared function " + id);
 		const auto func = dynamic_cast<ASTFuncDecl*>(f);
-		auto getArgs = any_cast<vector<ASTExpression*>>(context->funcRParams()->accept(this));
+		auto getArgs = context->funcRParams() != nullptr
+			               ? any_cast<vector<ASTExpression*>>(context->funcRParams()->accept(this))
+			               : vector<ASTExpression*>{};
 		const auto typeArgs = func->args();
 		if (typeArgs.size() != getArgs.size())
 			throw runtime_error("function call of " + id + " has incorrect args count. " + context->toString());
@@ -806,57 +755,60 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 			}
 		}
 		const auto call = new ASTCall{func, getArgs};
-		for (const auto& i : getArgs) i->parent_ = call;
+		for (const auto& i : getArgs) i->_parent = call;
 		return static_cast<ASTExpression*>(call);
 	}
 	auto exp = any_cast<ASTExpression*>(context->unaryExp()->accept(this));
 	if (context->ADD() != nullptr)
 	{
 		if (exp->getExpressionType() == BOOL)
-			throw runtime_error("Bool expression exp can not use +exp");
+			exp = exp->castTypeTo(INT, TypeCastEnvironment::LOGIC_EXPRESSION);
 		return exp;
 	}
 	if (context->SUB() != nullptr)
 	{
 		if (exp->getExpressionType() == BOOL)
-			throw runtime_error("Bool expression exp can not use -exp");
+			exp = exp->castTypeTo(INT, TypeCastEnvironment::LOGIC_EXPRESSION);
 		if (const auto n = dynamic_cast<ASTNeg*>(exp); n != nullptr)
 		{
-			exp = n->hold_;
-			n->hold_ = nullptr;
+			exp = n->_hold;
+			n->_hold = nullptr;
 			delete n;
-			exp->parent_ = nullptr;
+			exp->_parent = nullptr;
 			return exp;
 		}
 		if (const auto n = dynamic_cast<ASTNumber*>(exp); n != nullptr)
 		{
 			if (n->getExpressionType() == INT)
 			{
-				n->field_.i_value_ = -n->field_.i_value_;
+				n->_field._i_value = -n->_field._i_value;
 				return exp;
 			}
-			n->field_.f_value_ = -n->field_.f_value_;
+			n->_field._f_value = -n->_field._f_value;
 			return exp;
 		}
 		const auto n = new ASTNeg(exp);
-		exp->parent_ = n;
-		n->haveFuncCall_ = exp->haveFuncCall_;
+		exp->_parent = n;
+		n->_haveFuncCall = exp->_haveFuncCall;
 		return static_cast<ASTExpression*>(n);
 	}
-	if (const auto logic = dynamic_cast<ASTMath2Logic*>(exp); logic != nullptr)
+	if (!_allowLogic) throw runtime_error("math expression don't allow logic!");
+	if (const auto logic = dynamic_cast<ASTNot*>(exp); logic != nullptr)
 	{
-		logic->not_ = !logic->not_;
-		return exp;
+		auto ret = logic->_hold;
+		logic->_hold = nullptr;
+		delete logic;
+		return ret;
 	}
 	if (auto n = dynamic_cast<ASTNumber*>(exp); n != nullptr)
 	{
-		n = dynamic_cast<ASTNumber*>(n->castTypeTo(BOOL));
-		n->field_.b_value_ = !n->field_.b_value_;
+		n = dynamic_cast<ASTNumber*>(n->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION));
+		n->_field._b_value = !n->_field._b_value;
 		return static_cast<ASTExpression*>(n);
 	}
-	const auto n = new ASTMath2Logic(exp);
-	exp->parent_ = n;
-	n->haveFuncCall_ = exp->haveFuncCall_;
+	const auto n = new ASTNot(exp);
+	exp->_parent = n;
+	n->_haveFuncCall = exp->_haveFuncCall;
 	return static_cast<ASTExpression*>(n);
 }
 
@@ -877,7 +829,12 @@ std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 	auto l = any_cast<ASTExpression*>(context->mulExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->unaryExp()->accept(this));
 	const auto op = context->MUL() != nullptr ? MathOP::MUL : context->DIV() != nullptr ? MathOP::DIV : MathOP::MOD;
-	const auto tyT = ASTExpression::maxType(l, r);
+	auto tyT = ASTExpression::maxType(l, r, _allowLogic
+		                                        ? TypeCastEnvironment::LOGIC_EXPRESSION
+		                                        : TypeCastEnvironment::MATH_EXPRESSION);
+	if (tyT == BOOL) tyT = INT;
+	l = l->castTypeTo(tyT, _allowLogic ? TypeCastEnvironment::LOGIC_EXPRESSION : TypeCastEnvironment::MATH_EXPRESSION);
+	r = r->castTypeTo(tyT, _allowLogic ? TypeCastEnvironment::LOGIC_EXPRESSION : TypeCastEnvironment::MATH_EXPRESSION);
 	if (const auto rnum = dynamic_cast<ASTNumber*>(r); rnum != nullptr)
 	{
 		if (op != MathOP::MUL)
@@ -902,61 +859,59 @@ std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 		{
 			const int a = lnum->forceToInteger();
 			const int b = rnum->forceToInteger();
-			lnum->type_ = INT;
+			lnum->_type = INT;
 			delete rnum;
 			if (op == MathOP::MUL)
 			{
-				lnum->field_.i_value_ = a * b;
+				lnum->_field._i_value = a * b;
 				return static_cast<ASTExpression*>(lnum);
 			}
 			if (op == MathOP::DIV)
 			{
-				lnum->field_.i_value_ = a / b;
+				lnum->_field._i_value = a / b;
 				return static_cast<ASTExpression*>(lnum);
 			}
-			lnum->field_.i_value_ = a % b;
+			lnum->_field._i_value = a % b;
 			return static_cast<ASTExpression*>(lnum);
 		}
 		const float a = lnum->forceToFloat();
 		const float b = rnum->forceToFloat();
-		lnum->type_ = FLOAT;
+		lnum->_type = FLOAT;
 		delete rnum;
 		if (op == MathOP::MUL)
 		{
-			lnum->field_.f_value_ = a * b;
+			lnum->_field._f_value = a * b;
 			return static_cast<ASTExpression*>(lnum);
 		}
-		lnum->field_.f_value_ = a / b;
+		lnum->_field._f_value = a / b;
 		return static_cast<ASTExpression*>(lnum);
 	}
-	l = l->castTypeTo(tyT);
-	r = r->castTypeTo(tyT);
 	const auto ln = dynamic_cast<ASTNeg*>(l);
 	if (const auto rn = dynamic_cast<ASTNeg*>(r); ln != nullptr && rn != nullptr)
 	{
-		l = ln->hold_;
-		ln->hold_ = nullptr;
+		l = ln->_hold;
+		ln->_hold = nullptr;
 		delete ln;
-		r = rn->hold_;
-		rn->hold_ = nullptr;
+		r = rn->_hold;
+		rn->_hold = nullptr;
 		delete rn;
 	}
 	else if (ln != nullptr || rn != nullptr)
 	{
 		const auto n = ln != nullptr ? ln : rn;
-		if (ln != nullptr)l = n->hold_;
-		else r = n->hold_;
+		if (ln != nullptr)l = n->_hold;
+		else r = n->_hold;
 		const auto node = new ASTMathExp(tyT, op, l, r);
 		l->setParent(node);
 		r->setParent(node);
-		node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+		node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 		node->setParent(n);
-		n->hold_ = node;
-		n->haveFuncCall_ = node->haveFuncCall_;
+		n->_hold = node;
+		n->_haveFuncCall = node->_haveFuncCall;
 		return static_cast<ASTExpression*>(n);
 	}
 	const auto node = new ASTMathExp(tyT, op, l, r);
-	node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 	l->setParent(node);
 	r->setParent(node);
 	return static_cast<ASTExpression*>(node);
@@ -971,27 +926,32 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 	auto l = any_cast<ASTExpression*>(context->addExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->mulExp()->accept(this));
 	const auto op = context->ADD() == nullptr ? MathOP::SUB : MathOP::ADD;
-	const auto tyT = ASTExpression::maxType(l, r);
+	auto tyT = ASTExpression::maxType(l, r, _allowLogic
+		                                        ? TypeCastEnvironment::LOGIC_EXPRESSION
+		                                        : TypeCastEnvironment::MATH_EXPRESSION);
+	if (tyT == BOOL) tyT = INT;
+	l = l->castTypeTo(tyT, _allowLogic ? TypeCastEnvironment::LOGIC_EXPRESSION : TypeCastEnvironment::MATH_EXPRESSION);
+	r = r->castTypeTo(tyT, _allowLogic ? TypeCastEnvironment::LOGIC_EXPRESSION : TypeCastEnvironment::MATH_EXPRESSION);
 	const auto lm = dynamic_cast<ASTNumber*>(l);
-	const auto rm = dynamic_cast<ASTNumber*>(l);
+	const auto rm = dynamic_cast<ASTNumber*>(r);
 	if (lm != nullptr && rm != nullptr)
 	{
 		if (tyT == INT)
 		{
 			int a = lm->forceToInteger();
 			int b = rm->forceToInteger();
-			lm->type_ = INT;
+			lm->_type = INT;
 			delete rm;
-			if (op == MathOP::ADD) lm->field_.i_value_ = a + b;
-			else lm->field_.i_value_ = a - b;
+			if (op == MathOP::ADD) lm->_field._i_value = a + b;
+			else lm->_field._i_value = a - b;
 			return static_cast<ASTExpression*>(lm);
 		}
 		float a = lm->forceToFloat();
 		float b = rm->forceToFloat();
-		lm->type_ = FLOAT;
+		lm->_type = FLOAT;
 		delete rm;
-		if (op == MathOP::ADD) lm->field_.f_value_ = a + b;
-		else lm->field_.f_value_ = a - b;
+		if (op == MathOP::ADD) lm->_field._f_value = a + b;
+		else lm->_field._f_value = a - b;
 		return static_cast<ASTExpression*>(lm);
 	}
 	const auto ln = dynamic_cast<ASTNeg*>(l);
@@ -1004,92 +964,90 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 		{
 			if (op == MathOP::ADD)
 			{
-				l = ln->hold_;
-				ln->hold_ = nullptr;
+				l = ln->_hold;
+				ln->_hold = nullptr;
 				delete ln;
-				r = rn->hold_;
+				r = rn->_hold;
 				l = l->castTypeTo(tyT);
 				r = r->castTypeTo(tyT);
 				const auto node = new ASTMathExp(tyT, op, l, r);
 				l->setParent(node);
 				r->setParent(node);
-				node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+				node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 				node->setParent(rn);
-				rn->hold_ = node;
-				rn->haveFuncCall_ = node->haveFuncCall_;
+				rn->_hold = node;
+				rn->_haveFuncCall = node->_haveFuncCall;
 				return static_cast<ASTExpression*>(rn);
 			}
-			l = ln->hold_;
-			ln->hold_ = nullptr;
+			l = ln->_hold;
+			ln->_hold = nullptr;
 			delete ln;
-			r = rn->hold_;
-			rn->hold_ = nullptr;
+			r = rn->_hold;
+			rn->_hold = nullptr;
 			delete rn;
 			l = l->castTypeTo(tyT);
 			r = r->castTypeTo(tyT);
 			const auto node = new ASTMathExp(tyT, op, r, l);
 			l->setParent(node);
 			r->setParent(node);
-			node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+			node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 			return static_cast<ASTExpression*>(node);
 		}
 		if (op == MathOP::ADD)
 		{
-			l = ln->hold_;
-			ln->hold_ = nullptr;
+			l = ln->_hold;
+			ln->_hold = nullptr;
 			delete ln;
 			l = l->castTypeTo(tyT);
 			r = r->castTypeTo(tyT);
 			const auto node = new ASTMathExp(tyT, MathOP::SUB, r, l);
 			l->setParent(node);
 			r->setParent(node);
-			node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+			node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 			return static_cast<ASTExpression*>(node);
 		}
-		l = ln->hold_;
+		l = ln->_hold;
 		l = l->castTypeTo(tyT);
 		r = r->castTypeTo(tyT);
 		const auto node = new ASTMathExp(tyT, MathOP::ADD, l, r);
 		l->setParent(node);
 		r->setParent(node);
-		node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+		node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 		node->setParent(ln);
-		ln->haveFuncCall_ = node->haveFuncCall_;
-		ln->hold_ = node;
+		ln->_haveFuncCall = node->_haveFuncCall;
+		ln->_hold = node;
 		return static_cast<ASTExpression*>(ln);
 	}
 	if (nr)
 	{
 		if (op == MathOP::ADD)
 		{
-			r = rn->hold_;
-			rn->hold_ = nullptr;
+			r = rn->_hold;
+			rn->_hold = nullptr;
 			delete rn;
 			l = l->castTypeTo(tyT);
 			r = r->castTypeTo(tyT);
 			const auto node = new ASTMathExp(tyT, MathOP::SUB, l, r);
 			l->setParent(node);
 			r->setParent(node);
-			node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+			node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 			return static_cast<ASTExpression*>(node);
 		}
-		r = rn->hold_;
-		rn->hold_ = nullptr;
+		r = rn->_hold;
+		rn->_hold = nullptr;
 		delete rn;
 		l = l->castTypeTo(tyT);
 		r = r->castTypeTo(tyT);
 		const auto node = new ASTMathExp(tyT, MathOP::ADD, l, r);
 		l->setParent(node);
 		r->setParent(node);
-		node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+		node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 		return static_cast<ASTExpression*>(node);
 	}
-	l = l->castTypeTo(tyT);
-	r = r->castTypeTo(tyT);
 	const auto node = new ASTMathExp(tyT, op, l, r);
 	l->setParent(node);
 	r->setParent(node);
-	node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 	return static_cast<ASTExpression*>(node);
 }
 
@@ -1101,9 +1059,10 @@ std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 	}
 	auto l = any_cast<ASTExpression*>(context->relExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->addExp()->accept(this));
-	auto tyT = ASTExpression::maxType(l, r);
-	l = l->castTypeTo(tyT);
-	r = r->castTypeTo(tyT);
+	auto tyT = ASTExpression::maxType(l, r, TypeCastEnvironment::LOGIC_EXPRESSION);
+	if (tyT == BOOL) tyT = INT;
+	l = l->castTypeTo(tyT, TypeCastEnvironment::LOGIC_EXPRESSION);
+	r = r->castTypeTo(tyT, TypeCastEnvironment::LOGIC_EXPRESSION);
 	auto lNum = dynamic_cast<ASTNumber*>(l);
 	auto rNum = dynamic_cast<ASTNumber*>(r);
 	if (lNum != nullptr && rNum != nullptr)
@@ -1134,9 +1093,9 @@ std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 			else res = lNum->toFloat() >= rNum->toFloat();
 		}
 		delete rNum;
-		lNum->field_.b_value_ = res;
-		lNum->type_ = BOOL;
-		lNum->parent_ = nullptr;
+		lNum->_field._b_value = res;
+		lNum->_type = BOOL;
+		lNum->_parent = nullptr;
 		return static_cast<ASTExpression*>(lNum);
 	}
 	RelationOP op;
@@ -1145,9 +1104,9 @@ std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 	else if (context->LE() != nullptr) op = RelationOP::LE;
 	else op = RelationOP::GE;
 	auto node = new ASTRelation{op, l, r};
-	l->parent_ = node;
-	r->parent_ = node;
-	node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+	l->_parent = node;
+	r->_parent = node;
+	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 	return static_cast<ASTExpression*>(node);
 }
 
@@ -1156,31 +1115,9 @@ std::any Antlr2AstVisitor::visitEqExp(SysYParser::EqExpContext* context)
 	if (context->eqExp() == nullptr)return context->relExp()->accept(this);
 	auto l = any_cast<ASTExpression*>(context->eqExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->relExp()->accept(this));
-	auto tyL = l->getExpressionType();
-	auto tyR = r->getExpressionType();
-	if (tyL == BOOL && tyR == BOOL)
-	{
-		auto lNum = dynamic_cast<ASTNumber*>(l);
-		auto rNum = dynamic_cast<ASTNumber*>(r);
-		if (lNum != nullptr && rNum != nullptr)
-		{
-			bool res = (context->EQ()
-				            ? (lNum->toBoolean() == rNum->toBoolean())
-				            : (lNum->toBoolean() != rNum->toBoolean()));
-			delete rNum;
-			lNum->field_.b_value_ = res;
-			lNum->parent_ = nullptr;
-			return static_cast<ASTExpression*>(lNum);
-		}
-		auto node = new ASTEqual{context->EQ() != nullptr, l, r};
-		l->parent_ = node;
-		r->parent_ = node;
-		node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
-		return static_cast<ASTExpression*>(node);
-	}
-	auto tyT = ASTExpression::maxType(l, r);
-	l = l->castTypeTo(tyT);
-	r = r->castTypeTo(tyT);
+	auto tyT = ASTExpression::maxType(l, r, TypeCastEnvironment::LOGIC_EXPRESSION);
+	l = l->castTypeTo(tyT, TypeCastEnvironment::LOGIC_EXPRESSION);
+	r = r->castTypeTo(tyT, TypeCastEnvironment::LOGIC_EXPRESSION);
 	auto lNum = dynamic_cast<ASTNumber*>(l);
 	auto rNum = dynamic_cast<ASTNumber*>(r);
 	if (lNum != nullptr && rNum != nullptr)
@@ -1190,21 +1127,26 @@ std::any Antlr2AstVisitor::visitEqExp(SysYParser::EqExpContext* context)
 		{
 			if (lNum->isInteger())
 				res = lNum->toInteger() == rNum->toInteger();
-			else res = lNum->toFloat() == rNum->toFloat();
+			else if (lNum->isFloat()) res = lNum->toFloat() == rNum->toFloat();
+			else res = lNum->toBoolean() == rNum->toBoolean();
 		}
-		else if (lNum->isInteger())
-			res = lNum->toInteger() != rNum->toInteger();
-		else res = lNum->toFloat() != rNum->toFloat();
+		else
+		{
+			if (lNum->isInteger())
+				res = lNum->toInteger() != rNum->toInteger();
+			else if (lNum->isFloat()) res = lNum->toFloat() != rNum->toFloat();
+			else res = lNum->toBoolean() != rNum->toBoolean();
+		}
 		delete rNum;
-		lNum->field_.b_value_ = res;
-		lNum->type_ = BOOL;
-		lNum->parent_ = nullptr;
+		lNum->_field._b_value = res;
+		lNum->_type = BOOL;
+		lNum->_parent = nullptr;
 		return static_cast<ASTExpression*>(lNum);
 	}
 	auto node = new ASTEqual{context->EQ() != nullptr, l, r};
-	l->parent_ = node;
-	r->parent_ = node;
-	node->haveFuncCall_ = l->haveFuncCall_ || r->haveFuncCall_;
+	l->_parent = node;
+	r->_parent = node;
+	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 	return static_cast<ASTExpression*>(node);
 }
 
@@ -1217,9 +1159,7 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 	for (auto& i : context->eqExp())
 	{
 		auto exp = any_cast<ASTExpression*>(i->accept(this));
-		if (exp->getExpressionType() != BOOL)
-			throw runtime_error(
-				"logical expression have bool type but get " + exp->getExpressionType()->toString());
+		exp = exp->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
 		if (auto num = dynamic_cast<ASTNumber*>(exp); num != nullptr)
 		{
 			if (num->toBoolean() == false)
@@ -1237,7 +1177,7 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 		else if (!cut)
 		{
 			exps.emplace_back(exp);
-			if (exp->haveFuncCall_) comp = true;
+			if (exp->_haveFuncCall) comp = true;
 		}
 		else delete exp;
 	}
@@ -1251,7 +1191,7 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 		if (exps.empty()) return static_cast<ASTExpression*>(new ASTNumber(true));
 		if (exps.size() == 1) return exps[0];
 		auto ret = new ASTLogicExp{LogicOP::AND, exps, ASTLogicExp::UNDEFINE};
-		for (auto& i : exps) i->parent_ = ret;
+		for (auto& i : exps) i->_parent = ret;
 		return static_cast<ASTExpression*>(ret);
 	}
 	if (cut)
@@ -1259,18 +1199,18 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 		vector<ASTExpression*> e;
 		for (auto& i : exps)
 		{
-			if (i->haveFuncCall_)e.push_back(i);
+			if (i->_haveFuncCall)e.push_back(i);
 			else delete i;
 		}
 		exps.emplace_back(new ASTNumber{false});
 		auto ret = new ASTLogicExp{LogicOP::AND, exps, ASTLogicExp::FALSE};
-		ret->haveFuncCall_ = true;
-		for (auto& i : exps) i->parent_ = ret;
+		ret->_haveFuncCall = true;
+		for (auto& i : exps) i->_parent = ret;
 		return static_cast<ASTExpression*>(ret);
 	}
 	auto ret = new ASTLogicExp{LogicOP::AND, exps, ASTLogicExp::UNDEFINE};
-	ret->haveFuncCall_ = true;
-	for (auto& i : exps) i->parent_ = ret;
+	ret->_haveFuncCall = true;
+	for (auto& i : exps) i->_parent = ret;
 	return static_cast<ASTExpression*>(ret);
 }
 
@@ -1284,9 +1224,7 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 	for (auto& i : context->lAndExp())
 	{
 		auto exp = any_cast<ASTExpression*>(i->accept(this));
-		if (exp->getExpressionType() != BOOL)
-			throw runtime_error("logical expression have bool type but get " + exp->getExpressionType()->toString());
-
+		exp = exp->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
 		if (auto num = dynamic_cast<ASTNumber*>(exp); num != nullptr)
 		{
 			if (num->toBoolean() == true)
@@ -1306,18 +1244,18 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 			if (auto log = dynamic_cast<ASTLogicExp*>(exp); log != nullptr)
 			{
 				// 如果 have_result_, 一定 haveFuncCall_; 否则该是 Number
-				if (log->have_result_ == ASTLogicExp::TRUE)
+				if (log->_have_result == ASTLogicExp::TRUE)
 				{
 					cut = true;
 					comp = true;
 				}
-				else if (log->have_result_ == ASTLogicExp::UNDEFINE)
+				else if (log->_have_result == ASTLogicExp::UNDEFINE)
 					undef = true;
 			}
 			else
 				undef = true;
 			exps.emplace_back(exp);
-			if (exp->haveFuncCall_) comp = true;
+			if (exp->_haveFuncCall) comp = true;
 		}
 		else delete exp;
 	}
@@ -1331,7 +1269,7 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 		if (exps.empty()) return static_cast<ASTExpression*>(new ASTNumber(false));
 		if (exps.size() == 1) return exps[0];
 		auto ret = new ASTLogicExp{LogicOP::OR, exps, ASTLogicExp::UNDEFINE};
-		for (auto& i : exps) i->parent_ = ret;
+		for (auto& i : exps) i->_parent = ret;
 		return static_cast<ASTExpression*>(ret);
 	}
 	if (cut)
@@ -1339,29 +1277,29 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 		vector<ASTExpression*> e;
 		for (auto& i : exps)
 		{
-			if (i->haveFuncCall_)e.push_back(i);
+			if (i->_haveFuncCall)e.push_back(i);
 			else delete i;
 		}
 		if (auto log = dynamic_cast<ASTLogicExp*>(exps.back()); log != nullptr)
 		{
-			if (log->have_result_ == ASTLogicExp::TRUE)
+			if (log->_have_result == ASTLogicExp::TRUE)
 			{
 				if (exps.size() == 1) return exps[0];
 				auto ret = new ASTLogicExp{LogicOP::OR, exps, ASTLogicExp::TRUE};
-				for (auto& i : exps) i->parent_ = ret;
-				ret->haveFuncCall_ = true;
+				for (auto& i : exps) i->_parent = ret;
+				ret->_haveFuncCall = true;
 				return static_cast<ASTExpression*>(ret);
 			}
 		}
 		exps.emplace_back(new ASTNumber{true});
 		auto ret = new ASTLogicExp{LogicOP::OR, exps, ASTLogicExp::TRUE};
-		ret->haveFuncCall_ = true;
-		for (auto& i : exps) i->parent_ = ret;
+		ret->_haveFuncCall = true;
+		for (auto& i : exps) i->_parent = ret;
 		return static_cast<ASTExpression*>(ret);
 	}
 	auto ret = new ASTLogicExp{LogicOP::OR, exps, undef ? ASTLogicExp::UNDEFINE : ASTLogicExp::FALSE};
-	ret->haveFuncCall_ = true;
-	for (auto& i : exps) i->parent_ = ret;
+	ret->_haveFuncCall = true;
+	for (auto& i : exps) i->_parent = ret;
 	return static_cast<ASTExpression*>(ret);
 }
 

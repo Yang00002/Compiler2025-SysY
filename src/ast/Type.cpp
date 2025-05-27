@@ -27,18 +27,18 @@ struct CompareArrayType
 {
 	bool operator()(const ArrayType* a, const ArrayType* b) const
 	{
-		if (a->basic_type_ < b->basic_type_) return true;
-		if (a->basic_type_ > b->basic_type_) return false;
-		if (a->contained_ < b->contained_) return true;
-		if (a->contained_ > b->contained_) return false;
-		const size_t len1 = a->arrayDims_.size();
-		const size_t len2 = b->arrayDims_.size();
+		if (a->_basic_type < b->_basic_type) return true;
+		if (a->_basic_type > b->_basic_type) return false;
+		if (a->_contained < b->_contained) return true;
+		if (a->_contained > b->_contained) return false;
+		const size_t len1 = a->_arrayDims.size();
+		const size_t len2 = b->_arrayDims.size();
 		if (len1 < len2) return true;
 		if (len1 > len2) return false;
 		for (size_t i = 0; i < len1; i++)
 		{
-			auto& n1 = a->arrayDims_[i];
-			auto& n2 = b->arrayDims_[i];
+			auto& n1 = a->_arrayDims[i];
+			auto& n2 = b->_arrayDims[i];
 			if (n1 < n2) return true;
 			if (n1 > n2) return false;
 		}
@@ -50,16 +50,16 @@ struct CompareFuncType
 {
 	bool operator()(const FuncType* a, const FuncType* b) const
 	{
-		if (a->returnType_ < b->returnType_) return true;
-		if (a->returnType_ > b->returnType_) return false;
-		const size_t len1 = a->argTypes_.size();
-		const size_t len2 = b->argTypes_.size();
+		if (a->_returnType < b->_returnType) return true;
+		if (a->_returnType > b->_returnType) return false;
+		const size_t len1 = a->_argTypes.size();
+		const size_t len2 = b->_argTypes.size();
 		if (len1 < len2) return true;
 		if (len1 > len2) return false;
 		for (size_t i = 0; i < len1; i++)
 		{
-			auto& n1 = a->argTypes_[i];
-			auto& n2 = b->argTypes_[i];
+			auto& n1 = a->_argTypes[i];
+			auto& n2 = b->_argTypes[i];
 			if (n1 < n2) return true;
 			if (n1 > n2) return false;
 		}
@@ -110,58 +110,78 @@ std::string to_string(const TypeIDs e)
 
 Type::Type(const TypeIDs& id)
 {
-	basic_type_ = id;
+	_basic_type = id;
 }
 
 unsigned Type::sizeInBitsInArm64()
 {
-	return basicTypeSizeInBitesInArm64(basic_type_);
+	return basicTypeSizeInBitesInArm64(_basic_type);
 }
 
 std::string Type::toString() const
 {
-	return to_string(basic_type_);
+	return to_string(_basic_type);
 }
 
 TypeIDs Type::getTypeID() const
 {
-	return basic_type_;
+	return _basic_type;
 }
 
 bool Type::isArrayType() const
 {
-	return basic_type_ == TypeIDs::Array || basic_type_ == TypeIDs::ArrayInParameter;
+	return _basic_type == TypeIDs::Array || _basic_type == TypeIDs::ArrayInParameter;
+}
+
+bool Type::isFunctionType() const
+{
+	return _basic_type == TypeIDs::Function;
+}
+
+bool Type::isComplexType() const
+{
+	return isArrayType() || isFunctionType();
+}
+
+bool Type::isBasicType() const
+{
+	return !isComplexType();
+}
+
+bool Type::isBasicValueType() const
+{
+	return _basic_type == TypeIDs::Integer || _basic_type == TypeIDs::Boolean || _basic_type == TypeIDs::Float;
 }
 
 ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter,
                      const std::initializer_list<unsigned> dims): Type(
 	inParameter ? TypeIDs::ArrayInParameter : TypeIDs::Array)
 {
-	contained_ = contained;
+	_contained = contained;
 	// size 的拓展被在 arrayType 中推后计算, 以提高性能
-	size_ = basicTypeSizeInBitesInArm64(contained_);
-	arrayDims_ = dims;
+	_size = basicTypeSizeInBitesInArm64(_contained);
+	_arrayDims = dims;
 }
 
 ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter, const std::vector<unsigned>& dims) : Type(
 	inParameter ? TypeIDs::ArrayInParameter : TypeIDs::Array)
 {
-	contained_ = contained;
+	_contained = contained;
 	// size 的拓展被在 arrayType 中推后计算, 以提高性能
-	size_ = basicTypeSizeInBitesInArm64(contained_);
-	arrayDims_ = dims;
+	_size = basicTypeSizeInBitesInArm64(_contained);
+	_arrayDims = dims;
 }
 
 unsigned ArrayType::sizeInBitsInArm64()
 {
-	return size_;
+	return _size;
 }
 
 std::string ArrayType::toString() const
 {
-	std::string base = to_string(contained_);
-	if (basic_type_ == TypeIDs::ArrayInParameter) base += "[]";
-	for (const auto& i : arrayDims_)
+	std::string base = to_string(_contained);
+	if (_basic_type == TypeIDs::ArrayInParameter) base += "[]";
+	for (const auto& i : _arrayDims)
 	{
 		base += std::string("[") + std::to_string(i) + "]";
 	}
@@ -171,8 +191,8 @@ std::string ArrayType::toString() const
 std::string ArrayType::suffixToString() const
 {
 	std::string base;
-	if (basic_type_ == TypeIDs::ArrayInParameter) base += "[]";
-	for (const auto& i : arrayDims_)
+	if (_basic_type == TypeIDs::ArrayInParameter) base += "[]";
+	for (const auto& i : _arrayDims)
 	{
 		base += std::string("[") + std::to_string(i) + "]";
 	}
@@ -181,59 +201,59 @@ std::string ArrayType::suffixToString() const
 
 bool ArrayType::isInParameter() const
 {
-	return basic_type_ == TypeIDs::ArrayInParameter;
+	return _basic_type == TypeIDs::ArrayInParameter;
 }
 
 const std::vector<unsigned>& ArrayType::dimensions() const
 {
-	return arrayDims_;
+	return _arrayDims;
 }
 
 unsigned ArrayType::elementCount() const
 {
-	return size_ / basicTypeSizeInBitesInArm64(contained_);
+	return _size / basicTypeSizeInBitesInArm64(_contained);
 }
 
 ArrayType* ArrayType::toFuncParameter() const
 {
-	if (basic_type_ == TypeIDs::Array)
-		return Types::arrayType(contained_, true, {arrayDims_.begin() + 1, arrayDims_.end()});
+	if (_basic_type == TypeIDs::Array)
+		return Types::arrayType(_contained, true, {_arrayDims.begin() + 1, _arrayDims.end()});
 	return const_cast<ArrayType*>(this);
 }
 
 Type* ArrayType::getSubType(const int confirmedDimension) const
 {
-	if (basic_type_ == TypeIDs::Array)
+	if (_basic_type == TypeIDs::Array)
 	{
 		if (confirmedDimension == 0) return const_cast<ArrayType*>(this);
-		const auto maxDim = static_cast<int>(arrayDims_.size());
-		if (confirmedDimension == maxDim) return Types::simpleType(contained_);
+		const auto maxDim = static_cast<int>(_arrayDims.size());
+		if (confirmedDimension == maxDim) return Types::simpleType(_contained);
 		if (confirmedDimension > maxDim) return nullptr;
-		return Types::arrayType(contained_, false, {arrayDims_.begin() + confirmedDimension, arrayDims_.end()});
+		return Types::arrayType(_contained, false, {_arrayDims.begin() + confirmedDimension, _arrayDims.end()});
 	}
 	if (confirmedDimension == 0) return const_cast<ArrayType*>(this);
-	const auto maxDim = static_cast<int>(arrayDims_.size() + 1);
-	if (confirmedDimension == maxDim) return Types::simpleType(contained_);
+	const auto maxDim = static_cast<int>(_arrayDims.size() + 1);
+	if (confirmedDimension == maxDim) return Types::simpleType(_contained);
 	if (confirmedDimension > maxDim) return nullptr;
-	return Types::arrayType(contained_, false, {arrayDims_.begin() + confirmedDimension - 1, arrayDims_.end()});
+	return Types::arrayType(_contained, false, {_arrayDims.begin() + confirmedDimension - 1, _arrayDims.end()});
 }
 
 bool ArrayType::canHaveFuncParameterOf(const ArrayType* target) const
 {
 	// 函数参数不能是 Array, 只能说 ArrayInParameter
-	if (target->basic_type_ == TypeIDs::Array) return false;
-	if (target->contained_ != contained_) return false;
-	auto myTestDim = arrayDims_.size();
-	if (basic_type_ == TypeIDs::Array) myTestDim--;
-	if (myTestDim < target->arrayDims_.size()) return false;
-	if (target->arrayDims_.empty()) return true;
-	auto i = arrayDims_.size();
-	auto j = target->arrayDims_.size();
+	if (target->_basic_type == TypeIDs::Array) return false;
+	if (target->_contained != _contained) return false;
+	auto myTestDim = _arrayDims.size();
+	if (_basic_type == TypeIDs::Array) myTestDim--;
+	if (myTestDim < target->_arrayDims.size()) return false;
+	if (target->_arrayDims.empty()) return true;
+	auto i = _arrayDims.size();
+	auto j = target->_arrayDims.size();
 	while (j > 0)
 	{
 		j--;
 		i--;
-		if (arrayDims_[i] != target->arrayDims_[j]) return false;
+		if (_arrayDims[i] != target->_arrayDims[j]) return false;
 	}
 	return true;
 }
@@ -241,45 +261,45 @@ bool ArrayType::canHaveFuncParameterOf(const ArrayType* target) const
 bool ArrayType::canPassToFuncOf(const ArrayType* target) const
 {
 	// 函数参数不能是 Array, 只能说 ArrayInParameter
-	if (target->basic_type_ == TypeIDs::Array) return false;
-	if (target->contained_ != contained_) return false;
-	auto myTestDim = arrayDims_.size();
-	if (basic_type_ == TypeIDs::Array) myTestDim--;
-	if (myTestDim != target->arrayDims_.size()) return false;
-	if (target->arrayDims_.empty()) return true;
-	auto i = arrayDims_.size();
-	auto j = target->arrayDims_.size();
+	if (target->_basic_type == TypeIDs::Array) return false;
+	if (target->_contained != _contained) return false;
+	auto myTestDim = _arrayDims.size();
+	if (_basic_type == TypeIDs::Array) myTestDim--;
+	if (myTestDim != target->_arrayDims.size()) return false;
+	if (target->_arrayDims.empty()) return true;
+	auto i = _arrayDims.size();
+	auto j = target->_arrayDims.size();
 	while (j > 0)
 	{
 		j--;
 		i--;
-		if (arrayDims_[i] != target->arrayDims_[j]) return false;
+		if (_arrayDims[i] != target->_arrayDims[j]) return false;
 	}
 	return true;
 }
 
 Type* ArrayType::typeContained() const
 {
-	return Types::simpleType(contained_);
+	return Types::simpleType(_contained);
 }
 
 FuncType::FuncType(const TypeIDs& returnType, const std::initializer_list<Type*> argTypes): Type(TypeIDs::Function)
 {
-	returnType_ = returnType;
-	argTypes_ = argTypes;
+	_returnType = returnType;
+	_argTypes = argTypes;
 }
 
 FuncType::FuncType(const TypeIDs& returnType, const std::vector<Type*>& argTypes) : Type(TypeIDs::Function)
 {
-	returnType_ = returnType;
-	argTypes_ = argTypes;
+	_returnType = returnType;
+	_argTypes = argTypes;
 }
 
 std::string FuncType::toString() const
 {
-	std::string ret = to_string(returnType_);
-	ret += " " + to_string(basic_type_) + "(";
-	for (const auto& i : argTypes_)
+	std::string ret = to_string(_returnType);
+	ret += " " + to_string(_basic_type) + "(";
+	for (const auto& i : _argTypes)
 	{
 		ret += i->toString() + ",";
 	}
@@ -290,17 +310,17 @@ std::string FuncType::toString() const
 
 TypeIDs FuncType::returnType() const
 {
-	return returnType_;
+	return _returnType;
 }
 
 const std::vector<Type*>& FuncType::argumentTypes() const
 {
-	return argTypes_;
+	return _argTypes;
 }
 
 unsigned FuncType::argumentCount() const
 {
-	return static_cast<unsigned>(argTypes_.size());
+	return static_cast<unsigned>(_argTypes.size());
 }
 
 Type* Types::simpleType(const TypeIDs& contained)
@@ -357,8 +377,8 @@ namespace Types
 				return *i;
 			}
 			if (type->getTypeID() == TypeIDs::Array)
-				for (const unsigned dim : type->arrayDims_)
-					type->size_ *= dim;
+				for (const unsigned dim : type->_arrayDims)
+					type->_size *= dim;
 			return type;
 		}
 		throw std::runtime_error("Array Type can not have Element ID of " + to_string(contained));
@@ -383,8 +403,8 @@ namespace Types
 				return *i;
 			}
 			if (type->getTypeID() == TypeIDs::Array)
-				for (const unsigned dim : type->arrayDims_)
-					type->size_ *= dim;
+				for (const unsigned dim : type->_arrayDims)
+					type->_size *= dim;
 			return type;
 		}
 		throw std::runtime_error("Array Type can not have Element ID of " + to_string(contained));

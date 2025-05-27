@@ -9,13 +9,15 @@ class Antlr2AstVisitor final : SysYBaseVisitor
 	// 定义约束, 用于使父节点为子节点的语义添加限制. 约束调用要求谁插入, 谁弹出
 
 	// 为定义指明其基本类型的约束, 是 Float 或 Integer
-	std::stack<Type*> declarationTypeConstraint;
+	std::stack<Type*> _declarationTypeConstraint;
 	// 为初始化的约束, 标记初始化张量
-	std::stack<TensorData<InitializeValue>*> initTensorConstraint;
+	std::stack<TensorData<InitializeValue>*> _initTensorConstraint;
 	// 为初始化的约束, 标记初始化节点, 用于列表中维护 ASTExpression 的内存
-	std::stack<ASTVarDecl*> initVarNodeConstraint;
+	std::stack<ASTVarDecl*> _initVarNodeConstraint;
 	// 结构约束, 目前的前置节点. 这些节点是程序的主干节点, 比其它节点更早接入 AST 树
-	std::vector<ASTNode*> structConstraint;
+	std::vector<ASTNode*> _structConstraint;
+	// 逻辑约束, 表达式是否允许使用 ! 运算
+	bool _allowLogic = false;
 
 	std::any visitCompUnit(SysYParser::CompUnitContext* context) override;
 
