@@ -21,6 +21,8 @@ public:
    */
     virtual std::any visitCompUnit(SysYParser::CompUnitContext *context) = 0;
 
+    virtual std::any visitCompDecl(SysYParser::CompDeclContext *context) = 0;
+
     virtual std::any visitDecl(SysYParser::DeclContext *context) = 0;
 
     virtual std::any visitConstDecl(SysYParser::ConstDeclContext *context) = 0;
@@ -31,11 +33,15 @@ public:
 
     virtual std::any visitConstInitVal(SysYParser::ConstInitValContext *context) = 0;
 
+    virtual std::any visitConstArrayInitVal(SysYParser::ConstArrayInitValContext *context) = 0;
+
     virtual std::any visitVarDecl(SysYParser::VarDeclContext *context) = 0;
 
     virtual std::any visitVarDef(SysYParser::VarDefContext *context) = 0;
 
     virtual std::any visitInitVal(SysYParser::InitValContext *context) = 0;
+
+    virtual std::any visitArrayInitVal(SysYParser::ArrayInitValContext *context) = 0;
 
     virtual std::any visitFuncDef(SysYParser::FuncDefContext *context) = 0;
 
@@ -62,8 +68,6 @@ public:
     virtual std::any visitNumber(SysYParser::NumberContext *context) = 0;
 
     virtual std::any visitUnaryExp(SysYParser::UnaryExpContext *context) = 0;
-
-    virtual std::any visitUnaryOp(SysYParser::UnaryOpContext *context) = 0;
 
     virtual std::any visitFuncRParams(SysYParser::FuncRParamsContext *context) = 0;
 

@@ -19,6 +19,10 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitCompDecl(SysYParser::CompDeclContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitDecl(SysYParser::DeclContext *ctx) override {
     return visitChildren(ctx);
   }
@@ -39,6 +43,10 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitConstArrayInitVal(SysYParser::ConstArrayInitValContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitVarDecl(SysYParser::VarDeclContext *ctx) override {
     return visitChildren(ctx);
   }
@@ -48,6 +56,10 @@ public:
   }
 
   virtual std::any visitInitVal(SysYParser::InitValContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
+  virtual std::any visitArrayInitVal(SysYParser::ArrayInitValContext *ctx) override {
     return visitChildren(ctx);
   }
 
@@ -100,10 +112,6 @@ public:
   }
 
   virtual std::any visitUnaryExp(SysYParser::UnaryExpContext *ctx) override {
-    return visitChildren(ctx);
-  }
-
-  virtual std::any visitUnaryOp(SysYParser::UnaryOpContext *ctx) override {
     return visitChildren(ctx);
   }
 

@@ -12,11 +12,11 @@
 class  SysYLexer : public antlr4::Lexer {
 public:
   enum {
-    T__0 = 1, INT = 2, FLOAT = 3, VOID = 4, IF = 5, ELSE = 6, WHILE = 7, 
-    CONTINUE = 8, BREAK = 9, RETURN = 10, CONST = 11, ASSIGN = 12, ADD = 13, 
-    SUB = 14, MUL = 15, DIV = 16, MOD = 17, EQ = 18, NE = 19, LT = 20, GT = 21, 
-    LE = 22, GE = 23, OR = 24, AND = 25, NOT = 26, LPAREN = 27, RPAREN = 28, 
-    LBRACK = 29, RBRACK = 30, LBRACE = 31, RBRACE = 32, COMMA = 33, ID = 34, 
+    INT = 1, FLOAT = 2, VOID = 3, IF = 4, ELSE = 5, WHILE = 6, CONTINUE = 7, 
+    BREAK = 8, RETURN = 9, CONST = 10, ASSIGN = 11, ADD = 12, SUB = 13, 
+    MUL = 14, DIV = 15, MOD = 16, EQ = 17, NE = 18, LT = 19, GT = 20, LE = 21, 
+    GE = 22, OR = 23, AND = 24, NOT = 25, LPAREN = 26, RPAREN = 27, LBRACK = 28, 
+    RBRACK = 29, LBRACE = 30, RBRACE = 31, COMMA = 32, SEMICO = 33, ID = 34, 
     IntConst = 35, FloatConst = 36, BlockComment = 37, LineComment = 38, 
     Whitespace = 39, Newline = 40
   };
