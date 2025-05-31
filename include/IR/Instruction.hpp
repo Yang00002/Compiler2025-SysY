@@ -1,362 +1,472 @@
-#ifndef INSTRUCTION_HPP
-#define INSTRUCTION_HPP
-
-#include "Type.hpp"
-#include "User.hpp"
+#pragma once
 
 #include <cstdint>
-#include <list>
+#include "Value.hpp"
 
+class GlobalVariable;
+class FuncType;
+class Module;
 class BasicBlock;
 class Function;
 
-class Instruction : public User {
-  public:
-    enum OpID : uint32_t {
-        // Terminator Instructions
-        ret,
-        br,
-        // Standard binary operators
-        add,
-        sub,
-        mul,
-        sdiv,
-        // float binary operators
-        fadd,
-        fsub,
-        fmul,
-        fdiv,
-        // Memory operators
-        alloca,
-        load,
-        store,
-        // Int compare operators
-        ge,
-        gt,
-        le,
-        lt,
-        eq,
-        ne,
-        // Float compare operators
-        fge,
-        fgt,
-        fle,
-        flt,
-        feq,
-        fne,
-        // Other operators
-        phi,
-        call,
-        getelementptr,
-        zext, // zero extend
-        fptosi,
-        sitofp
-        // float binary operators Logical operators
+class Instruction : public User
+{
+public:
+	Instruction(const Instruction&) = delete;
+	Instruction(Instruction&&) = delete;
+	Instruction& operator=(const Instruction&) = delete;
+	Instruction& operator=(Instruction&&) = delete;
 
-    };
-    /* @parent: if parent!=nullptr, auto insert to bb
-     * @ty: result type */
-    Instruction(Type *ty, OpID id, BasicBlock *parent = nullptr);
-    Instruction(const Instruction &) = delete;
-    virtual ~Instruction() = default;
+	enum OpID : uint8_t
+	{
+		// Terminator Instructions
+		ret,
+		br,
+		// Standard binary operators
+		add,
+		sub,
+		mul,
+		sdiv,
+		srem,
+		// float binary operators
+		fadd,
+		fsub,
+		fmul,
+		fdiv,
+		// Memory operators
+		alloca_,
+		load,
+		store,
+		// Int compare operators
+		ge,
+		gt,
+		le,
+		lt,
+		eq,
+		ne,
+		// Float compare operators
+		fge,
+		fgt,
+		fle,
+		flt,
+		feq,
+		fne,
+		// Other operators
+		phi,
+		call,
+		getelementptr,
+		zext, // zero extend
+		fptosi,
+		sitofp,
+		// float binary operators Logical operators
 
-    BasicBlock *get_parent() { return parent_; }
-    const BasicBlock *get_parent() const { return parent_; }
-    void set_parent(BasicBlock *parent) { this->parent_ = parent; }
+		// mem 系列, 对内存使用 SIMD 快速填充
+		// 内存复制
+		memcpy_,
+		// 内存填充
+		memclear_,
+		// 将数字指针类型转换为 char 指针类型
+		nump2charp,
+		// 转换数组全局变量的类型以适应它应该有的类型
+		// llvm 的全局变量定义会导致其类型与预期不一致(仅仅是形状)
+		global_fix
+	};
 
-    // Return the function this instruction belongs to.
-    Function *get_function();
-    Module *get_module();
+	/**
+   * 
+   * @param ty 返回类型
+   * @param id 函数指令类型
+   * @param parent 如果 parent != nullptr, 自动插入 basicblock
+   */
+	Instruction(Type* ty, OpID id, BasicBlock* parent = nullptr);
+	~Instruction() override = default;
 
-    OpID get_instr_type() const { return op_id_; }
-    std::string get_instr_op_name() const;
+	// 指令所属基本块
+	BasicBlock* get_parent() { return parent_; }
+	// 指令所属基本块
+	[[nodiscard]] const BasicBlock* get_parent() const { return parent_; }
+	// 设置指令所属基本块
+	void set_parent(BasicBlock* parent) { this->parent_ = parent; }
 
-    bool is_void() {
-        return ((op_id_ == ret) || (op_id_ == br) || (op_id_ == store) ||
-                (op_id_ == call && this->get_type()->is_void_type()));
-    }
+	// 指令所属函数
+	[[nodiscard]] Function* get_function() const;
+	// 指令所属模块
+	[[nodiscard]] Module* get_module() const;
 
-    bool is_phi() const { return op_id_ == phi; }
-    bool is_store() const { return op_id_ == store; }
-    bool is_alloca() const { return op_id_ == alloca; }
-    bool is_ret() const { return op_id_ == ret; }
-    bool is_load() const { return op_id_ == load; }
-    bool is_br() const { return op_id_ == br; }
+	// 指令类型
+	[[nodiscard]] OpID get_instr_type() const { return op_id_; }
 
-    bool is_add() const { return op_id_ == add; }
-    bool is_sub() const { return op_id_ == sub; }
-    bool is_mul() const { return op_id_ == mul; }
-    bool is_div() const { return op_id_ == sdiv; }
+	[[nodiscard]] std::string get_instr_op_name() const;
 
-    bool is_fadd() const { return op_id_ == fadd; }
-    bool is_fsub() const { return op_id_ == fsub; }
-    bool is_fmul() const { return op_id_ == fmul; }
-    bool is_fdiv() const { return op_id_ == fdiv; }
-    bool is_fp2si() const { return op_id_ == fptosi; }
-    bool is_si2fp() const { return op_id_ == sitofp; }
+	[[nodiscard]] bool is_void() const;
 
-    bool is_cmp() const { return ge <= op_id_ and op_id_ <= ne; }
-    bool is_fcmp() const { return fge <= op_id_ and op_id_ <= fne; }
+	[[nodiscard]] bool is_phi() const { return op_id_ == phi; }
+	[[nodiscard]] bool is_store() const { return op_id_ == store; }
+	[[nodiscard]] bool is_alloca() const { return op_id_ == alloca_; }
+	[[nodiscard]] bool is_ret() const { return op_id_ == ret; }
+	[[nodiscard]] bool is_load() const { return op_id_ == load; }
+	[[nodiscard]] bool is_br() const { return op_id_ == br; }
 
-    bool is_call() const { return op_id_ == call; }
-    bool is_gep() const { return op_id_ == getelementptr; }
-    bool is_zext() const { return op_id_ == zext; }
+	[[nodiscard]] bool is_add() const { return op_id_ == add; }
+	[[nodiscard]] bool is_sub() const { return op_id_ == sub; }
+	[[nodiscard]] bool is_mul() const { return op_id_ == mul; }
+	[[nodiscard]] bool is_div() const { return op_id_ == sdiv; }
+	[[nodiscard]] bool is_rem() const { return op_id_ == srem; }
 
-    bool isBinary() const {
-        return (is_add() || is_sub() || is_mul() || is_div() || is_fadd() ||
-                is_fsub() || is_fmul() || is_fdiv()) &&
-               (get_num_operand() == 2);
-    }
+	[[nodiscard]] bool is_fadd() const { return op_id_ == fadd; }
+	[[nodiscard]] bool is_fsub() const { return op_id_ == fsub; }
+	[[nodiscard]] bool is_fmul() const { return op_id_ == fmul; }
+	[[nodiscard]] bool is_fdiv() const { return op_id_ == fdiv; }
+	[[nodiscard]] bool is_fp2si() const { return op_id_ == fptosi; }
+	[[nodiscard]] bool is_si2fp() const { return op_id_ == sitofp; }
 
-    bool isTerminator() const { return is_br() || is_ret(); }
+	[[nodiscard]] bool is_cmp() const { return ge <= op_id_ and op_id_ <= ne; }
+	[[nodiscard]] bool is_fcmp() const { return fge <= op_id_ and op_id_ <= fne; }
 
-  private:
-    OpID op_id_;
-    BasicBlock *parent_;
+	[[nodiscard]] bool is_call() const { return op_id_ == call; }
+	[[nodiscard]] bool is_gep() const { return op_id_ == getelementptr; }
+	[[nodiscard]] bool is_zext() const { return op_id_ == zext; }
+	[[nodiscard]] bool is_memcpy() const { return op_id_ == memcpy_; }
+	[[nodiscard]] bool is_memclear() const { return op_id_ == memclear_; }
+	[[nodiscard]] bool is_nump2charp() const { return op_id_ == nump2charp; }
+
+	[[nodiscard]] bool isBinary() const
+	{
+		return (is_add() || is_sub() || is_mul() || is_div() || is_fadd() ||
+		        is_fsub() || is_fmul() || is_fdiv()) &&
+		       (get_num_operand() == 2);
+	}
+
+	[[nodiscard]] bool isTerminator() const { return is_br() || is_ret(); }
+
+private:
+	OpID op_id_;
+	BasicBlock* parent_;
 };
 
-template <typename Inst> class BaseInst : public Instruction {
-  protected:
-    template <typename... Args> static Inst *create(Args &&...args) {
-        return new Inst(std::forward<Args>(args)...);
-    }
+template <typename Inst>
+class BaseInst : public Instruction
+{
+protected:
+	template <typename... Args>
+	static Inst* create(Args&&... args)
+	{
+		return new Inst(std::forward<Args>(args)...);
+	}
 
-    template <typename... Args>
-    BaseInst(Args &&...args) : Instruction(std::forward<Args>(args)...) {}
+	template <typename... Args>
+	BaseInst(Args&&... args) : Instruction(std::forward<Args>(args)...)
+	{
+	}
 };
 
-class IBinaryInst : public BaseInst<IBinaryInst> {
-    friend BaseInst<IBinaryInst>;
+class IBinaryInst : public BaseInst<IBinaryInst>
+{
+	friend BaseInst<IBinaryInst>;
 
-  private:
-    IBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb);
+	IBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb);
 
-  public:
-    static IBinaryInst *create_add(Value *v1, Value *v2, BasicBlock *bb);
-    static IBinaryInst *create_sub(Value *v1, Value *v2, BasicBlock *bb);
-    static IBinaryInst *create_mul(Value *v1, Value *v2, BasicBlock *bb);
-    static IBinaryInst *create_sdiv(Value *v1, Value *v2, BasicBlock *bb);
+public:
+	static IBinaryInst* create_add(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_sub(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_mul(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_sdiv(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_srem(Value* v1, Value* v2, BasicBlock* bb);
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class FBinaryInst : public BaseInst<FBinaryInst> {
-    friend BaseInst<FBinaryInst>;
+class FBinaryInst : public BaseInst<FBinaryInst>
+{
+	friend BaseInst<FBinaryInst>;
 
-  private:
-    FBinaryInst(OpID id, Value *v1, Value *v2, BasicBlock *bb);
+	FBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb);
 
-  public:
-    static FBinaryInst *create_fadd(Value *v1, Value *v2, BasicBlock *bb);
-    static FBinaryInst *create_fsub(Value *v1, Value *v2, BasicBlock *bb);
-    static FBinaryInst *create_fmul(Value *v1, Value *v2, BasicBlock *bb);
-    static FBinaryInst *create_fdiv(Value *v1, Value *v2, BasicBlock *bb);
+public:
+	static FBinaryInst* create_fadd(Value* v1, Value* v2, BasicBlock* bb);
+	static FBinaryInst* create_fsub(Value* v1, Value* v2, BasicBlock* bb);
+	static FBinaryInst* create_fmul(Value* v1, Value* v2, BasicBlock* bb);
+	static FBinaryInst* create_fdiv(Value* v1, Value* v2, BasicBlock* bb);
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class ICmpInst : public BaseInst<ICmpInst> {
-    friend BaseInst<ICmpInst>;
+class ICmpInst : public BaseInst<ICmpInst>
+{
+	friend BaseInst<ICmpInst>;
 
-  private:
-    ICmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb);
+	ICmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb);
 
-  public:
-    static ICmpInst *create_ge(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_gt(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_le(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_lt(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_eq(Value *v1, Value *v2, BasicBlock *bb);
-    static ICmpInst *create_ne(Value *v1, Value *v2, BasicBlock *bb);
+public:
+	static ICmpInst* create_ge(Value* v1, Value* v2, BasicBlock* bb);
+	static ICmpInst* create_gt(Value* v1, Value* v2, BasicBlock* bb);
+	static ICmpInst* create_le(Value* v1, Value* v2, BasicBlock* bb);
+	static ICmpInst* create_lt(Value* v1, Value* v2, BasicBlock* bb);
+	static ICmpInst* create_eq(Value* v1, Value* v2, BasicBlock* bb);
+	static ICmpInst* create_ne(Value* v1, Value* v2, BasicBlock* bb);
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class FCmpInst : public BaseInst<FCmpInst> {
-    friend BaseInst<FCmpInst>;
+class FCmpInst : public BaseInst<FCmpInst>
+{
+	friend BaseInst<FCmpInst>;
 
-  private:
-    FCmpInst(OpID id, Value *lhs, Value *rhs, BasicBlock *bb);
+	FCmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb);
 
-  public:
-    static FCmpInst *create_fge(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_fgt(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_fle(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_flt(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_feq(Value *v1, Value *v2, BasicBlock *bb);
-    static FCmpInst *create_fne(Value *v1, Value *v2, BasicBlock *bb);
+public:
+	static FCmpInst* create_fge(Value* v1, Value* v2, BasicBlock* bb);
+	static FCmpInst* create_fgt(Value* v1, Value* v2, BasicBlock* bb);
+	static FCmpInst* create_fle(Value* v1, Value* v2, BasicBlock* bb);
+	static FCmpInst* create_flt(Value* v1, Value* v2, BasicBlock* bb);
+	static FCmpInst* create_feq(Value* v1, Value* v2, BasicBlock* bb);
+	static FCmpInst* create_fne(Value* v1, Value* v2, BasicBlock* bb);
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class CallInst : public BaseInst<CallInst> {
-    friend BaseInst<CallInst>;
+class CallInst : public BaseInst<CallInst>
+{
+	friend BaseInst<CallInst>;
 
-  protected:
-    CallInst(Function *func, std::vector<Value *> args, BasicBlock *bb);
+protected:
+	CallInst(Function* func, const std::vector<Value*>& args, BasicBlock* bb);
 
-  public:
-    static CallInst *create_call(Function *func, std::vector<Value *> args,
-                                 BasicBlock *bb);
-    FunctionType *get_function_type() const;
+public:
+	static CallInst* create_call(Function* func, const std::vector<Value*>& args,
+	                             BasicBlock* bb);
+	[[nodiscard]] FuncType* get_function_type() const;
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class BranchInst : public BaseInst<BranchInst> {
-    friend BaseInst<BranchInst>;
+class BranchInst : public BaseInst<BranchInst>
+{
+	friend BaseInst<BranchInst>;
 
-  private:
-    BranchInst(Value *cond, BasicBlock *if_true, BasicBlock *if_false,
-               BasicBlock *bb);
-    ~BranchInst();
+	BranchInst(Value* cond, BasicBlock* if_true, BasicBlock* if_false,
+	           BasicBlock* bb);
+	~BranchInst() override;
 
-  public:
-    static BranchInst *create_cond_br(Value *cond, BasicBlock *if_true,
-                                      BasicBlock *if_false, BasicBlock *bb);
-    static BranchInst *create_br(BasicBlock *if_true, BasicBlock *bb);
+public:
+	BranchInst(const BranchInst&) = delete;
+	BranchInst(BranchInst&&) = delete;
+	BranchInst& operator=(const BranchInst&) = delete;
+	BranchInst& operator=(BranchInst&&) = delete;
+	static BranchInst* create_cond_br(Value* cond, BasicBlock* if_true,
+	                                  BasicBlock* if_false, BasicBlock* bb);
+	static BranchInst* create_br(BasicBlock* if_true, BasicBlock* bb);
 
-    bool is_cond_br() const { return get_num_operand() == 3; }
+	[[nodiscard]] bool is_cond_br() const { return get_num_operand() == 3; }
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class ReturnInst : public BaseInst<ReturnInst> {
-    friend BaseInst<ReturnInst>;
+class ReturnInst : public BaseInst<ReturnInst>
+{
+	friend BaseInst<ReturnInst>;
 
-  private:
-    ReturnInst(Value *val, BasicBlock *bb);
+	ReturnInst(Value* val, BasicBlock* bb);
 
-  public:
-    static ReturnInst *create_ret(Value *val, BasicBlock *bb);
-    static ReturnInst *create_void_ret(BasicBlock *bb);
-    bool is_void_ret() const;
+public:
+	static ReturnInst* create_ret(Value* val, BasicBlock* bb);
+	static ReturnInst* create_void_ret(BasicBlock* bb);
+	[[nodiscard]] bool is_void_ret() const;
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class GetElementPtrInst : public BaseInst<GetElementPtrInst> {
-    friend BaseInst<GetElementPtrInst>;
+class GetElementPtrInst : public BaseInst<GetElementPtrInst>
+{
+	friend BaseInst<GetElementPtrInst>;
 
-  private:
-    GetElementPtrInst(Value *ptr, std::vector<Value *> idxs, BasicBlock *bb);
+	GetElementPtrInst(Value* ptr, const std::vector<Value*>& idxs, BasicBlock* bb);
 
-  public:
-    static Type *get_element_type(Value *ptr, std::vector<Value *> idxs);
-    static GetElementPtrInst *create_gep(Value *ptr, std::vector<Value *> idxs,
-                                         BasicBlock *bb);
-    Type *get_element_type() const;
+public:
+	static Type* get_element_type(const Value* ptr, const std::vector<Value*>& idxs);
+	static GetElementPtrInst* create_gep(Value* ptr, const std::vector<Value*>& idxs,
+	                                     BasicBlock* bb);
+	[[nodiscard]] Type* get_element_type() const;
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class StoreInst : public BaseInst<StoreInst> {
-    friend BaseInst<StoreInst>;
+class StoreInst : public BaseInst<StoreInst>
+{
+	friend BaseInst<StoreInst>;
 
-  private:
-    StoreInst(Value *val, Value *ptr, BasicBlock *bb);
+	StoreInst(Value* val, Value* ptr, BasicBlock* bb);
 
-  public:
-    static StoreInst *create_store(Value *val, Value *ptr, BasicBlock *bb);
+public:
+	static StoreInst* create_store(Value* val, Value* ptr, BasicBlock* bb);
 
-    Value *get_rval() { return this->get_operand(0); }
-    Value *get_lval() { return this->get_operand(1); }
+	[[nodiscard]] Value* get_rval() const { return this->get_operand(0); }
+	[[nodiscard]] Value* get_lval() const { return this->get_operand(1); }
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class LoadInst : public BaseInst<LoadInst> {
-    friend BaseInst<LoadInst>;
+// 将内存从 from 复制到 to, length_ 为 4 的倍数(至少目前是)
+// 因而可以使用 SIMD 寄存器进行复制
+class MemCpyInst : public BaseInst<MemCpyInst>
+{
+	friend BaseInst<MemCpyInst>;
 
-  private:
-    LoadInst(Value *ptr, BasicBlock *bb);
+	MemCpyInst(Value* from, Value* to, int size, BasicBlock* bb);
 
-  public:
-    static LoadInst *create_load(Value *ptr, BasicBlock *bb);
+	int length_;
 
-    Value *get_lval() const { return this->get_operand(0); }
-    Type *get_load_type() const { return get_type(); };
+public:
+	static MemCpyInst* create_memcpy(Value* from, Value* to, int size, BasicBlock* bb);
 
-    virtual std::string print() override;
+	[[nodiscard]] Value* get_from() const { return this->get_operand(0); }
+	[[nodiscard]] Value* get_to() const { return this->get_operand(1); }
+	[[nodiscard]] int get_copy_bytes() const { return length_; }
+
+	std::string print() override;
 };
 
-class AllocaInst : public BaseInst<AllocaInst> {
-    friend BaseInst<AllocaInst>;
+// 将内存从 from 复制到 to, length_ 为 4 的倍数(至少目前是)
+// 因而可以使用 SIMD 寄存器进行复制
+class MemClearInst : public BaseInst<MemClearInst>
+{
+	friend BaseInst<MemClearInst>;
 
-  private:
-    AllocaInst(Type *ty, BasicBlock *bb);
+	MemClearInst(Value* target, int size, BasicBlock* bb);
 
-  public:
-    static AllocaInst *create_alloca(Type *ty, BasicBlock *bb);
+	int length_;
 
-    Type *get_alloca_type() const {
-        return get_type()->get_pointer_element_type();
-    };
+public:
+	static MemClearInst* create_memclear(Value* target, int size, BasicBlock* bb);
 
-    virtual std::string print() override;
+	[[nodiscard]] Value* get_target() const { return this->get_operand(0); }
+	[[nodiscard]] int get_clear_bytes() const { return length_; }
+
+	std::string print() override;
 };
 
-class ZextInst : public BaseInst<ZextInst> {
-    friend BaseInst<ZextInst>;
+// 将数字指针类型转换为 char 指针类型
+class Nump2CharpInst : public BaseInst<Nump2CharpInst>
+{
+	friend BaseInst<Nump2CharpInst>;
 
-  private:
-    ZextInst(Value *val, Type *ty, BasicBlock *bb);
+	Nump2CharpInst(Value* val, BasicBlock* bb);
 
-  public:
-    static ZextInst *create_zext(Value *val, Type *ty, BasicBlock *bb);
-    static ZextInst *create_zext_to_i32(Value *val, BasicBlock *bb);
+public:
+	static Nump2CharpInst* create_nump2charp(Value* val, BasicBlock* bb);
 
-    Type *get_dest_type() const { return get_type(); };
+	[[nodiscard]] Value* get_val() const { return this->get_operand(0); }
 
-    virtual std::string print() override;
+	std::string print() override;
 };
 
-class FpToSiInst : public BaseInst<FpToSiInst> {
-    friend BaseInst<FpToSiInst>;
 
-  private:
-    FpToSiInst(Value *val, Type *ty, BasicBlock *bb);
+// 转换数组全局变量的类型以适应它应该有的类型
+// llvm 的全局变量定义会导致其类型与预期不一致(仅仅是形状)
+class GlobalFixInst : public BaseInst<GlobalFixInst>
+{
+	friend BaseInst<GlobalFixInst>;
 
-  public:
-    static FpToSiInst *create_fptosi(Value *val, Type *ty, BasicBlock *bb);
-    static FpToSiInst *create_fptosi_to_i32(Value *val, BasicBlock *bb);
+	GlobalFixInst(GlobalVariable* val, BasicBlock* bb);
 
-    Type *get_dest_type() const { return get_type(); };
+public:
+	static GlobalFixInst* create_global_fix(GlobalVariable* val, BasicBlock* bb);
 
-    virtual std::string print() override;
+	[[nodiscard]] GlobalVariable* get_var() const;
+
+	std::string print() override;
 };
 
-class SiToFpInst : public BaseInst<SiToFpInst> {
-    friend BaseInst<SiToFpInst>;
 
-  private:
-    SiToFpInst(Value *val, Type *ty, BasicBlock *bb);
+class LoadInst : public BaseInst<LoadInst>
+{
+	friend BaseInst<LoadInst>;
 
-  public:
-    static SiToFpInst *create_sitofp(Value *val, BasicBlock *bb);
+	LoadInst(Value* ptr, BasicBlock* bb);
 
-    Type *get_dest_type() const { return get_type(); };
+public:
+	static LoadInst* create_load(Value* ptr, BasicBlock* bb);
 
-    virtual std::string print() override;
+	[[nodiscard]] Value* get_lval() const { return this->get_operand(0); }
+	[[nodiscard]] Type* get_load_type() const { return get_type(); }
+
+	std::string print() override;
 };
 
-class PhiInst : public BaseInst<PhiInst> {
-    friend BaseInst<PhiInst>;
+class AllocaInst : public BaseInst<AllocaInst>
+{
+	friend BaseInst<AllocaInst>;
 
-  private:
-    PhiInst(Type *ty, std::vector<Value *> vals,
-            std::vector<BasicBlock *> val_bbs, BasicBlock *bb);
+	AllocaInst(Type* ty, BasicBlock* bb);
 
-  public:
-    static PhiInst *create_phi(Type *ty, BasicBlock *bb,
-                               std::vector<Value *> vals = {},
-                               std::vector<BasicBlock *> val_bbs = {});
+public:
+	static AllocaInst* create_alloca(Type* ty, BasicBlock* bb);
 
-    void add_phi_pair_operand(Value *val, Value *pre_bb) {
-        this->add_operand(val);
-        this->add_operand(pre_bb);
-    }
-    virtual std::string print() override;
+	[[nodiscard]] Type* get_alloca_type() const;
+
+	std::string print() override;
 };
 
-#endif
+class ZextInst : public BaseInst<ZextInst>
+{
+	friend BaseInst<ZextInst>;
+
+	ZextInst(Value* val, Type* ty, BasicBlock* bb);
+
+public:
+	static ZextInst* create_zext_to_i32(Value* val, BasicBlock* bb);
+
+	[[nodiscard]] Type* get_dest_type() const { return get_type(); }
+
+	std::string print() override;
+};
+
+class FpToSiInst : public BaseInst<FpToSiInst>
+{
+	friend BaseInst<FpToSiInst>;
+
+	FpToSiInst(Value* val, Type* ty, BasicBlock* bb);
+
+public:
+	static FpToSiInst* create_fptosi(Value* val, Type* ty, BasicBlock* bb);
+	static FpToSiInst* create_fptosi_to_i32(Value* val, BasicBlock* bb);
+
+	[[nodiscard]] Type* get_dest_type() const { return get_type(); }
+
+	std::string print() override;
+};
+
+class SiToFpInst : public BaseInst<SiToFpInst>
+{
+	friend BaseInst<SiToFpInst>;
+
+	SiToFpInst(Value* val, Type* ty, BasicBlock* bb);
+
+public:
+	static SiToFpInst* create_sitofp(Value* val, BasicBlock* bb);
+
+	[[nodiscard]] Type* get_dest_type() const { return get_type(); }
+
+	std::string print() override;
+};
+
+class PhiInst : public BaseInst<PhiInst>
+{
+	friend BaseInst<PhiInst>;
+
+	PhiInst(Type* ty, const std::vector<Value*>& vals,
+	        const std::vector<BasicBlock*>& val_bbs, BasicBlock* bb);
+
+public:
+	static PhiInst* create_phi(Type* ty, BasicBlock* bb,
+	                           const std::vector<Value*>& vals = {},
+	                           const std::vector<BasicBlock*>& val_bbs = {});
+
+	void add_phi_pair_operand(Value* val, Value* pre_bb)
+	{
+		this->add_operand(val);
+		this->add_operand(pre_bb);
+	}
+
+	std::string print() override;
+};

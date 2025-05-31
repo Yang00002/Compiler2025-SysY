@@ -22,7 +22,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include)
 # ast 源文件集 
 aux_source_directory(src/ast astSource)
 # ir 源文件集 
-aux_source_directory(src/IR IR)
+aux_source_directory(src/ir IR)
 
 
 # 添加源文件

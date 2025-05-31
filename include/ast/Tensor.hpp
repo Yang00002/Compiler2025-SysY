@@ -1,8 +1,11 @@
 #pragma once
 #include <vector>
 #include <functional>
+#include <stack>
 #include <stdexcept>
 #include <string>
+
+#include "System.hpp"
 
 
 namespace error
@@ -18,6 +21,112 @@ namespace error
 
 template <typename Element>
 class TensorData;
+
+// 迭代器指向目标类型
+enum class TensorIterateType : uint8_t
+{
+	// 子张量, 发生在开始迭代某张量时(除了最外面的那层)
+	SUB_TENSOR_BEGIN,
+	// 子张量, 发生在迭代某张量结束时(除了最外面的那层)
+	SUB_TENSOR_END,
+	// 值
+	VALUE,
+	// 默认值
+	DEFAULT_VALUES
+};
+
+// 铺平的张量, 拥有成段的数据, 每一段要么是一段默认值, 要么是一段附加的值
+template <typename Element>
+class PlainTensor
+{
+public:
+	PlainTensor() = default;
+
+	[[nodiscard]] const Element& default_value() const
+	{
+		return _defaultValue;
+	}
+
+private:
+	template <typename U>
+	friend class Tensor;
+
+public:
+	PlainTensor(const PlainTensor&) = delete;
+	PlainTensor(PlainTensor&&) = delete;
+	PlainTensor& operator=(const PlainTensor&) = delete;
+	PlainTensor& operator=(PlainTensor&&) = delete;
+
+	~PlainTensor()
+	{
+		for (auto& i : _segments)
+		{
+			delete i;
+		}
+	}
+
+	// 段数
+	int segmentCount();
+	std::pair<std::vector<Element>*, int> segment(int index);
+
+private:
+	Element _defaultValue;
+
+	// 铺平的张量段
+	union PlainTensorSegment
+	{
+		// 附加的数据
+		std::vector<Element>* _elements;
+		int _len[2];
+		// 区分段类别
+		char _type[8];
+
+		PlainTensorSegment()
+		{
+			_elements = nullptr;
+			_type[system_about::LOGICAL_LEFT_END_8] = 1;
+		}
+
+		PlainTensorSegment(std::vector<Element>* e)
+		{
+			_elements = e;
+			_type[system_about::LOGICAL_LEFT_END_8] = 0;
+		}
+
+		PlainTensorSegment(int l)
+		{
+			_len[system_about::LOGICAL_RIGHT_END_2] = l;
+			_type[system_about::LOGICAL_LEFT_END_8] = 1;
+		}
+
+		~PlainTensorSegment()
+		{
+			if (_type[system_about::LOGICAL_LEFT_END_8] == 0) delete _elements;
+		}
+
+		PlainTensorSegment(const PlainTensorSegment&) = delete;
+		PlainTensorSegment(PlainTensorSegment&&) = delete;
+		PlainTensorSegment& operator=(const PlainTensorSegment&) = delete;
+		PlainTensorSegment& operator=(PlainTensorSegment&&) = delete;
+
+		[[nodiscard]] bool isVector() const
+		{
+			return _type[system_about::LOGICAL_LEFT_END_8] == 0;
+		}
+
+		[[nodiscard]] int& asLen()
+		{
+			return _len[system_about::LOGICAL_RIGHT_END_2];
+		}
+
+		[[nodiscard]] std::vector<Element>*& asVec()
+		{
+			return _elements;
+		}
+	};
+
+	std::vector<PlainTensorSegment*> _segments;
+};
 
 // 初始化张量
 template <typename Element>
@@ -44,7 +153,7 @@ private:
 public:
 	~Tensor();
 	// 张量形状, 当为 [] 代表是标量; 否则, 任何一维都应该是正整数.
-	const std::vector<int>& getShape();
+	[[nodiscard]] const std::vector<int>& getShape() const;
 	explicit Tensor(const std::vector<int>& shape, const Element& defaultV);
 	explicit Tensor(const std::vector<unsigned>& shape, const Element& defaultV);
 	// 每一维的容量, 例如 Tensor[4][3][2], 0 维占用 6, 1 维占用 2, 2 维占用 1.
@@ -57,6 +166,74 @@ public:
 	[[nodiscard]] const TensorData<Element>* visitData() const;
 	// 获取默认值
 	[[nodiscard]] Element defaultValue() const;
+	// 获取张量的元素 idx (从 0 开始) 的索引
+	[[nodiscard]] std::vector<int> index(int idx) const;
+
+	// 为张量定义的迭代器, 可以通过 ++ 迭代张量的每一个元素, 实现高效的张量访问
+	class Iterator
+	{
+		const Tensor* _tensor; // 所属张量
+		std::stack<const TensorData<Element>*> _data; // 目前的位置
+		std::stack<int> _index; // 位置索引
+		bool _end = false;
+
+	public:
+		explicit Iterator(const Tensor* tensor) : _tensor(tensor)
+		{
+			_data.emplace(tensor->visitData());
+			_index.emplace(0);
+		}
+
+		// 目前迭代器指向什么, 有三种可能
+		// TensorIterateType::SUB_TENSOR_BEGIN 子张量, 发生在开始迭代某张量时(除了最外面的那层)
+		// TensorIterateType:SUB_TENSOR_END 子张量, 发生在迭代某张量结束时(除了最外面的那层)
+		// TensorIterateType::VALUE 值
+		// TensorIterateType::DEFAULT_VALUES 默认值
+		TensorIterateType getCurrentIterateType();
+
+		// 如果迭代器指向的是值, 获取那个值, 否则报错
+		Element getValue();
+
+		// 如果迭代器指向的是默认值, 获取那个默认值和连续默认值的个数, 否则报错
+		std::pair<Element, int> getDefaultValues();
+
+
+		// 如果迭代器指向的是子张量, 获取那个子张量, 否则报错
+		const TensorData<Element>* getSubTensor();
+
+		// 前置递增操作符
+		Iterator& operator++();
+
+		// 是否迭代结束
+		[[nodiscard]] bool isEnd() const;
+	};
+
+	/* 获取迭代器, 用法如
+	for (auto it = tensor.getIterator(); !it.isEnd(); ++it)
+	{
+		switch (it.getCurrentIterateType())
+		{
+			case TensorIterateType::SUB_TENSOR_BEGIN:
+				break;
+			case TensorIterateType::SUB_TENSOR_END:
+				break;
+			case TensorIterateType::VALUE:
+				break;
+			case TensorIterateType::DEFAULT_VALUES:
+				break;
+		}
+	}
+	 */
+	[[nodiscard]] Iterator getIterator() const;
+
+	// 获得铺平的张量, 拥有成段的数据, 每一段要么是一段默认值, 要么是一段附加的值. 小于等于 gate 个的默认值会被视为附加值
+	[[nodiscard]] PlainTensor<Element>* toPlain(int gate = 0) const;
+
+
+	// 获得铺平的张量, 拥有成段的数据, 每一段要么是一段默认值, 要么是一段附加的值. 小于等于 gate 个的默认值会被视为附加值
+	// 通过转换函数, 可以将张量的数据转化为另一类型 
+	template <typename Target>
+	[[nodiscard]] PlainTensor<Target>* toPlain(std::function<Target(const Element&)> func, int gate = 0) const;
 };
 
 // 张量数据, 张量允许其中存储一系列数据, 其中可以包括各种容量的子张量, 当子张量起始维度是 -1 时, 它是标量.
@@ -118,17 +295,35 @@ public:
 	// 每一维的容量, 例如 Tensor[4][3][2], 0 维占用 6, 1 维占用 2, 2 维占用 1.
 	// 小于 0 的数输出张量总容量
 	[[nodiscard]] int getDimCapacity(int dim) const;
+	// 获取该张量已经分配的空间大小
+	[[nodiscard]] int getSpaceAllocated() const;
 	std::string toString(const std::function<std::string(const Element&)>& outFunc) const;
 	// 获取张量的一个元素, 标记 strict 代表任意维度都不允许越界, 否则只要总体上不越界就不会抛出异常
 	[[nodiscard]] Element getElement(const std::vector<int>& index, bool strict = false) const;
 	// 获取张量的一个元素
 	[[nodiscard]] Element getElement(int index) const;
-	// 获取张量的子张量.
-	[[nodiscard]] const std::vector<TensorData>* getSubTensors() const;
+	// 获取张量的子张量
+	[[nodiscard]] const std::vector<TensorData*>* getSubTensors() const;
 
 private:
 	explicit TensorData(Tensor<Element>* parent, int beginDim);
 };
+
+
+template <typename Element>
+int PlainTensor<Element>::segmentCount()
+{
+	return static_cast<int>(_segments.size());
+}
+
+template <typename Element>
+std::pair<std::vector<Element>*, int> PlainTensor<Element>::segment(int index)
+{
+	if (index < 0 || index >= segmentCount()) throw std::runtime_error("index out of bound");
+	auto i = _segments[index];
+	if (i->isVector()) return {i->asVec(), 0};
+	return {nullptr, i->asLen()};
+}
 
 template <typename Element>
 Tensor<Element>::~Tensor()
@@ -137,7 +332,7 @@ Tensor<Element>::~Tensor()
 }
 
 template <typename Element>
-const std::vector<int>& Tensor<Element>::getShape()
+const std::vector<int>& Tensor<Element>::getShape() const
 {
 	return _shape;
 }
@@ -218,6 +413,338 @@ Element Tensor<Element>::defaultValue() const
 }
 
 template <typename Element>
+std::vector<int> Tensor<Element>::index(int idx) const
+{
+	std::vector<int> ret;
+	int ed = static_cast<int>(_dimLen.size());
+	for (int i = 0; i < ed; i++)
+	{
+		int x = idx / _dimLen[i];
+		idx -= x * _dimLen[i];
+		ret.emplace_back(x);
+	}
+	return ret;
+}
+
+template <typename Element>
+TensorIterateType Tensor<Element>::Iterator::getCurrentIterateType()
+{
+	if (_end) throw std::runtime_error("tensor iterator stay on end");
+	auto dataTop = _data.top();
+	if (dataTop->getBeginDim() == -1) return TensorIterateType::VALUE;
+	auto idx = _index.top();
+	auto& subs = *dataTop->getSubTensors();
+	if (idx == -1) return TensorIterateType::SUB_TENSOR_END;
+	if (subs.size() > idx)
+	{
+		if (auto& sub = subs[idx]; sub->getBeginDim() == -1) return TensorIterateType::VALUE;
+		return TensorIterateType::SUB_TENSOR_BEGIN;
+	}
+	else return TensorIterateType::DEFAULT_VALUES;
+}
+
+template <typename Element>
+Element Tensor<Element>::Iterator::getValue()
+{
+	if (_end) throw std::runtime_error("tensor iterator stay on end");
+	auto dataTop = _data.top();
+	if (dataTop->getBeginDim() == -1) return dataTop->getElement(0);
+	auto idx = _index.top();
+	auto& subs = *dataTop->getSubTensors();
+	if (idx == -1) throw std::runtime_error("tensor iterator stay on sub tensor, not value, can not get value");
+	if (subs.size() > idx)
+	{
+		if (auto& sub = subs[idx]; sub->getBeginDim() == -1) return sub->getElement(0);
+		throw std::runtime_error("tensor iterator stay on sub tensor, not value, can not get value");
+	}
+	throw std::runtime_error("tensor iterator stay on default values, not value, can not get value");
+}
+
+template <typename Element>
+std::pair<Element, int> Tensor<Element>::Iterator::getDefaultValues()
+{
+	if (_end) throw std::runtime_error("tensor iterator stay on end");
+	auto dataTop = _data.top();
+	if (dataTop->getBeginDim() == -1)
+		throw
+			std::runtime_error("tensor iterator stay on value, not default values, can not get default values");
+	auto idx = _index.top();
+	auto& subs = *dataTop->getSubTensors();
+	if (idx == -1)
+		throw std::runtime_error(
+			"tensor iterator stay on sub tensor, not default values, can not get default values");
+	if (subs.size() > idx)
+	{
+		if (auto& sub = subs[idx]; sub->getBeginDim() == -1)
+			throw
+				std::runtime_error("tensor iterator stay on value, not default values, can not get default values");
+		throw std::runtime_error("tensor iterator stay on sub tensor, not default values, can not get default values");
+	}
+	auto allocated = dataTop->getSpaceAllocated();
+	auto all = dataTop->getDimCapacity(-1);
+	return {dataTop->tensorBelong()->defaultValue(), all - allocated};
+}
+
+template <typename Element>
+const TensorData<Element>* Tensor<Element>::Iterator::getSubTensor()
+{
+	if (_end) throw std::runtime_error("tensor iterator stay on end");
+	auto dataTop = _data.top();
+	if (dataTop->getBeginDim() == -1)
+		throw
+			std::runtime_error("tensor iterator stay on value, not sub tensor, can not get sub tensor");
+	auto idx = _index.top();
+	auto& subs = *dataTop->getSubTensors();
+	if (idx == -1) return dataTop;
+	if (subs.size() > idx)
+	{
+		auto& sub = subs[idx];
+		if (sub->getBeginDim() == -1)
+			throw
+				std::runtime_error("tensor iterator stay on value, not sub tensor, can not get sub tensor");
+		return sub;
+	}
+	throw std::runtime_error("tensor iterator stay on default values, not sub tensor, can not get sub tensor");
+}
+
+template <typename Element>
+typename Tensor<Element>::Iterator& Tensor<Element>::Iterator::operator++()
+{
+	if (_end) return *this;
+	auto dataTop = _data.top();
+	if (dataTop->getBeginDim() == -1)
+	{
+		_end = true;
+		return *this;
+	}
+	auto idx = _index.top();
+	if (idx == -1)
+	{
+		_index.pop();
+		_data.pop();
+		int size = _data.top()->getSubTensors()->size();
+		auto allocated = _data.top()->getSpaceAllocated();
+		auto all = _data.top()->getDimCapacity(-1);
+		idx = _index.top();
+		_index.pop();
+		if ((((idx + 1 == size) && (all <= allocated)) || (idx + 1 > size)))
+		{
+			if (_index.empty())
+			{
+				_end = true;
+				return *this;
+			}
+			_index.push(-1);
+			return *this;
+		}
+		_index.emplace(idx + 1);
+		return *this;
+	}
+	auto& subs = *dataTop->getSubTensors();
+	if (subs.size() > idx)
+	{
+		auto& sub = subs[idx];
+		if (sub->getBeginDim() != -1)
+		{
+			_index.emplace(0);
+			_data.emplace(sub);
+			return *this;
+		}
+	}
+	_index.pop();
+	int size = _data.top()->getSubTensors()->size();
+	auto allocated = dataTop->getSpaceAllocated();
+	auto all = dataTop->getDimCapacity(-1);
+	if ((idx + 1 < size) || (idx + 1 == size && all > allocated))
+		_index.emplace(idx + 1);
+	else
+	{
+		if (_index.empty())
+		{
+			_end = true;
+			return *this;
+		}
+		_index.emplace(-1);
+	}
+	return *this;
+}
+
+template <typename Element>
+bool Tensor<Element>::Iterator::isEnd() const
+{
+	return _end;
+}
+
+template <typename Element>
+typename Tensor<Element>::Iterator Tensor<Element>::getIterator() const
+{
+	return Iterator{this};
+}
+
+template <typename Element>
+PlainTensor<Element>* Tensor<Element>::toPlain(int gate) const
+{
+	auto p = new PlainTensor<Element>{};
+	p->_defaultValue = _defaultValue;
+	std::vector<Element>* v = nullptr;
+	int len = 0;
+	for (auto it = getIterator(); !it.isEnd(); ++it)
+	{
+		switch (it.getCurrentIterateType())
+		{
+			case TensorIterateType::VALUE:
+				{
+					auto value = it.getValue();
+					if (value == _defaultValue)
+					{
+						len++;
+						if (len > gate && v != nullptr)
+						{
+							auto n = new typename PlainTensor<Element>::PlainTensorSegment{v};
+							p->_segments.emplace_back(n);
+							v = nullptr;
+						}
+					}
+					else
+					{
+						if (len > 0)
+						{
+							if (len > gate)
+							{
+								auto n = new typename PlainTensor<Element>::PlainTensorSegment{len};
+								p->_segments.emplace_back(n);
+							}
+							else
+							{
+								if (v == nullptr) v = new std::vector<Element>{};
+								v->emplace_back(_defaultValue);
+							}
+							len = 0;
+						}
+						if (v == nullptr) v = new std::vector<Element>{};
+						v->emplace_back(value);
+					}
+					break;
+				}
+			case TensorIterateType::DEFAULT_VALUES:
+				{
+					auto [l, r] = it.getDefaultValues();
+					len += r;
+					if (len > gate && v != nullptr)
+					{
+						auto n = new typename PlainTensor<Element>::PlainTensorSegment{v};
+						p->_segments.emplace_back(n);
+						v = nullptr;
+					}
+					break;
+				}
+		}
+	}
+	if (len > 0)
+	{
+		if (len > gate)
+		{
+			auto n = new typename PlainTensor<Element>::PlainTensorSegment{len};
+			p->_segments.emplace_back(n);
+		}
+		else
+		{
+			if (v == nullptr) v = new std::vector<Element>{};
+			v->emplace_back(_defaultValue);
+		}
+	}
+	if (v != nullptr)
+	{
+		auto n = new typename PlainTensor<Element>::PlainTensorSegment{v};
+		p->_segments.emplace_back(n);
+		v = nullptr;
+	}
+	return p;
+}
+
+template <typename Element>
+template <typename Target>
+PlainTensor<Target>* Tensor<Element>::toPlain(std::function<Target(const Element&)> func, int gate) const
+{
+	auto p = new PlainTensor<Target>{};
+	p->_defaultValue = func(_defaultValue);
+	std::vector<Target>* v = nullptr;
+	int len = 0;
+	for (auto it = getIterator(); !it.isEnd(); ++it)
+	{
+		switch (it.getCurrentIterateType())
+		{
+			case TensorIterateType::VALUE:
+				{
+					auto value = it.getValue();
+					auto trans = func(value);
+					if (trans == p->_defaultValue)
+					{
+						len++;
+						if (len > gate && v != nullptr)
+						{
+							auto n = new typename PlainTensor<Target>::PlainTensorSegment{v};
+							p->_segments.emplace_back(n);
+							v = nullptr;
+						}
+					}
+					else
+					{
+						if (len > 0)
+						{
+							if (len > gate)
+							{
+								auto n = new typename PlainTensor<Target>::PlainTensorSegment{len};
+								p->_segments.emplace_back(n);
+							}
+							else
+							{
+								if (v == nullptr) v = new std::vector<Target>{};
+								v->emplace_back(p->_defaultValue);
+							}
+						}
+						if (v == nullptr) v = new std::vector<Target>{};
+						v->emplace_back(func(value));
+					}
+					break;
+				}
+			case TensorIterateType::DEFAULT_VALUES:
+				{
+					auto [l, r] = it.getDefaultValues();
+					len += r;
+					if (len > gate && v != nullptr)
+					{
+						auto n = new typename PlainTensor<Target>::PlainTensorSegment{v};
+						p->_segments.emplace_back(n);
+						v = nullptr;
+					}
+					break;
+				}
+		}
+	}
+	if (len > 0)
+	{
+		if (len > gate)
+		{
+			auto n = new typename PlainTensor<Target>::PlainTensorSegment{len};
+			p->_segments.emplace_back(n);
+		}
+		else
+		{
+			if (v == nullptr) v = new std::vector<Target>{};
+			v->emplace_back(p->_defaultValue);
+		}
+	}
+	if (v != nullptr)
+	{
+		auto n = new typename PlainTensor<Target>::PlainTensorSegment{v};
+		p->_segments.emplace_back(n);
+		v = nullptr;
+	}
+	return p;
+}
+
+template <typename Element>
 TensorData<Element>::~TensorData()
 {
 	if (_beginDim != -1)
@@ -291,8 +818,16 @@ template <typename Element>
 int TensorData<Element>::getDimCapacity(const int dim) const
 {
 	if (dim < 0) return _beginDim == -1 ? 1 : _tensor->_shape[_beginDim] * _tensor->_dimLen[_beginDim];
-	if (dim + _beginDim >= static_cast<int>(_tensor->_dimLen.size()))  throw error::TensorDimIndex(static_cast<int>(_tensor->_dimLen.size()), dim);
+	if (dim + _beginDim >= static_cast<int>(_tensor->_dimLen.size()))
+		throw error::TensorDimIndex(
+			static_cast<int>(_tensor->_dimLen.size()), dim);
 	return _tensor->_dimLen[dim + _beginDim];
+}
+
+template <typename Element>
+int TensorData<Element>::getSpaceAllocated() const
+{
+	return _size;
 }
 
 template <typename Element>
@@ -356,7 +891,7 @@ Element TensorData<Element>::getElement(int index) const
 }
 
 template <typename Element>
-const std::vector<TensorData<Element>>* TensorData<Element>::getSubTensors() const
+const std::vector<TensorData<Element>*>* TensorData<Element>::getSubTensors() const
 {
 	return _beginDim == -1 ? nullptr : _data._sub_tensors;
 }

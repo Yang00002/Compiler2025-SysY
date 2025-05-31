@@ -1,116 +1,139 @@
-#include "../../include/IR/Constant.hpp"
-#include "../../include/IR/Module.hpp"
+#include "../../include/ir/Constant.hpp"
 
+#include <iomanip>
 #include <iostream>
-#include <memory>
 #include <sstream>
-#include <unordered_map>
+#include <string>
 
-struct pair_hash {
-    template <typename T>
-    std::size_t operator()(const std::pair<T, Module *> val) const {
-        auto lhs = std::hash<T>()(val.first);
-        auto rhs =
-            std::hash<uintptr_t>()(reinterpret_cast<uintptr_t>(val.second));
-        return lhs ^ rhs;
-    }
-};
+#include "../../include/ast/System.hpp"
+#include "../../include/ast/Tensor.hpp"
+#include "../../include/ast/Type.hpp"
+#include "../../include/ir/Module.hpp"
 
-static std::unordered_map<std::pair<int, Module *>,
-                          std::unique_ptr<ConstantInt>, pair_hash>
-    cached_int;
-static std::unordered_map<std::pair<bool, Module *>,
-                          std::unique_ptr<ConstantInt>, pair_hash>
-    cached_bool;
-static std::unordered_map<std::pair<float, Module *>,
-                          std::unique_ptr<ConstantFP>, pair_hash>
-    cached_float;
-static std::unordered_map<Type *, std::unique_ptr<ConstantZero>> cached_zero;
+using namespace system_about;
+using namespace Types;
+using namespace std;
 
-ConstantInt *ConstantInt::get(int val, Module *m) {
-    if (cached_int.find(std::make_pair(val, m)) != cached_int.end())
-        return cached_int[std::make_pair(val, m)].get();
-    return (cached_int[std::make_pair(val, m)] = std::unique_ptr<ConstantInt>(
-                new ConstantInt(m->get_int32_type(), val)))
-        .get();
-}
-ConstantInt *ConstantInt::get(bool val, Module *m) {
-    if (cached_bool.find(std::make_pair(val, m)) != cached_bool.end())
-        return cached_bool[std::make_pair(val, m)].get();
-    return (cached_bool[std::make_pair(val, m)] = std::unique_ptr<ConstantInt>(
-                new ConstantInt(m->get_int1_type(), val ? 1 : 0)))
-        .get();
-}
-std::string ConstantInt::print() {
-    std::string const_ir;
-    Type *ty = this->get_type();
-    if (ty->is_integer_type() &&
-        static_cast<IntegerType *>(ty)->get_num_bits() == 1) {
-        // int1
-        const_ir += (this->get_value() == 0) ? "false" : "true";
-    } else {
-        // int32
-        const_ir += std::to_string(this->get_value());
-    }
-    return const_ir;
+bool ConstantValue::isIntConstant() const
+{
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x10);
 }
 
-ConstantArray::ConstantArray(ArrayType *ty, const std::vector<Constant *> &val)
-    : Constant(ty, "") {
-    for (unsigned i = 0; i < val.size(); i++)
-        set_operand(i, val[i]);
-    this->const_array.assign(val.begin(), val.end());
+bool ConstantValue::isBoolConstant() const
+{
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x11);
 }
 
-Constant *ConstantArray::get_element_value(int index) {
-    return this->const_array[index];
+bool ConstantValue::isFloatConstant() const
+{
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x01);
 }
 
-ConstantArray *ConstantArray::get(ArrayType *ty,
-                                  const std::vector<Constant *> &val) {
-    return new ConstantArray(ty, val);
+int ConstantValue::getIntConstant() const
+{
+	if (!isIntConstant()) throw std::runtime_error("ConstantValue Not Int ConstantValue");
+	return _field._int_value[LOGICAL_RIGHT_END_2];
 }
 
-std::string ConstantArray::print() {
-    std::string const_ir;
-    const_ir += this->get_type()->print();
-    const_ir += " ";
-    const_ir += "[";
-    for (unsigned i = 0; i < this->get_size_of_array(); i++) {
-        Constant *element = get_element_value(i);
-        if (!dynamic_cast<ConstantArray *>(get_element_value(i))) {
-            const_ir += element->get_type()->print();
-        }
-        const_ir += element->print();
-        if (i < this->get_size_of_array()) {
-            const_ir += ", ";
-        }
-    }
-    const_ir += "]";
-    return const_ir;
+bool ConstantValue::getBoolConstant() const
+{
+	if (!isBoolConstant()) throw std::runtime_error("ConstantValue Not Bool ConstantValue");
+	return _field._bool_value[LOGICAL_RIGHT_END_8];
 }
 
-ConstantFP *ConstantFP::get(float val, Module *m) {
-    if (cached_float.find(std::make_pair(val, m)) != cached_float.end())
-        return cached_float[std::make_pair(val, m)].get();
-    return (cached_float[std::make_pair(val, m)] = std::unique_ptr<ConstantFP>(
-                new ConstantFP(m->get_float_type(), val)))
-        .get();
+float ConstantValue::getFloatConstant() const
+{
+	if (!isFloatConstant()) throw std::runtime_error("ConstantValue Not Float ConstantValue");
+	return _field._float_value[LOGICAL_RIGHT_END_2];
 }
 
-std::string ConstantFP::print() {
-    std::stringstream fp_ir_ss;
-    std::string fp_ir;
-    double val = this->get_value();
-    fp_ir_ss << "0x" << std::hex << *(uint64_t *)&val << std::endl;
-    fp_ir_ss >> fp_ir;
-    return fp_ir;
+ConstantValue::ConstantValue(const int intConstant)
+{
+	_field._int_value[LOGICAL_RIGHT_END_2] = intConstant;
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x10);
 }
 
-ConstantZero *ConstantZero::get(Type *ty, Module *m) {
-    if (not cached_zero[ty])
-        cached_zero[ty] = std::unique_ptr<ConstantZero>(new ConstantZero(ty));
-    return cached_zero[ty].get();
+ConstantValue::ConstantValue(const float floatConstant)
+{
+	_field._float_value[LOGICAL_RIGHT_END_2] = floatConstant;
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x01);
 }
 
-std::string ConstantZero::print() { return "zeroinitializer"; }
+ConstantValue::ConstantValue(const bool boolConstant)
+{
+	_field._bool_value[LOGICAL_RIGHT_END_8] = boolConstant;
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x11);
+}
+
+Type* ConstantValue::getType() const
+{
+	if (isIntConstant()) return INT;
+	if (isFloatConstant()) return FLOAT;
+	return BOOL;
+}
+
+std::string ConstantValue::toString() const
+{
+	if (isIntConstant()) return to_string(_field._int_value[LOGICAL_RIGHT_END_2]);
+	if (isFloatConstant())
+	{
+		std::ostringstream oss;
+		oss << std::scientific << std::setprecision(8) << _field._float_value[LOGICAL_RIGHT_END_2];
+		return oss.str() + 'f';
+	}
+	return _field._bool_value[LOGICAL_RIGHT_END_8] ? "true" : "false";
+}
+
+std::string ConstantValue::print() const
+{
+	if (isIntConstant()) return to_string(_field._int_value[LOGICAL_RIGHT_END_2]);
+	if (isFloatConstant())
+	{
+		std::ostringstream oss;
+		oss << std::scientific << std::setprecision(8) << _field._float_value[LOGICAL_RIGHT_END_2];
+		return oss.str();
+	}
+	return _field._bool_value[LOGICAL_RIGHT_END_8] ? "true" : "false";
+}
+
+Constant::Constant(const int i, const std::string& name)
+	: ConstantValue(i), Value(Types::INT, name)
+{
+}
+
+Constant::Constant(const float i, const std::string& name)
+	: ConstantValue(i), Value(Types::FLOAT, name)
+{
+}
+
+Constant::Constant(const bool i, const std::string& name)
+	: ConstantValue(i), Value(Types::BOOL, name)
+{
+}
+
+Constant* Constant::create(Module* m, const int i)
+{
+	if (const auto it = m->int_constants_.find(i); it != m->int_constants_.end()) return it->second;
+	auto ret = new Constant{i};
+	m->int_constants_.emplace(i, ret);
+	return ret;
+}
+
+Constant* Constant::create(Module* m, float i)
+{
+	if (const auto it = m->float_constants_.find(i); it != m->float_constants_.end()) return it->second;
+	auto ret = new Constant{i};
+	m->float_constants_.emplace(i, ret);
+	return ret;
+}
+
+Constant* Constant::create(Module* m, const bool i)
+{
+	if (i) return m->true_constant_;
+	return m->false_constant_;
+}
+
+std::string Constant::print()
+{
+	return ConstantValue::print();
+}

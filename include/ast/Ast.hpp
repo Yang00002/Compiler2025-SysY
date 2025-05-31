@@ -1,9 +1,15 @@
 #pragma once
-#include "Tensor.hpp"
-#include "Type.hpp"
-#include "list"
-#include "../../antlr/SysYVisitor.h"
+#include <functional>
+#include <map>
+#include <list>
+#include <string>
 
+class Value;
+template <typename T>
+class Tensor;
+class Type;
+
+class SysYVisitor;
 class ASTBlock;
 class ASTLVal;
 class ASTNeg;
@@ -17,6 +23,8 @@ class ASTNumber;
 class ASTDecl;
 class ASTVarDecl;
 class ASTFuncDecl;
+class ConstantValue;
+class AST2IRVisitor;
 
 // 机器是小端架构
 extern bool IS_SMALL_END;
@@ -128,13 +136,23 @@ public:
 // 鉴于它并不真正维护 ASTExpression*, 需要将 ASTExpression* 挂载在另外的地方以供删除.
 class InitializeValue
 {
+	friend bool operator==(const InitializeValue& lhs, const InitializeValue& rhs)
+	{
+		return lhs._field._expression == rhs._field._expression;
+	}
+
+	friend bool operator!=(const InitializeValue& lhs, const InitializeValue& rhs)
+	{
+		return lhs._field._expression != rhs._field._expression;
+	}
+
 	union Field
 	{
-		ASTExpression* expression_ = nullptr;
-		int int_value_[2];
-		float float_value_[2];
-		bool bool_value_[8];
-		char segment_[8];
+		ASTExpression* _expression = nullptr;
+		int _int_value[2];
+		float _float_value[2];
+		bool _bool_value[8];
+		char _segment[8];
 	};
 
 	Field _field;
@@ -171,6 +189,9 @@ public:
 	[[nodiscard]] Type* getExpressionType() const;
 
 	[[nodiscard]] std::string toString() const;
+
+	// 尝试将 InitializeValue 转换为 ConstantValue
+	[[nodiscard]] ConstantValue toConstant() const;
 };
 
 // AST 树节点, 定义了一些公共方法. 该类型自身不会出现于树中. 只能是
@@ -204,12 +225,28 @@ public:
 	[[nodiscard]] ASTNode* getParent() const;
 	// 寻找第一个具有特定性质的父节点, 也包括自己
 	ASTNode* findParent(const std::function<bool(const ASTNode*)>& func);
+	virtual Value* accept(AST2IRVisitor* visitor) = 0;
 };
 
 // AST 树的根节点. 同时管理了整棵树的额外数据 *
 class ASTCompUnit final : public ASTNode
 {
 public:
+	[[nodiscard]] const std::vector<ASTVarDecl*>& var_declarations() const
+	{
+		return _var_declarations;
+	}
+
+	[[nodiscard]] const std::vector<ASTFuncDecl*>& func_declarations() const
+	{
+		return _func_declarations;
+	}
+
+	[[nodiscard]] const std::vector<ASTFuncDecl*>& lib() const
+	{
+		return _lib;
+	}
+
 	~ASTCompUnit() override;
 	ASTCompUnit();
 
@@ -234,6 +271,9 @@ private:
 
 protected:
 	ScopeTableInAST* getScopeTable() override;
+
+public:
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 声明, 该类型自身不会出现于树中. 只能是 ASTVarDecl 或 ASTFuncDecl
@@ -262,6 +302,7 @@ public:
 	ASTVarDecl(ASTVarDecl&& other) = delete;
 	ASTVarDecl& operator=(const ASTVarDecl& other) = delete;
 	ASTVarDecl& operator=(ASTVarDecl&& other) = delete;
+
 	ASTVarDecl(bool is_const, bool is_global, Type* type)
 		: _is_const(is_const),
 		  _is_global(is_global),
@@ -295,11 +336,19 @@ public:
 	[[nodiscard]] const Tensor<InitializeValue>* getInitList() const;
 	// 变量的类型
 	[[nodiscard]] Type* getType() const;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 函数声明, 有函数返回值, 参数声明
 class ASTFuncDecl final : public ASTDecl
 {
+public:
+	[[nodiscard]] ASTBlock* block() const
+	{
+		return _block;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTFuncDecl() override;
 	friend class Antlr2AstVisitor;
@@ -334,6 +383,7 @@ private:
 public:
 	// 是否是库函数
 	[[nodiscard]] bool isLibFunc() const;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 语句. 该类型自身不会出现于树中.
@@ -349,7 +399,7 @@ namespace AST
 }
 
 // 表达式, 该类型自身不会出现于树中. 只能是
-// ASTCast, ASTMathExp, ASTCall, ASTNeg, ASTLVal, ASTNot,  ASTLogicExp, ASTEqual, ASTRelation, ASTNumber
+// ASTCast, ASTMathExp, ASTCall, ASTNeg, ASTRVal, ASTNot,  ASTLogicExp, ASTEqual, ASTRelation, ASTNumber
 class ASTExpression : public ASTStmt
 {
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
@@ -379,11 +429,17 @@ public:
 	virtual ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) = 0;
 };
 
-// 左值表达式, 包含其引用的声明和使用的数组索引
-class ASTLVal final : public ASTExpression
+// 左值, 包含其引用的声明和使用的数组索引
+class ASTLVal final : public ASTNode
 {
+public:
+	[[nodiscard]] const std::vector<ASTExpression*>& index() const
+	{
+		return _index;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
-	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
 	// 引用声明
 	ASTVarDecl* _decl;
 	// 索引, 若没有则为空 *
@@ -397,10 +453,46 @@ public:
 	~ASTLVal() override;
 	ASTLVal(ASTVarDecl* target, const std::vector<ASTExpression*>& index);
 
+	// 引用声明
+	[[nodiscard]] ASTVarDecl* getDeclaration() const;
+	Value* accept(AST2IRVisitor* visitor) override;
+};
+
+// 右值表达式, 包含其引用的声明和使用的数组索引. 区分于左值, 右值是表达式而左值不是.
+class ASTRVal final : public ASTExpression
+{
+	friend class Antlr2AstVisitor;
+
+public:
+	[[nodiscard]] const std::vector<ASTExpression*>& index() const
+	{
+		return _index;
+	}
+
+private:
+	std::list<std::string> toStringList() override;
+	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
+	// 引用声明
+	ASTVarDecl* _decl;
+	// 索引, 若没有则为空 *
+	std::vector<ASTExpression*> _index;
+
+	// 尽管逻辑上是左值可以转换为右值, 但是在 AST 中由于右值是表达式, 对数据结构更友好
+	ASTLVal* toLVal() const;
+
+public:
+	ASTRVal(const ASTRVal& other) = delete;
+	ASTRVal(ASTRVal&& other) = delete;
+	ASTRVal& operator=(const ASTRVal& other) = delete;
+	ASTRVal& operator=(ASTRVal&& other) = delete;
+	~ASTRVal() override;
+	ASTRVal(ASTVarDecl* target, const std::vector<ASTExpression*>& index);
+
 	[[nodiscard]] Type* getExpressionType() const override;
 	// 引用声明
 	[[nodiscard]] ASTVarDecl* getDeclaration() const;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 常数, 可以是 bool / float 或 int
@@ -419,7 +511,7 @@ class ASTNumber final : public ASTExpression
 
 	Field _field;
 	// 类型
-	Type* _type = Types::INT;
+	Type* _type;
 
 public:
 	explicit ASTNumber(int i);
@@ -451,11 +543,24 @@ public:
 	//转化为初始化张量数据
 	[[nodiscard]] InitializeValue toInitializeValue() const;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 强制类型转换, 包含源表达式和转换后类型
 class ASTCast final : public ASTExpression
 {
+public:
+	[[nodiscard]] ASTExpression* source() const
+	{
+		return _source;
+	}
+
+	[[nodiscard]] Type* cast_to() const
+	{
+		return _castTo;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTCast() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
@@ -471,23 +576,40 @@ public:
 	[[nodiscard]] Type* getExpressionType() const override;
 
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
 	// 源表达式 *
 	ASTExpression* _source;
-	// 目标类型, INT/FLOAT, 无法转化 bool, bool 使用 Math2Logic
+	// 目标类型
 	Type* _castTo;
 };
 
 // 算数表达式, 包含左右操作数(同一类型)和算符
 class ASTMathExp final : public ASTExpression
 {
+public:
+	[[nodiscard]] MathOP op() const
+	{
+		return _op;
+	}
+
+	[[nodiscard]] ASTExpression* l() const
+	{
+		return _l;
+	}
+
+	[[nodiscard]] ASTExpression* r() const
+	{
+		return _r;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTMathExp() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
 
 public:
-
 	ASTMathExp(const ASTMathExp& other) = delete;
 	ASTMathExp(ASTMathExp&& other) = delete;
 	ASTMathExp& operator=(const ASTMathExp& other) = delete;
@@ -497,6 +619,7 @@ public:
 
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
 	// 结果类型
@@ -512,6 +635,18 @@ private:
 // 逻辑表达式, 包含所有操作数(bool 类型)和算符
 class ASTLogicExp final : public ASTExpression
 {
+public:
+	[[nodiscard]] LogicOP op() const
+	{
+		return _op;
+	}
+
+	[[nodiscard]] const std::vector<ASTExpression*>& exps() const
+	{
+		return _exps;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTLogicExp() override;
 
@@ -542,6 +677,7 @@ public:
 
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 相等表达式, 包含所有操作数和算符, 区别于比较表达式, 其操作数可以全为 bool 类型
@@ -549,6 +685,23 @@ public:
 // AST 保证这种嵌套只会在表达式最外层发生一次, 并且其下的 ASTLogicExp 一定是 UNDEFINE 状态.
 class ASTEqual final : public ASTExpression
 {
+public:
+	[[nodiscard]] bool op_equal() const
+	{
+		return _op_equal;
+	}
+
+	[[nodiscard]] ASTExpression* l() const
+	{
+		return _l;
+	}
+
+	[[nodiscard]] ASTExpression* r() const
+	{
+		return _r;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTEqual() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
@@ -579,11 +732,29 @@ private:
 public:
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 比较表达式, 包含所有操作数和算符, 区别于相等表达式, 其操作数不能为 bool 类型
 class ASTRelation final : public ASTExpression
 {
+public:
+	[[nodiscard]] RelationOP op() const
+	{
+		return _op;
+	}
+
+	[[nodiscard]] ASTExpression* l() const
+	{
+		return _l;
+	}
+
+	[[nodiscard]] ASTExpression* r() const
+	{
+		return _r;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTRelation() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
@@ -614,11 +785,24 @@ private:
 public:
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 函数调用, 包含函数声明和输入参数
 class ASTCall final : public ASTExpression
 {
+public:
+	[[nodiscard]] ASTFuncDecl* function() const
+	{
+		return _function;
+	}
+
+	[[nodiscard]] const std::vector<ASTExpression*>& parameters() const
+	{
+		return _parameters;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTCall() override;
 
@@ -630,6 +814,7 @@ public:
 	ASTCall(ASTFuncDecl* function, const std::vector<ASTExpression*>& parameters);
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
 	// 函数声明
@@ -644,6 +829,13 @@ private:
 // 取负号表达式, 包含操作数. 该节点会自动简化
 class ASTNeg final : ASTExpression
 {
+public:
+	[[nodiscard]] ASTExpression* hold() const
+	{
+		return _hold;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTNeg() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
@@ -660,11 +852,19 @@ public:
 
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 非表达式, 只能作用于逻辑表达式. 两个 ! 会折叠. 包含符号和所含表达式
 class ASTNot final : public ASTExpression
 {
+public:
+	[[nodiscard]] ASTExpression* hold() const
+	{
+		return _hold;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTNot() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
@@ -681,6 +881,7 @@ public:
 	explicit ASTNot(ASTExpression* contained);
 	[[nodiscard]] Type* getExpressionType() const override;
 	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
+	Value* accept(AST2IRVisitor* visitor) override;
 
 protected:
 	// 所含表达式 *
@@ -690,6 +891,13 @@ protected:
 // 基本块. 包含一个语句列表和一个符号表. *
 class ASTBlock final : public ASTStmt
 {
+public:
+	[[nodiscard]] std::vector<ASTNode*>& stmts()
+	{
+		return _stmts;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 
 	~ASTBlock() override;
@@ -712,11 +920,24 @@ public:
 	ASTBlock(ASTBlock&& other) = delete;
 	ASTBlock& operator=(const ASTBlock& other) = delete;
 	ASTBlock& operator=(ASTBlock&& other) = delete;
+	Value* accept(AST2IRVisitor* visitor) override;
 };
 
 // 赋值语句. 包含赋值目标左值和所赋值
 class ASTAssign final : public ASTStmt
 {
+public:
+	[[nodiscard]] ASTLVal* assign_to() const
+	{
+		return _assign_to;
+	}
+
+	[[nodiscard]] ASTExpression* assign_value() const
+	{
+		return _assign_value;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 
 	~ASTAssign() override;
@@ -727,6 +948,7 @@ public:
 	ASTAssign& operator=(const ASTAssign& other) = delete;
 	ASTAssign& operator=(ASTAssign&& other) = delete;
 	ASTAssign(ASTLVal* assign_to, ASTExpression* assign_value);
+	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
 	// 目标左值 *
@@ -738,6 +960,23 @@ private:
 // IF 语句. 包含条件, IF 子句和 ELSE 子句(没有则为空)
 class ASTIf final : public ASTStmt
 {
+public:
+	[[nodiscard]] ASTExpression* cond() const
+	{
+		return _cond;
+	}
+
+	[[nodiscard]] const std::vector<ASTStmt*>& if_stmt() const
+	{
+		return _if_stmt;
+	}
+
+	[[nodiscard]] const std::vector<ASTStmt*>& else_stmt() const
+	{
+		return _else_stmt;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTIf() override;
 	friend class Antlr2AstVisitor;
@@ -752,6 +991,8 @@ public:
 	{
 	}
 
+	Value* accept(AST2IRVisitor* visitor) override;
+
 private:
 	// 条件 *
 	ASTExpression* _cond;
@@ -764,6 +1005,18 @@ private:
 // WHILE 语句. 包含条件和子句
 class ASTWhile final : public ASTStmt
 {
+public:
+	[[nodiscard]] ASTExpression* cond() const
+	{
+		return _cond;
+	}
+
+	[[nodiscard]] const std::vector<ASTStmt*>& stmt() const
+	{
+		return _stmt;
+	}
+
+private:
 	std::list<std::string> toStringList() override;
 	~ASTWhile() override;
 	friend class Antlr2AstVisitor;
@@ -777,6 +1030,8 @@ public:
 	ASTWhile(ASTExpression* cond) : _cond(cond)
 	{
 	}
+
+	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
 	// 条件 *
@@ -796,6 +1051,8 @@ public:
 	{
 	}
 
+	Value* accept(AST2IRVisitor* visitor) override;
+
 private:
 	// 目标节点, 仅是为了方便定位, 同样只能跳出最近循环
 	ASTWhile* _target;
@@ -807,6 +1064,16 @@ private:
 class ASTReturn final : public ASTStmt
 {
 public:
+	[[nodiscard]] ASTExpression* return_value() const
+	{
+		return _return_value;
+	}
+
+	[[nodiscard]] ASTFuncDecl* function() const
+	{
+		return _function;
+	}
+
 	ASTReturn(const ASTReturn& other) = delete;
 	ASTReturn(ASTReturn&& other) = delete;
 	ASTReturn& operator=(const ASTReturn& other) = delete;
@@ -822,6 +1089,8 @@ public:
 	ASTReturn(ASTExpression* return_value, ASTFuncDecl* function) : _return_value(return_value), _function(function)
 	{
 	}
+
+	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
 	// 返回值, 与函数返回值类型一致, 故可能为 nullptr *

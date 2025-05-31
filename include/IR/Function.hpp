@@ -1,81 +1,91 @@
-#ifndef FUNCTION_HPP
-#define FUNCTION_HPP
-
-#include "BasicBlock.hpp"
-#include "Type.hpp"
-#include "User.hpp"
+#pragma once
 
 #include <cassert>
-#include <cstddef>
-#include <iterator>
 #include <list>
-#include <map>
-#include <memory>
 
+#include "Value.hpp"
+
+class FuncType;
+class BasicBlock;
 class Module;
 class Argument;
-class Type;
-class FunctionType;
 
-class Function : public Value {
-  public:
-    Function(const Function &) = delete;
-    Function(FunctionType *ty, const std::string &name, Module *parent);
-    ~Function() = default;
-    static Function *create(FunctionType *ty, const std::string &name,
-                            Module *parent);
+// 函数, 函数管理它下面所有基本块的内存, 从函数删除基本块也会释放内存
+class Function : public Value
+{
+public:
+	Function(const Function& other) = delete;
+	Function(Function&& other) = delete;
+	Function& operator=(const Function& other) = delete;
+	Function& operator=(Function&& other) = delete;
+	Function(FuncType* ty, const std::string& name, Module* parent, bool is_lib = false);
 
-    FunctionType *get_function_type() const;
-    Type *get_return_type() const;
+	~Function() override;
 
-    void add_basic_block(BasicBlock *bb);
+	static Function* create(FuncType* ty, const std::string& name,
+	                        Module* parent, bool is_lib = false);
 
-    unsigned get_num_of_args() const;
-    unsigned get_num_basic_blocks() const;
+	[[nodiscard]] FuncType* get_function_type() const;
+	[[nodiscard]] Type* get_return_type() const;
 
-    Module *get_parent() const;
+	void add_basic_block(BasicBlock* bb);
 
-    void remove(BasicBlock *bb);
-    BasicBlock* get_entry_block() { return &*basic_blocks_.begin(); }
+	[[nodiscard]] unsigned get_num_of_args() const;
+	[[nodiscard]] unsigned get_num_basic_blocks() const;
 
-    std::list<BasicBlock>& get_basic_blocks() { return basic_blocks_; }
-    std::list<Argument>& get_args() { return arguments_; }
+	[[nodiscard]] Module* get_parent() const;
 
-    bool is_declaration() { return basic_blocks_.empty(); }
+	void remove(BasicBlock* bb);
+	[[nodiscard]] BasicBlock* get_entry_block() const { return *basic_blocks_.begin(); }
 
-    void set_instr_name();
-    std::string print();
+	std::list<BasicBlock*>& get_basic_blocks() { return basic_blocks_; }
+	std::list<Argument>& get_args() { return arguments_; }
 
-    Value* ret_alloca_;
-  private:
-    std::list<BasicBlock> basic_blocks_;
-    std::list<Argument> arguments_;
-    Module* parent_;
-    unsigned seq_cnt_; // print use
+	[[nodiscard]] bool is_declaration() const { return basic_blocks_.empty(); }
+
+	void set_instr_name();
+	std::string print() override;
+
+	Value* ret_alloca_;
+
+private:
+	// 是否是库函数, 以对函数参数进行不同的除了
+	bool is_lib_;
+	std::list<BasicBlock*> basic_blocks_;
+	std::list<Argument> arguments_;
+	Module* parent_;
+	unsigned seq_cnt_; // print use
 };
 
 // Argument of Function, does not contain actual value
-class Argument : public Value {
-  public:
-    Argument(const Argument &) = delete;
-    explicit Argument(Type *ty, const std::string &name = "", Function *f = nullptr, unsigned arg_no = 0)
-        : Value(ty, name), parent_(f), arg_no_(arg_no) {}
-    virtual ~Argument() {}
+class Argument : public Value
+{
+public:
+	Argument(const Argument& other) = delete;
+	Argument(Argument&& other) = delete;
+	Argument& operator=(const Argument& other) = delete;
+	Argument& operator=(Argument&& other) = delete;
 
-    inline const Function *get_parent() const { return parent_; }
-    inline Function *get_parent() { return parent_; }
+	explicit Argument(Type* ty, const std::string& name = "", Function* f = nullptr, unsigned arg_no = 0)
+		: Value(ty, name), parent_(f), arg_no_(arg_no)
+	{
+	}
 
-    /// For example in "void foo(int a, float b)" a is 0 and b is 1.
-    unsigned get_arg_no() const {
-        assert(parent_ && "can't get number of unparented arg");
-        return arg_no_;
-    }
+	~Argument() override = default;
 
-    virtual std::string print() override;
+	[[nodiscard]] const Function* get_parent() const { return parent_; }
+	Function* get_parent() { return parent_; }
 
-  private:
-    Function *parent_;
-    unsigned arg_no_; // argument No.
+	// For example in "void foo(int a, float b)" a is 0 and b is 1.
+	[[nodiscard]] unsigned get_arg_no() const
+	{
+		assert(parent_ && "can't get number of unparented arg");
+		return arg_no_;
+	}
+
+	std::string print() override;
+
+private:
+	Function* parent_;
+	unsigned arg_no_; // argument No.
 };
-
-#endif

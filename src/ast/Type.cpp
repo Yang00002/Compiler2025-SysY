@@ -1,7 +1,21 @@
 #include "../../include/ast/Type.hpp"
 
 #include <iostream>
+#include <map>
 #include <set>
+
+namespace error
+{
+	namespace
+	{
+		std::runtime_error FuncTypeArgIndex(int limit, int get)
+		{
+			return std::runtime_error(
+				"FuncTypeArgIndex Error: Function have " + std::to_string(limit) + " arguments, index " +
+				std::to_string(get) + " out of bound");
+		}
+	}
+}
 
 
 namespace
@@ -12,12 +26,15 @@ namespace
 		{
 			case TypeIDs::Void:
 			case TypeIDs::Function:
-			case TypeIDs::Label: return 0;
-			case TypeIDs::Integer: return 32;
+			case TypeIDs::Label:
+			case TypeIDs::Array:
+				return 0;
 			case TypeIDs::Boolean: return 1;
-			case TypeIDs::Array: return 0;
+			case TypeIDs::Float:
+			case TypeIDs::Integer: return 32;
+			case TypeIDs::Pointer:
 			case TypeIDs::ArrayInParameter: return 64;
-			case TypeIDs::Float: return 32;
+			case TypeIDs::Char: return 8;
 		}
 		return 0;
 	}
@@ -67,12 +84,21 @@ struct CompareFuncType
 	}
 };
 
+struct ComparePointerType
+{
+	bool operator()(const PointerType* a, const PointerType* b) const
+	{
+		return a->_contained < b->_contained;
+	}
+};
+
 class TypeAllocator
 {
 public:
 	std::vector<Type*> basicTypes_;
 	std::set<ArrayType*, CompareArrayType> arrayTypes_;
 	std::set<FuncType*, CompareFuncType> funcTypes_;
+	std::set<PointerType*, ComparePointerType> pointerTypes_;
 	TypeAllocator() = default;
 	TypeAllocator(const TypeAllocator& other) = delete;
 	TypeAllocator(TypeAllocator&& other) = delete;
@@ -84,6 +110,7 @@ public:
 		for (const auto& i : basicTypes_) delete i;
 		for (const auto& i : arrayTypes_) delete i;
 		for (const auto& i : funcTypes_) delete i;
+		for (const auto& i : pointerTypes_) delete i;
 	}
 };
 
@@ -104,6 +131,8 @@ std::string to_string(const TypeIDs e)
 		case TypeIDs::Array: return "array";
 		case TypeIDs::ArrayInParameter: return "arrayInParameter";
 		case TypeIDs::Float: return "float";
+		case TypeIDs::Pointer: return "pointer";
+		case TypeIDs::Char: return "char";
 	}
 	return "unknown";
 }
@@ -123,6 +152,33 @@ std::string Type::toString() const
 	return to_string(_basic_type);
 }
 
+std::string Type::print() const
+{
+	switch (_basic_type)
+	{
+		case TypeIDs::Void:
+			return "void";
+		case TypeIDs::Label:
+			return "label";
+		case TypeIDs::Integer:
+			return "i32";
+		case TypeIDs::Boolean:
+			return "i1";
+		case TypeIDs::Function:
+			return "function";
+		case TypeIDs::Array:
+		case TypeIDs::ArrayInParameter:
+			return "array";
+		case TypeIDs::Float:
+			return "float";
+		case TypeIDs::Pointer:
+			return "pointer";
+		case TypeIDs::Char:
+			return "i8";
+	}
+	return "";
+}
+
 TypeIDs Type::getTypeID() const
 {
 	return _basic_type;
@@ -138,9 +194,14 @@ bool Type::isFunctionType() const
 	return _basic_type == TypeIDs::Function;
 }
 
+bool Type::isPointerType() const
+{
+	return _basic_type == TypeIDs::Pointer;
+}
+
 bool Type::isComplexType() const
 {
-	return isArrayType() || isFunctionType();
+	return isArrayType() || isFunctionType() || isPointerType();
 }
 
 bool Type::isBasicType() const
@@ -151,6 +212,43 @@ bool Type::isBasicType() const
 bool Type::isBasicValueType() const
 {
 	return _basic_type == TypeIDs::Integer || _basic_type == TypeIDs::Boolean || _basic_type == TypeIDs::Float;
+}
+
+ArrayType* Type::toArrayType() const
+{
+	return dynamic_cast<ArrayType*>(const_cast<Type*>(this));
+}
+
+FuncType* Type::toFuncType() const
+{
+	return dynamic_cast<FuncType*>(const_cast<Type*>(this));
+}
+
+PointerType* Type::toPointerType() const
+{
+	return dynamic_cast<PointerType*>(const_cast<Type*>(this));
+}
+
+PointerType* Type::getPointerTypeContainSelf() const
+{
+	if (_basic_type == TypeIDs::ArrayInParameter)
+		return Types::pointerType(toArrayType()->getSubType(1));
+	return Types::pointerType(const_cast<Type*>(this));
+}
+
+PointerType* Types::pointerType(Type* contained)
+{
+	if (contained == Types::VOID || contained == Types::LABEL)
+		throw std::runtime_error("void or label can not have pointer");
+	auto type = new PointerType(contained);
+	const auto i = allocator.pointerTypes_.find(type);
+	if (i == allocator.pointerTypes_.end())
+	{
+		allocator.pointerTypes_.emplace(type);
+		return type;
+	}
+	delete type;
+	return *i;
 }
 
 ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter,
@@ -185,6 +283,17 @@ std::string ArrayType::toString() const
 	{
 		base += std::string("[") + std::to_string(i) + "]";
 	}
+	return base;
+}
+
+std::string ArrayType::print() const
+{
+	std::string base = Types::simpleType(_contained)->print();
+	for (auto it = _arrayDims.rbegin(); it != _arrayDims.rend(); ++it)
+	{
+		base = '[' + std::to_string(*it) + " x " + base + "]";
+	}
+	if (_basic_type == TypeIDs::ArrayInParameter) base += "*";
 	return base;
 }
 
@@ -283,13 +392,13 @@ Type* ArrayType::typeContained() const
 	return Types::simpleType(_contained);
 }
 
-FuncType::FuncType(const TypeIDs& returnType, const std::initializer_list<Type*> argTypes): Type(TypeIDs::Function)
+FuncType::FuncType(Type* returnType, const std::initializer_list<Type*> argTypes): Type(TypeIDs::Function)
 {
 	_returnType = returnType;
 	_argTypes = argTypes;
 }
 
-FuncType::FuncType(const TypeIDs& returnType, const std::vector<Type*>& argTypes) : Type(TypeIDs::Function)
+FuncType::FuncType(Type* returnType, const std::vector<Type*>& argTypes) : Type(TypeIDs::Function)
 {
 	_returnType = returnType;
 	_argTypes = argTypes;
@@ -297,7 +406,7 @@ FuncType::FuncType(const TypeIDs& returnType, const std::vector<Type*>& argTypes
 
 std::string FuncType::toString() const
 {
-	std::string ret = to_string(_returnType);
+	std::string ret = _returnType->toString();
 	ret += " " + to_string(_basic_type) + "(";
 	for (const auto& i : _argTypes)
 	{
@@ -308,7 +417,7 @@ std::string FuncType::toString() const
 	return ret;
 }
 
-TypeIDs FuncType::returnType() const
+Type* FuncType::returnType() const
 {
 	return _returnType;
 }
@@ -318,19 +427,62 @@ const std::vector<Type*>& FuncType::argumentTypes() const
 	return _argTypes;
 }
 
+Type* FuncType::argumentType(const int i) const
+{
+	if (i < 0 || i >= static_cast<int>(_argTypes.size()))
+		throw error::FuncTypeArgIndex(
+			static_cast<int>(_argTypes.size()), i);
+	return _argTypes[i];
+}
+
 unsigned FuncType::argumentCount() const
 {
 	return static_cast<unsigned>(_argTypes.size());
+}
+
+PointerType::PointerType(Type* contained) : Type(TypeIDs::Pointer)
+{
+	_contained = contained;
+}
+
+std::string PointerType::print() const
+{
+	return _contained->print() + "*";
+}
+
+std::string PointerType::toString() const
+{
+	if (_contained->isArrayType())
+	{
+		return to_string(_contained->getTypeID()) + "[]" + dynamic_cast<ArrayType*>(_contained)->suffixToString();
+	}
+	return _contained->toString() + "[]";
+}
+
+std::string PointerType::suffixToString() const
+{
+	if (_contained->isArrayType())
+	{
+		return "[]" + dynamic_cast<ArrayType*>(_contained)->suffixToString();
+	}
+	return "[]";
+}
+
+Type* PointerType::typeContained() const
+{
+	return _contained;
 }
 
 Type* Types::simpleType(const TypeIDs& contained)
 {
 	switch (contained)
 	{
+		case TypeIDs::Char: return CHAR;
 		case TypeIDs::Void: return VOID;
 		case TypeIDs::Label: return LABEL;
 		case TypeIDs::Integer: return INT;
 		case TypeIDs::Boolean: return BOOL;
+		case TypeIDs::Pointer:
 		case TypeIDs::Function:
 		case TypeIDs::Array:
 		case TypeIDs::ArrayInParameter: return nullptr;
@@ -357,6 +509,7 @@ namespace Types
 	Type* INT = basicType(TypeIDs::Integer);
 	Type* BOOL = basicType(TypeIDs::Boolean);
 	Type* FLOAT = basicType(TypeIDs::Float);
+	Type* CHAR = basicType(TypeIDs::Char);
 
 	ArrayType* arrayType(const TypeIDs& contained, const bool inParameter, const std::initializer_list<unsigned> dims)
 	{
@@ -369,17 +522,13 @@ namespace Types
 			if (i == allocator.arrayTypes_.end())
 			{
 				allocator.arrayTypes_.emplace(type);
+				if (type->getTypeID() == TypeIDs::Array)
+					for (const unsigned dim : type->_arrayDims)
+						type->_size *= dim;
 				return type;
 			}
-			if (type != *i)
-			{
-				delete type;
-				return *i;
-			}
-			if (type->getTypeID() == TypeIDs::Array)
-				for (const unsigned dim : type->_arrayDims)
-					type->_size *= dim;
-			return type;
+			delete type;
+			return *i;
 		}
 		throw std::runtime_error("Array Type can not have Element ID of " + to_string(contained));
 	}
@@ -395,22 +544,18 @@ namespace Types
 			if (i == allocator.arrayTypes_.end())
 			{
 				allocator.arrayTypes_.emplace(type);
+				if (type->getTypeID() == TypeIDs::Array)
+					for (const unsigned dim : type->_arrayDims)
+						type->_size *= dim;
 				return type;
 			}
-			if (type != *i)
-			{
-				delete type;
-				return *i;
-			}
-			if (type->getTypeID() == TypeIDs::Array)
-				for (const unsigned dim : type->_arrayDims)
-					type->_size *= dim;
-			return type;
+			delete type;
+			return *i;
 		}
 		throw std::runtime_error("Array Type can not have Element ID of " + to_string(contained));
 	}
 
-	ArrayType* arrayType(Type* contained, const bool inParameter, const std::initializer_list<unsigned> dims)
+	ArrayType* arrayType(const Type* contained, const bool inParameter, const std::initializer_list<unsigned> dims)
 	{
 		if (contained == FLOAT || contained == INT)
 		{
@@ -419,7 +564,7 @@ namespace Types
 		throw std::runtime_error("Array Type can not have Element ID of " + contained->toString());
 	}
 
-	ArrayType* arrayType(Type* contained, const bool inParameter, const std::vector<unsigned int>& dims)
+	ArrayType* arrayType(const Type* contained, const bool inParameter, const std::vector<unsigned int>& dims)
 	{
 		if (contained == FLOAT || contained == INT)
 		{
@@ -430,65 +575,67 @@ namespace Types
 
 	FuncType* functionType(const TypeIDs& returnType, const std::initializer_list<Type*> argTypes)
 	{
-		if (returnType == TypeIDs::Float || returnType == TypeIDs::Integer || returnType == TypeIDs::Void)
+		if (returnType == TypeIDs::Integer || returnType == TypeIDs::Float || returnType == TypeIDs::Void)
 		{
 			for (const auto arg_type : argTypes)
 			{
 				if (arg_type != FLOAT && arg_type != INT && arg_type->getTypeID() != TypeIDs::ArrayInParameter)
 				{
+					if (arg_type->isPointerType())
+					{
+						auto ty = arg_type->toPointerType()->typeContained();
+						if (ty == INT || ty == FLOAT || ty->getTypeID() == TypeIDs::Array) continue;
+					}
 					throw std::runtime_error(
 						"Func Type can not have argument type of " + arg_type->toString()
 					);
 				}
 			}
-			auto type = new FuncType(returnType, argTypes);
+			auto type = new FuncType(simpleType(returnType), argTypes);
 			const auto i = allocator.funcTypes_.find(type);
 			if (i == allocator.funcTypes_.end())
 			{
 				allocator.funcTypes_.emplace(type);
 				return type;
 			}
-			if (type != *i)
-			{
-				delete type;
-				return *i;
-			}
-			return type;
+			delete type;
+			return *i;
 		}
 		throw std::runtime_error("Func Type can not have return type of " + to_string(returnType));
 	}
 
 	FuncType* functionType(const TypeIDs& returnType, const std::vector<Type*>& argTypes)
 	{
-		if (returnType == TypeIDs::Float || returnType == TypeIDs::Integer || returnType == TypeIDs::Void)
+		if (returnType == TypeIDs::Integer || returnType == TypeIDs::Float || returnType == TypeIDs::Void)
 		{
 			for (const auto arg_type : argTypes)
 			{
 				if (arg_type != FLOAT && arg_type != INT && arg_type->getTypeID() != TypeIDs::ArrayInParameter)
 				{
+					if (arg_type->isPointerType())
+					{
+						auto ty = arg_type->toPointerType()->typeContained();
+						if (ty == INT || ty == FLOAT || ty->getTypeID() == TypeIDs::Array) continue;
+					}
 					throw std::runtime_error(
 						"Func Type can not have argument type of " + arg_type->toString()
 					);
 				}
 			}
-			auto type = new FuncType(returnType, argTypes);
+			auto type = new FuncType(simpleType(returnType), argTypes);
 			const auto i = allocator.funcTypes_.find(type);
 			if (i == allocator.funcTypes_.end())
 			{
 				allocator.funcTypes_.emplace(type);
 				return type;
 			}
-			if (type != *i)
-			{
-				delete type;
-				return *i;
-			}
-			return type;
+			delete type;
+			return *i;
 		}
 		throw std::runtime_error("Func Type can not have return type of " + to_string(returnType));
 	}
 
-	FuncType* functionType(Type* returnType, const std::initializer_list<Type*> argTypes)
+	FuncType* functionType(const Type* returnType, const std::initializer_list<Type*> argTypes)
 	{
 		if (returnType == FLOAT || returnType == INT || returnType == VOID)
 		{
@@ -497,7 +644,7 @@ namespace Types
 		throw std::runtime_error("Func Type can not have return type of " + returnType->toString());
 	}
 
-	FuncType* functionType(Type* returnType, const std::vector<Type*>& argTypes)
+	FuncType* functionType(const Type* returnType, const std::vector<Type*>& argTypes)
 	{
 		if (returnType == FLOAT || returnType == INT || returnType == VOID)
 		{
@@ -511,7 +658,7 @@ namespace Types
 		return functionType(returnType, {});
 	}
 
-	FuncType* functionType(Type* returnType)
+	FuncType* functionType(const Type* returnType)
 	{
 		return functionType(returnType, {});
 	}

@@ -1,8 +1,13 @@
 #pragma once
-#include "Ast.hpp"
-#include "Tensor.hpp"
-#include "Type.hpp"
 #include "../../antlr/SysYBaseVisitor.h"
+
+class ASTCompUnit;
+class Type;
+class ASTNode;
+class ASTVarDecl;
+class InitializeValue;
+template<typename T>
+class TensorData;
 
 class Antlr2AstVisitor final : SysYBaseVisitor
 {

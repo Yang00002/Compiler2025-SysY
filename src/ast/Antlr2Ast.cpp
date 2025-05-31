@@ -1,4 +1,7 @@
 #include "../../include/ast/Antlr2Ast.hpp"
+#include "../../include/ast/Ast.hpp"
+#include "../../include/ast/Type.hpp"
+#include "../../include/ast/Tensor.hpp"
 
 
 using namespace Types;
@@ -397,13 +400,16 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 	if (context->lVal() != nullptr)
 	{
 		const auto exp = any_cast<ASTExpression*>(context->lVal()->accept(this));
-		const auto lv = dynamic_cast<ASTLVal*>(exp);
-		if (lv == nullptr)
+		const auto rv = dynamic_cast<ASTRVal*>(exp);
+		if (rv == nullptr)
 			throw runtime_error("assign value to not lvalue expression");
-		if (lv->getDeclaration()->isConst())
-			throw runtime_error("assign value to const value " + lv->getDeclaration()->id());
+		if (rv->getDeclaration()->isConst())
+			throw runtime_error("assign value to const value " + rv->getDeclaration()->id());
+		const auto lv = rv->toLVal();
 		auto v = any_cast<ASTExpression*>(context->exp()->accept(this));
-		v = v->castTypeTo(lv->getExpressionType());
+		v = v->castTypeTo(rv->getExpressionType());
+		rv->_index.clear();
+		delete rv;
 		const auto stmt = new ASTAssign(lv, v);
 		lv->_parent = stmt;
 		v->_parent = stmt;
@@ -670,7 +676,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 			const auto l = decl->getInitList();
 			return static_cast<ASTExpression*>(new ASTNumber(l->visitData()->getElement(constIndexes)));
 		}
-		auto ret = static_cast<ASTExpression*>(new ASTLVal(decl, indexes));
+		auto ret = static_cast<ASTExpression*>(new ASTRVal(decl, indexes));
 		for (auto& i : indexes)
 		{
 			i->_parent = ret;
@@ -680,7 +686,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 	}
 	if (indexCount > 0) throw runtime_error("Scalar " + context->ID()->toString() + " has no index");
 	if (decl->isConst()) return static_cast<ASTExpression*>(new ASTNumber{decl->_initList->getData()->getElement({})});
-	const auto exp = new ASTLVal(decl, {});
+	const auto exp = new ASTRVal(decl, {});
 	return static_cast<ASTExpression*>(exp);
 }
 
@@ -1116,6 +1122,7 @@ std::any Antlr2AstVisitor::visitEqExp(SysYParser::EqExpContext* context)
 	auto l = any_cast<ASTExpression*>(context->eqExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->relExp()->accept(this));
 	auto tyT = ASTExpression::maxType(l, r, TypeCastEnvironment::LOGIC_EXPRESSION);
+	if (tyT == BOOL) tyT = INT;
 	l = l->castTypeTo(tyT, TypeCastEnvironment::LOGIC_EXPRESSION);
 	r = r->castTypeTo(tyT, TypeCastEnvironment::LOGIC_EXPRESSION);
 	auto lNum = dynamic_cast<ASTNumber*>(l);
