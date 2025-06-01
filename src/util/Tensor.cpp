@@ -1,4 +1,4 @@
-#include "../../include/ast/Tensor.hpp"
+#include "../../include/util/Tensor.hpp"
 #include <string>
 
 using namespace std;

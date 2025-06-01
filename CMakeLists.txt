@@ -19,15 +19,22 @@ target_link_libraries(antlr_lib INTERFACE antlr_sysy antlr4-runtime)
 # 添加头文件搜索路径
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+
+# util 源文件集 
+aux_source_directory(src/util utilSource)
 # ast 源文件集 
 aux_source_directory(src/ast astSource)
+list(REMOVE_ITEM astSource "src/ast/main.cpp")
 # ir 源文件集 
-aux_source_directory(src/ir IR)
+aux_source_directory(src/ir irSource)
+list(REMOVE_ITEM irSource "src/ir/main.cpp")
 
 
 # 添加源文件
-add_executable(SysYCompiler src/main.cpp ${astSource} ${IR})
-add_executable(ASTTest src/ast/main.cpp ${astSource})
+add_executable(compiler src/main.cpp ${utilSource} ${astSource} ${irSource})
+add_executable(astTest src/ast/main.cpp ${utilSource} ${astSource}  ${irSource})
+add_executable(irTest src/ir/main.cpp ${utilSource} ${astSource} ${irSource})
 
-target_link_libraries(SysYCompiler PRIVATE antlr_lib)
-target_link_libraries(ASTTest PRIVATE antlr_lib)
+target_link_libraries(compiler PRIVATE antlr_lib)
+target_link_libraries(astTest PRIVATE antlr_lib)
+target_link_libraries(irTest PRIVATE antlr_lib)

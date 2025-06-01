@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+class ASTContinue;
 class ASTNode;
 class ASTStmt;
 class BasicBlock;
@@ -35,6 +36,7 @@ class ASTCompUnit;
 class Module;
 template <typename Element>
 class Tensor;
+
 class Scope
 {
 public:
@@ -89,7 +91,12 @@ private:
 class AST2IRVisitor final
 {
 public:
+	AST2IRVisitor(const AST2IRVisitor&) = delete;
+	AST2IRVisitor(AST2IRVisitor&&) = delete;
+	AST2IRVisitor& operator=(const AST2IRVisitor&) = delete;
+	AST2IRVisitor& operator=(AST2IRVisitor&&) = delete;
 	AST2IRVisitor();
+	~AST2IRVisitor();
 
 	[[nodiscard]] Module* getModule() const;
 
@@ -112,6 +119,7 @@ public:
 	Value* visit(ASTIf*);
 	Value* visit(ASTWhile*);
 	Value* visit(ASTBreak*);
+	Value* visit(ASTContinue*);
 	Value* visit(ASTReturn*);
 
 	// 访问一个语句序列, 如果这个语句序列无论如何都会在中间退出, 则 Value* 非空, 不对 Value* 的具体值做任何保证
@@ -122,11 +130,13 @@ public:
 	std::string createPrivateGlobalVarID();
 
 private:
+	// *
 	IRBuilder* _builder;
 	// 变量符号表
 	Scope _var_scope;
 	// 函数符号表
 	Scope _func_scope;
+	// 与 AST2IR 独立
 	Module* _module;
 
 	// 用于辅助构建 IR
@@ -138,6 +148,7 @@ private:
 	std::vector<BasicBlock*> _false_targets;
 	std::vector<BasicBlock*> _true_targets;
 	std::vector<BasicBlock*> _while_nexts;
+	std::vector<BasicBlock*> _while_conds;
 
 
 	// 根据形状 shape 将 index 转换为结构化的数组索引. paddings: 前面填充 0 的个数

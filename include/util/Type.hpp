@@ -9,7 +9,6 @@ class ArrayType;
 enum class TypeIDs : int8_t
 {
 	Void, // Void
-	Label, // Labels, e.g., BasicBlock
 	Integer, // Integers 32 bit
 	Boolean, // Boolean 1 bit
 	Function, // Functions
@@ -17,6 +16,7 @@ enum class TypeIDs : int8_t
 	ArrayInParameter, // Array In Parameter, 仅在 AST 部分会用到该类型, 它应该在 IR 被转换为指针
 	Float, // float 32 bit
 
+	Label, // Labels, e.g., BasicBlock
 	Pointer, // 指针类型, 仅在 IR 部分会用到指针类型
 	Char // llvm IR 中 mem 系列操作数类型, 正常而言, 其作为 mem 指令组的一部分, 不会被操作
 };

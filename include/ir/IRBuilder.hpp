@@ -1,5 +1,6 @@
 #pragma once
 
+#include "BasicBlock.hpp"
 #include "Constant.hpp"
 #include "Function.hpp"
 #include "Instruction.hpp"
@@ -88,11 +89,22 @@ public:
 		                             this->BB_);
 	}
 
-	PhiInst* create_phi(Type* ty,
-	                    const std::vector<Value*>& vals = {},
-	                    const std::vector<BasicBlock*>& val_bbs = {})
+	PhiInst* create_phi_back(Type* ty,
+	                         const std::vector<Value*>& vals = {},
+	                         const std::vector<BasicBlock*>& val_bbs = {}) const
 	{
-		return PhiInst::create_phi(ty, BB_, vals, val_bbs);
+		auto ret = PhiInst::create_phi(ty, this->BB_, vals, val_bbs);
+		BB_->add_instruction(ret);
+		return ret;
+	}
+
+	PhiInst* create_phi_front(Type* ty,
+	                          const std::vector<Value*>& vals = {},
+	                          const std::vector<BasicBlock*>& val_bbs = {}) const
+	{
+		auto ret = PhiInst::create_phi(ty, this->BB_, vals, val_bbs);
+		BB_->add_instr_begin(ret);
+		return ret;
 	}
 
 	BranchInst* create_br(BasicBlock* if_true) const

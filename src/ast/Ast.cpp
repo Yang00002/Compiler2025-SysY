@@ -1,11 +1,12 @@
 #include <charconv>
+#include <cstring>
 #include <iomanip>
 #include <sstream>
 
 #include "../../include/ast/Ast.hpp"
-#include "../../include/ast/System.hpp"
-#include "../../include/ast/Tensor.hpp"
-#include "../../include/ast/Type.hpp"
+#include "../../include/util/System.hpp"
+#include "../../include/util/Tensor.hpp"
+#include "../../include/util/Type.hpp"
 #include "../../include/ir/AST2IR.hpp"
 #include "../../include/ir/Constant.hpp"
 
@@ -86,33 +87,6 @@ std::string to_string(const TypeCastEnvironment e)
 	return "";
 }
 
-bool TopScopeTableInAST::pushScope(ASTDecl* decl)
-{
-	if (auto f = dynamic_cast<ASTFuncDecl*>(decl); f != nullptr)
-	{
-		if (_func_scopes.find(f->id()) != _func_scopes.end())return false;
-		_func_scopes.emplace(decl->id(), f);
-	}
-	else
-	{
-		auto v = dynamic_cast<ASTVarDecl*>(decl);
-		if (_var_scopes.find(v->id()) != _var_scopes.end())return false;
-		_var_scopes.emplace(decl->id(), v);
-	}
-	return true;
-}
-
-ASTDecl* TopScopeTableInAST::findScope(const std::string& id, const bool isFunc)
-{
-	if (isFunc)
-	{
-		if (const auto idx = _func_scopes.find(id); idx != _func_scopes.end()) return idx->second;
-		return nullptr;
-	}
-	if (const auto idx = _var_scopes.find(id); idx != _var_scopes.end()) return idx->second;
-	return nullptr;
-}
-
 bool BlockScopeTableInAST::pushScope(ASTDecl* decl)
 {
 	if (const auto f = dynamic_cast<ASTFuncDecl*>(decl); f != nullptr)return false;
@@ -122,9 +96,8 @@ bool BlockScopeTableInAST::pushScope(ASTDecl* decl)
 	return true;
 }
 
-ASTDecl* BlockScopeTableInAST::findScope(const std::string& id, const bool isFunc)
+ASTDecl* BlockScopeTableInAST::findScope(const std::string& id)
 {
-	if (isFunc) return nullptr;
 	if (const auto idx = _var_scopes.find(id); idx != _var_scopes.end()) return idx->second;
 	return nullptr;
 }
@@ -240,6 +213,99 @@ ConstantValue InitializeValue::toConstant() const
 	return ret;
 }
 
+
+bool ConstantValue::isIntConstant() const
+{
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x10);
+}
+
+bool ConstantValue::isBoolConstant() const
+{
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x11);
+}
+
+bool ConstantValue::isFloatConstant() const
+{
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x01);
+}
+
+int ConstantValue::getIntConstant() const
+{
+	if (!isIntConstant()) throw std::runtime_error("ConstantValue Not Int ConstantValue");
+	return _field._int_value[LOGICAL_RIGHT_END_2];
+}
+
+bool ConstantValue::getBoolConstant() const
+{
+	if (!isBoolConstant()) throw std::runtime_error("ConstantValue Not Bool ConstantValue");
+	return _field._bool_value[LOGICAL_RIGHT_END_8];
+}
+
+float ConstantValue::getFloatConstant() const
+{
+	if (!isFloatConstant()) throw std::runtime_error("ConstantValue Not Float ConstantValue");
+	return _field._float_value[LOGICAL_RIGHT_END_2];
+}
+
+ConstantValue::ConstantValue(const int intConstant)
+{
+	_field._int_value[LOGICAL_RIGHT_END_2] = intConstant;
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x10);
+}
+
+ConstantValue::ConstantValue(const float floatConstant)
+{
+	_field._float_value[LOGICAL_RIGHT_END_2] = floatConstant;
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x01);
+}
+
+ConstantValue::ConstantValue(const bool boolConstant)
+{
+	_field._bool_value[LOGICAL_RIGHT_END_8] = boolConstant;
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x11);
+}
+
+Type* ConstantValue::getType() const
+{
+	if (isIntConstant()) return INT;
+	if (isFloatConstant()) return FLOAT;
+	return BOOL;
+}
+
+std::string ConstantValue::toString() const
+{
+	if (isIntConstant()) return to_string(_field._int_value[LOGICAL_RIGHT_END_2]);
+	if (isFloatConstant())
+	{
+		std::ostringstream oss;
+		oss << std::scientific << std::setprecision(8) << _field._float_value[LOGICAL_RIGHT_END_2];
+		return oss.str() + 'f';
+	}
+	return _field._bool_value[LOGICAL_RIGHT_END_8] ? "true" : "false";
+}
+
+std::string ConstantValue::print() const
+{
+	if (isIntConstant()) return to_string(_field._int_value[LOGICAL_RIGHT_END_2]);
+	if (isFloatConstant())
+	{
+		double val = _field._float_value[LOGICAL_RIGHT_END_2];
+		int64_t intRep;
+		memcpy(&intRep, &val, sizeof(double));
+		std::ostringstream oss;
+		oss << std::hex << intRep;
+		return "0x" + oss.str();
+	}
+	return _field._bool_value[LOGICAL_RIGHT_END_8] ? "1" : "0";
+}
+
+InitializeValue ConstantValue::toInitializeValue() const
+{
+	if (isIntConstant()) return InitializeValue{_field._int_value[LOGICAL_RIGHT_END_2]};
+	if (isFloatConstant()) return InitializeValue{_field._float_value[LOGICAL_RIGHT_END_2]};
+	return InitializeValue{_field._bool_value[LOGICAL_RIGHT_END_8]};
+}
+
 std::string ASTNode::toString()
 {
 	string str;
@@ -251,64 +317,10 @@ std::string ASTNode::toString()
 	return str;
 }
 
-ScopeTableInAST* ASTNode::getScopeTable()
-{
-	return nullptr;
-}
-
-bool ASTNode::pushScope(ASTDecl* decl)
-{
-	auto node = this;
-	while (node->getScopeTable() == nullptr)
-	{
-		node = node->_parent;
-		if (node == nullptr)
-			throw runtime_error(
-				"AST tree should have scope table in root, in that case, this point can not be reach.");
-	}
-	return node->getScopeTable()->pushScope(decl);
-}
-
-ASTDecl* ASTNode::findScope(const std::string& id, const bool isFunc)
-{
-	auto node = this;
-	while (node != nullptr)
-	{
-		while (node->getScopeTable() == nullptr)
-			node = node->_parent;
-		if (node == nullptr)
-			throw runtime_error(
-				"AST tree should have scope table in root, in that case, this point can not be reach.");
-		if (const auto fd = node->getScopeTable()->findScope(id, isFunc); fd != nullptr) return fd;
-		node = node->_parent;
-	}
-	return nullptr;
-}
-
-void ASTNode::setParent(ASTNode* parent)
-{
-	_parent = parent;
-}
 
 std::list<std::string> ASTNode::toStringList()
 {
 	return {};
-}
-
-ASTNode* ASTNode::getParent() const
-{
-	return _parent;
-}
-
-ASTNode* ASTNode::findParent(const std::function<bool(const ASTNode*)>& func)
-{
-	auto node = this;
-	while (node != nullptr)
-	{
-		if (func(node)) return node;
-		node = node->_parent;
-	}
-	return nullptr;
 }
 
 ASTCompUnit::~ASTCompUnit()
@@ -316,10 +328,9 @@ ASTCompUnit::~ASTCompUnit()
 	for (auto& i : _var_declarations) delete i;
 	for (auto& i : _func_declarations) delete i;
 	for (auto& i : _lib) delete i;
-	delete _scopeTable;
 }
 
-ASTCompUnit::ASTCompUnit(): _scopeTable(new TopScopeTableInAST{})
+ASTCompUnit::ASTCompUnit()
 {
 	ASTFuncDecl* decls[] = {
 		new ASTFuncDecl("starttime", VOID, {}),
@@ -338,10 +349,9 @@ ASTCompUnit::ASTCompUnit(): _scopeTable(new TopScopeTableInAST{})
 	// 加载库函数
 	for (auto& decl : decls)
 	{
-		decl->_parent = this;
 		decl->_in_lib = true;
 		_lib.emplace_back(decl);
-		_scopeTable->pushScope(decl);
+		pushScope(decl);
 	}
 }
 
@@ -362,14 +372,36 @@ std::list<std::string> ASTCompUnit::toStringList()
 	return ret;
 }
 
-ScopeTableInAST* ASTCompUnit::getScopeTable()
-{
-	return _scopeTable;
-}
-
 Value* ASTCompUnit::accept(AST2IRVisitor* visitor)
 {
 	return visitor->visit(this);
+}
+
+bool ASTCompUnit::pushScope(ASTDecl* decl)
+{
+	if (auto f = dynamic_cast<ASTFuncDecl*>(decl); f != nullptr)
+	{
+		if (_func_scopes.find(f->id()) != _func_scopes.end())return false;
+		_func_scopes.emplace(decl->id(), f);
+	}
+	else
+	{
+		auto v = dynamic_cast<ASTVarDecl*>(decl);
+		if (_var_scopes.find(v->id()) != _var_scopes.end())return false;
+		_var_scopes.emplace(decl->id(), v);
+	}
+	return true;
+}
+
+ASTDecl* ASTCompUnit::findScope(const std::string& id, bool isFunc)
+{
+	if (isFunc)
+	{
+		if (const auto idx = _func_scopes.find(id); idx != _func_scopes.end()) return idx->second;
+		return nullptr;
+	}
+	if (const auto idx = _var_scopes.find(id); idx != _var_scopes.end()) return idx->second;
+	return nullptr;
 }
 
 const std::string& ASTDecl::id()
@@ -469,21 +501,18 @@ ASTFuncDecl::~ASTFuncDecl()
 ASTFuncDecl::ASTFuncDecl(const std::string& id, Type* return_type)
 	: _return_type(return_type), _block(new ASTBlock())
 {
-	_block->_parent = this;
 	_id = id;
 }
 
 ASTFuncDecl::ASTFuncDecl(const std::string& id, Type* return_type, const std::vector<Type*>& innerArgs)
 	: _return_type(return_type), _block(new ASTBlock())
 {
-	_block->_parent = this;
 	_id = id;
 	const string idTemplate = _id + "Parameter";
 	int idx = 0;
 	for (auto& arg : innerArgs)
 	{
 		const auto d = new ASTVarDecl(false, false, arg);
-		d->_parent = this;
 		d->_id = idTemplate + to_string(idx);
 		_block->pushScope(d);
 		_args.emplace_back(d);
@@ -537,7 +566,6 @@ ASTExpression* ASTExpression::castTypeTo(
 	auto from = getExpressionType();
 	checkForTypeCast(from, type, environment);
 	const auto c = new ASTCast(this, type);
-	this->_parent = c;
 	c->_haveFuncCall = this->_haveFuncCall;
 	return c;
 }
@@ -775,16 +803,6 @@ ASTVarDecl* ASTRVal::getDeclaration() const
 	return _decl;
 }
 
-ASTExpression* ASTRVal::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	for (auto& i : _index)
-	{
-		if (func(i)) return i;
-	}
-	return nullptr;
-}
-
 Value* ASTRVal::accept(AST2IRVisitor* visitor)
 {
 	return visitor->visit(this);
@@ -798,14 +816,7 @@ ASTLVal* ASTRVal::toLVal() const
 
 std::list<std::string> ASTNumber::toStringList()
 {
-	if (_type == INT) return {to_string(_field._i_value)};
-	if (_type == FLOAT)
-	{
-		std::ostringstream oss;
-		oss << std::scientific << std::setprecision(8) << _field._f_value;
-		return {oss.str() + 'f'};
-	}
-	return {_field._b_value ? "true" : "false"};
+	return {_field.toString()};
 }
 
 ASTNeg::ASTNeg(ASTExpression* hold)
@@ -818,11 +829,6 @@ Type* ASTNeg::getExpressionType() const
 	return _hold->getExpressionType();
 }
 
-ASTExpression* ASTNeg::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this) == true) return this;
-	return _hold->findChild(func);
-}
 
 Value* ASTNeg::accept(AST2IRVisitor* visitor)
 {
@@ -847,12 +853,6 @@ ASTNot::ASTNot(ASTExpression* contained)
 Type* ASTNot::getExpressionType() const
 {
 	return BOOL;
-}
-
-ASTExpression* ASTNot::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	return _hold->findChild(func);
 }
 
 Value* ASTNot::accept(AST2IRVisitor* visitor)
@@ -887,13 +887,7 @@ std::list<std::string> ASTBlock::toStringList()
 
 ASTBlock::~ASTBlock()
 {
-	delete _scope_table;
 	for (auto& i : _stmts) delete i;
-}
-
-ScopeTableInAST* ASTBlock::getScopeTable()
-{
-	return _scope_table;
 }
 
 bool ASTBlock::isEmpty() const
@@ -904,6 +898,22 @@ bool ASTBlock::isEmpty() const
 Value* ASTBlock::accept(AST2IRVisitor* visitor)
 {
 	return visitor->visit(this);
+}
+
+bool ASTBlock::pushScope(ASTDecl* decl)
+{
+	if (const auto f = dynamic_cast<ASTFuncDecl*>(decl); f != nullptr)return false;
+	auto v = dynamic_cast<ASTVarDecl*>(decl);
+	if (_var_scopes.find(v->id()) != _var_scopes.end())return false;
+	_var_scopes.emplace(decl->id(), v);
+	return true;
+}
+
+ASTDecl* ASTBlock::findScope(const std::string& id, bool isFunc)
+{
+	if (isFunc) return nullptr;
+	if (const auto idx = _var_scopes.find(id); idx != _var_scopes.end()) return idx->second;
+	return nullptr;
 }
 
 std::list<std::string> ASTAssign::toStringList()
@@ -1082,6 +1092,16 @@ Value* ASTBreak::accept(AST2IRVisitor* visitor)
 	return visitor->visit(this);
 }
 
+std::list<std::string> ASTContinue::toStringList()
+{
+	return {"continue"};
+}
+
+Value* ASTContinue::accept(AST2IRVisitor* visitor)
+{
+	return visitor->visit(this);
+}
+
 std::list<std::string> ASTReturn::toStringList()
 {
 	string ret = "return";
@@ -1105,96 +1125,68 @@ Value* ASTReturn::accept(AST2IRVisitor* visitor)
 
 ASTNumber::ASTNumber(const int i)
 {
-	_type = INT;
-	_field._i_value = i;
+	_field = ConstantValue{i};
 }
 
 ASTNumber::ASTNumber(const float i)
 {
-	_type = FLOAT;
-	_field._f_value = i;
+	_field = ConstantValue{i};
 }
 
 ASTNumber::ASTNumber(const bool i)
 {
-	_type = BOOL;
-	_field._b_value = i;
+	_field = ConstantValue{i};
 }
 
 ASTNumber::ASTNumber(InitializeValue v)
 {
-	if (v.isIntConstant())
-	{
-		_type = INT;
-		_field._i_value = v.getIntConstant();
-	}
-	else if (v.isFloatConstant())
-	{
-		_type = FLOAT;
-		_field._f_value = v.getFloatConstant();
-	}
-	else if (v.isBoolConstant())
-	{
-		_type = BOOL;
-		_field._b_value = v.getBoolConstant();
-	}
-	else throw runtime_error("can not initialize a number with not constant initialize value.");
+	_field = v.toConstant();
 }
 
 bool ASTNumber::isFloat() const
 {
-	return _type == FLOAT;
+	return _field.isFloatConstant();
 }
 
 bool ASTNumber::isInteger() const
 {
-	return _type == INT;
+	return _field.isIntConstant();
 }
 
 bool ASTNumber::isBoolean() const
 {
-	return _type == BOOL;
+	return _field.isBoolConstant();
 }
 
 int ASTNumber::toInteger() const
 {
-	if (_type != INT)
-		throw
-			runtime_error(getExpressionType()->toString() + " Number do not have int value");
-	return _field._i_value;
+	return _field.getIntConstant();
 }
 
 float ASTNumber::toFloat() const
 {
-	if (_type != FLOAT)
-		throw runtime_error(
-			getExpressionType()->toString() + " Number do not have float value");
-	return _field._f_value;
+	return _field.getFloatConstant();
 }
 
 bool ASTNumber::toBoolean() const
 {
-	if (_type != BOOL)
-		throw runtime_error(
-			getExpressionType()->toString() + " Number do not have bool value");
-	return _field._b_value;
+	return _field.getBoolConstant();
 }
 
 int ASTNumber::forceToInteger() const
 {
-	if (_type == INT) return _field._i_value;
-	if (_type == FLOAT)
-		return static_cast<int>(_field._f_value);
+	if (_field.isIntConstant()) return _field.getIntConstant();
+	if (_field.isFloatConstant())
+		return static_cast<int>(_field.getFloatConstant());
 	throw runtime_error(
 		getExpressionType()->toString() + " Number do not have int value");
 }
 
 float ASTNumber::forceToFloat() const
 {
-	if (_type == FLOAT)
-		return _field._f_value;
-	if (_type == INT)
-		return static_cast<float>(_field._i_value);
+	if (_field.isFloatConstant()) return _field.getFloatConstant();
+	if (_field.isIntConstant())
+		return static_cast<float>(_field.getIntConstant());
 	throw runtime_error(
 		getExpressionType()->toString() + " Number do not have float value");
 }
@@ -1203,44 +1195,39 @@ ASTExpression* ASTNumber::castTypeTo(Type* type, TypeCastEnvironment environment
 {
 	if (type == getExpressionType()) return this;
 	auto from = getExpressionType();
+	auto _type = _field.getType();
 	checkForTypeCast(from, type, environment);
 	if (from == FLOAT)
 	{
 		if (type == INT)
 		{
-			_type = INT;
-			_field._i_value = static_cast<int>(_field._f_value);
+			_field = ConstantValue{static_cast<int>(_field.getFloatConstant())};
 		}
 		else if (type == BOOL)
 		{
-			_type = BOOL;
-			_field._b_value = _field._f_value != 0.0f;
+			_field = ConstantValue{_field.getFloatConstant() != 0.0f};
 		}
 	}
 	else if (_type == INT)
 	{
 		if (type == FLOAT)
 		{
-			_type = FLOAT;
-			_field._f_value = static_cast<float>(_field._i_value);
+			_field = ConstantValue{static_cast<float>(_field.getIntConstant())};
 		}
 		else if (type == BOOL)
 		{
-			_type = BOOL;
-			_field._b_value = _field._i_value != 0;
+			_field = ConstantValue{_field.getIntConstant() != 0};
 		}
 	}
 	else
 	{
 		if (type == INT)
 		{
-			_type = INT;
-			_field._i_value = _field._b_value ? 1 : 0;
+			_field = ConstantValue{_field.getBoolConstant() ? 1 : 0};
 		}
 		else if (type == FLOAT)
 		{
-			_type = FLOAT;
-			_field._f_value = _field._b_value ? 1.0f : 0.0f;
+			_field = ConstantValue{_field.getBoolConstant() ? 1.0f : 0.0f};
 		}
 	}
 	return this;
@@ -1248,20 +1235,12 @@ ASTExpression* ASTNumber::castTypeTo(Type* type, TypeCastEnvironment environment
 
 Type* ASTNumber::getExpressionType() const
 {
-	return _type;
+	return _field.getType();
 }
 
 InitializeValue ASTNumber::toInitializeValue() const
 {
-	if (_type == INT) return InitializeValue{_field._i_value};
-	if (_type == FLOAT) return InitializeValue{_field._f_value};
-	return InitializeValue{_field._b_value};
-}
-
-ASTExpression* ASTNumber::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this))return this;
-	return nullptr;
+	return _field.toInitializeValue();
 }
 
 Value* ASTNumber::accept(AST2IRVisitor* visitor)
@@ -1295,12 +1274,6 @@ Type* ASTCast::getExpressionType() const
 	return _castTo;
 }
 
-ASTExpression* ASTCast::findChild(const std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	if (const auto ret = _source->findChild(func); ret != nullptr) return ret;
-	return nullptr;
-}
 
 Value* ASTCast::accept(AST2IRVisitor* visitor)
 {
@@ -1342,14 +1315,6 @@ Type* ASTMathExp::getExpressionType() const
 	return _result_type;
 }
 
-ASTExpression* ASTMathExp::findChild(const std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	if (const auto ret = _l->findChild(func); ret != nullptr) return ret;
-	if (const auto ret = _r->findChild(func); ret != nullptr) return ret;
-	return nullptr;
-}
-
 Value* ASTMathExp::accept(AST2IRVisitor* visitor)
 {
 	return visitor->visit(this);
@@ -1387,14 +1352,6 @@ Type* ASTLogicExp::getExpressionType() const
 	return BOOL;
 }
 
-ASTExpression* ASTLogicExp::findChild(const std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	for (auto& i : _exps)
-		if (const auto ret = i->findChild(func); ret != nullptr) return ret;
-	return nullptr;
-}
-
 Value* ASTLogicExp::accept(AST2IRVisitor* visitor)
 {
 	return visitor->visit(this);
@@ -1422,14 +1379,6 @@ ASTEqual::~ASTEqual()
 Type* ASTEqual::getExpressionType() const
 {
 	return BOOL;
-}
-
-ASTExpression* ASTEqual::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	if (const auto ret = _l->findChild(func); ret != nullptr) return ret;
-	if (const auto ret = _r->findChild(func); ret != nullptr) return ret;
-	return nullptr;
 }
 
 Value* ASTEqual::accept(AST2IRVisitor* visitor)
@@ -1461,14 +1410,6 @@ ASTRelation::~ASTRelation()
 Type* ASTRelation::getExpressionType() const
 {
 	return BOOL;
-}
-
-ASTExpression* ASTRelation::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	if (const auto ret = _l->findChild(func); ret != nullptr) return ret;
-	if (const auto ret = _r->findChild(func); ret != nullptr) return ret;
-	return nullptr;
 }
 
 Value* ASTRelation::accept(AST2IRVisitor* visitor)
@@ -1509,14 +1450,6 @@ ASTCall::ASTCall(ASTFuncDecl* function, const std::vector<ASTExpression*>& param
 Type* ASTCall::getExpressionType() const
 {
 	return _function->returnType();
-}
-
-ASTExpression* ASTCall::findChild(std::function<bool(const ASTExpression*)> func)
-{
-	if (func(this)) return this;
-	for (auto& i : _parameters)
-		if (const auto ret = i->findChild(func); ret != nullptr) return ret;
-	return nullptr;
 }
 
 Value* ASTCall::accept(AST2IRVisitor* visitor)

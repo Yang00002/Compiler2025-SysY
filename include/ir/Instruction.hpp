@@ -306,7 +306,7 @@ public:
 	std::string print() override;
 };
 
-// 将内存从 from 复制到 to, length_ 为 4 的倍数(至少目前是)
+// 将内存从 from 复制到 to, length_ 为 16 的倍数(至少目前是)
 // 因而可以使用 SIMD 寄存器进行复制
 class MemCpyInst : public BaseInst<MemCpyInst>
 {
@@ -326,7 +326,7 @@ public:
 	std::string print() override;
 };
 
-// 将内存从 from 复制到 to, length_ 为 4 的倍数(至少目前是)
+// 将内存从 from 复制到 to, length_ 为 16 的倍数(至少目前是)
 // 因而可以使用 SIMD 寄存器进行复制
 class MemClearInst : public BaseInst<MemClearInst>
 {

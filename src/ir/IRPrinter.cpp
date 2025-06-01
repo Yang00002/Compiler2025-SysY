@@ -1,8 +1,8 @@
-#include "../../include/ir/IRprinter.hpp"
+#include "../../include/ir/IRPrinter.hpp"
 #include "../../include/ir/Instruction.hpp"
 #include "../../include/ir/BasicBlock.hpp"
 #include "../../include/ir/Constant.hpp"
-#include "../../include/ast/Type.hpp"
+#include "../../include/util/Type.hpp"
 #include "../../include/ir/Function.hpp"
 #include "../../include/ir/GlobalVariable.hpp"
 #include <cassert>

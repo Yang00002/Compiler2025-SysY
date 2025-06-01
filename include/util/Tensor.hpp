@@ -613,13 +613,13 @@ PlainTensor<Element>* Tensor<Element>::toPlain(int gate) const
 							{
 								auto n = new typename PlainTensor<Element>::PlainTensorSegment{len};
 								p->_segments.emplace_back(n);
+								len = 0;
 							}
 							else
 							{
 								if (v == nullptr) v = new std::vector<Element>{};
-								v->emplace_back(_defaultValue);
+								for (; len > 0; len--) v->emplace_back(_defaultValue);
 							}
-							len = 0;
 						}
 						if (v == nullptr) v = new std::vector<Element>{};
 						v->emplace_back(value);
@@ -650,7 +650,7 @@ PlainTensor<Element>* Tensor<Element>::toPlain(int gate) const
 		else
 		{
 			if (v == nullptr) v = new std::vector<Element>{};
-			v->emplace_back(_defaultValue);
+			for (; len > 0; len--) v->emplace_back(_defaultValue);
 		}
 	}
 	if (v != nullptr)
@@ -696,11 +696,12 @@ PlainTensor<Target>* Tensor<Element>::toPlain(std::function<Target(const Element
 							{
 								auto n = new typename PlainTensor<Target>::PlainTensorSegment{len};
 								p->_segments.emplace_back(n);
+								len = 0;
 							}
 							else
 							{
 								if (v == nullptr) v = new std::vector<Target>{};
-								v->emplace_back(p->_defaultValue);
+								for (; len > 0; len--) v->emplace_back(p->_defaultValue);
 							}
 						}
 						if (v == nullptr) v = new std::vector<Target>{};
@@ -732,7 +733,7 @@ PlainTensor<Target>* Tensor<Element>::toPlain(std::function<Target(const Element
 		else
 		{
 			if (v == nullptr) v = new std::vector<Target>{};
-			v->emplace_back(p->_defaultValue);
+			for (; len > 0; len--) v->emplace_back(p->_defaultValue);
 		}
 	}
 	if (v != nullptr)

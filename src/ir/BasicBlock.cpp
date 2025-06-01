@@ -1,7 +1,7 @@
 #include "../../include/ir/BasicBlock.hpp"
 #include "../../include/ir/Function.hpp"
-#include "../../include/ir/IRprinter.hpp"
-#include "../../include/ast/Type.hpp"
+#include "../../include/ir/IRPrinter.hpp"
+#include "../../include/util/Type.hpp"
 
 #include <cassert>
 

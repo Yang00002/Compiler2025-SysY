@@ -1,6 +1,10 @@
 #pragma once
 #include "../../antlr/SysYBaseVisitor.h"
 
+class ASTFuncDecl;
+class HaveScope;
+class ASTDecl;
+class ASTWhile;
 class ASTCompUnit;
 class Type;
 class ASTNode;
@@ -19,10 +23,19 @@ class Antlr2AstVisitor final : SysYBaseVisitor
 	std::stack<TensorData<InitializeValue>*> _initTensorConstraint;
 	// 为初始化的约束, 标记初始化节点, 用于列表中维护 ASTExpression 的内存
 	std::stack<ASTVarDecl*> _initVarNodeConstraint;
-	// 结构约束, 目前的前置节点. 这些节点是程序的主干节点, 比其它节点更早接入 AST 树
-	std::vector<ASTNode*> _structConstraint;
+	// 结构约束, 目前的前置节点. 这些节点是拥有符号表的节点
+	std::vector<HaveScope*> _structConstraint;
+	// 结构约束, 目前的循环节点. 用于 break 等
+	std::stack<ASTWhile*> _whileConstraint;
 	// 逻辑约束, 表达式是否允许使用 ! 运算
 	bool _allowLogic = false;
+	// 目前所在函数
+	ASTFuncDecl* _currentFunction = nullptr;
+
+	// 插入符号. 尝试在 _structConstraint 最右侧插入符号, 若重名则返回 false; 否则插入并返回 true.
+	bool pushScope(ASTDecl* decl) const;
+	// 寻找符号. 尝试在 _structConstraint 从右往左寻找符号; 所有表均未找到则返回 false.
+	ASTDecl* findScope(const std::string& id, bool isFunc);
 
 	std::any visitCompUnit(SysYParser::CompUnitContext* context) override;
 

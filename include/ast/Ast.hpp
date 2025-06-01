@@ -79,57 +79,32 @@ enum class RelationOP : uint8_t
 	GE
 };
 
-// AST 树内置符号表
-class ScopeTableInAST
-{
-public:
-	ScopeTableInAST(const ScopeTableInAST& other) = delete;
-	ScopeTableInAST(ScopeTableInAST&& other) = delete;
-	ScopeTableInAST& operator=(const ScopeTableInAST& other) = delete;
-	ScopeTableInAST& operator=(ScopeTableInAST&& other) = delete;
-	ScopeTableInAST() = default;
-	virtual ~ScopeTableInAST() = default;
-	// 尝试插入符号, 成功则返回 true. 存在同名符号则返回 false.
-	// 函数符号表跟变量符号表是独立的, 允许函数与变量同名.
-	virtual bool pushScope(ASTDecl* decl) = 0;
-	// 尝试查找符号, 成功则返回声明, 否则返回 nullptr, 需要指定是否为函数.
-	virtual ASTDecl* findScope(const std::string& id, bool isFunc) = 0;
-};
-
-// AST 顶层符号表, 管理函数和全局变量
-class TopScopeTableInAST final : public ScopeTableInAST
-{
-	// 全局变量声明
-	std::map<std::string, ASTVarDecl*> _var_scopes;
-	// 函数声明
-	std::map<std::string, ASTFuncDecl*> _func_scopes;
-
-public:
-	TopScopeTableInAST(const TopScopeTableInAST& other) = delete;
-	TopScopeTableInAST(TopScopeTableInAST&& other) = delete;
-	TopScopeTableInAST& operator=(const TopScopeTableInAST& other) = delete;
-	TopScopeTableInAST& operator=(TopScopeTableInAST&& other) = delete;
-	TopScopeTableInAST() = default;
-	~TopScopeTableInAST() override = default;
-	bool pushScope(ASTDecl* decl) override;
-	ASTDecl* findScope(const std::string& id, bool isFunc) override;
-};
 
 // AST 块符号表, 管理局部变量
-class BlockScopeTableInAST final : public ScopeTableInAST
+class BlockScopeTableInAST
 {
 	// 变量声明
 	std::map<std::string, ASTVarDecl*> _var_scopes;
 
 public:
-	BlockScopeTableInAST(const BlockScopeTableInAST& other) = delete;
-	BlockScopeTableInAST(BlockScopeTableInAST&& other) = delete;
-	BlockScopeTableInAST& operator=(const BlockScopeTableInAST& other) = delete;
-	BlockScopeTableInAST& operator=(BlockScopeTableInAST&& other) = delete;
-	~BlockScopeTableInAST() override = default;
-	BlockScopeTableInAST() = default;
-	bool pushScope(ASTDecl* decl) override;
-	ASTDecl* findScope(const std::string& id, bool isFunc) override;
+	bool pushScope(ASTDecl* decl);
+	ASTDecl* findScope(const std::string& id);
+};
+
+// 对有符号表对象的抽象
+class HaveScope
+{
+public:
+	HaveScope(const HaveScope&) = delete;
+	HaveScope(HaveScope&&) = delete;
+	HaveScope& operator=(const HaveScope&) = delete;
+	HaveScope& operator=(HaveScope&&) = delete;
+	virtual ~HaveScope() = default;
+	HaveScope() = default;
+	// 插入符号. 尝试插入符号; 若重名则返回 false; 否则插入并返回 true.
+	virtual bool pushScope(ASTDecl* decl) = 0;
+	// 寻找符号. 尝试, 若没有符号表则向上寻找; 所有表均未找到则返回 false.
+	virtual ASTDecl* findScope(const std::string& id, bool isFunc) = 0;
 };
 
 // 用于初始化列表, 是一个小的(只有一个指针大小)的类型, 可以存储常量或 ASTExpression*.
@@ -194,22 +169,69 @@ public:
 	[[nodiscard]] ConstantValue toConstant() const;
 };
 
+// 用于常量, 是一个小的(只有一个指针大小)的类型, 可以存储常量
+class ConstantValue
+{
+	friend bool operator==(const ConstantValue& lhs, const ConstantValue& rhs)
+	{
+		return lhs._field._value == rhs._field._value;
+	}
+
+	friend bool operator!=(const ConstantValue& lhs, const ConstantValue& rhs)
+	{
+		return lhs._field._value != rhs._field._value;
+	}
+
+	friend class InitializeValue;
+
+	union Field
+	{
+		int _int_value[2] = {};
+		float _float_value[2];
+		bool _bool_value[8];
+		char _segment[8];
+		// 用于比较
+		long long _value;
+	};
+
+	Field _field;
+
+public:
+	[[nodiscard]] bool isIntConstant() const;
+
+	[[nodiscard]] bool isBoolConstant() const;
+
+	[[nodiscard]] bool isFloatConstant() const;
+
+	[[nodiscard]] int getIntConstant() const;
+
+	[[nodiscard]] bool getBoolConstant() const;
+
+	[[nodiscard]] float getFloatConstant() const;
+
+	explicit ConstantValue() = default;
+
+	explicit ConstantValue(int intConstant);
+
+	explicit ConstantValue(float floatConstant);
+
+	explicit ConstantValue(bool boolConstant);
+
+	[[nodiscard]] Type* getType() const;
+
+	[[nodiscard]] std::string toString() const;
+	// IR
+	[[nodiscard]] std::string print() const;
+
+	[[nodiscard]] InitializeValue toInitializeValue() const;
+};
+
+
 // AST 树节点, 定义了一些公共方法. 该类型自身不会出现于树中. 只能是
 // ASTCompUnit, ASTDecl, ASTStmt
 class ASTNode
 {
 	friend class Antlr2AstVisitor;
-
-protected:
-	// 树中父亲节点
-	ASTNode* _parent = nullptr;
-	// 获取符号表, 只有 CompUnit 和 Block 才有符号表
-	virtual ScopeTableInAST* getScopeTable();
-	// 插入符号. 尝试向该节点插入符号, 若没有符号表则向上寻找; 若重名则返回 false; 否则插入并返回 true.
-	bool pushScope(ASTDecl* decl);
-	// 寻找符号. 尝试从该节点插入符号, 若没有符号表则向上寻找; 所有表均未找到则返回 false.
-	ASTDecl* findScope(const std::string& id, bool isFunc);
-	virtual void setParent(ASTNode* parent);
 
 public:
 	// 输出为字符串列表, 默认是以行分割
@@ -222,14 +244,11 @@ public:
 	ASTNode& operator=(const ASTNode&) = delete;
 	ASTNode(const ASTNode&&) = delete;
 	ASTNode& operator=(const ASTNode&&) = delete;
-	[[nodiscard]] ASTNode* getParent() const;
-	// 寻找第一个具有特定性质的父节点, 也包括自己
-	ASTNode* findParent(const std::function<bool(const ASTNode*)>& func);
 	virtual Value* accept(AST2IRVisitor* visitor) = 0;
 };
 
 // AST 树的根节点. 同时管理了整棵树的额外数据 *
-class ASTCompUnit final : public ASTNode
+class ASTCompUnit final : public ASTNode, public HaveScope
 {
 public:
 	[[nodiscard]] const std::vector<ASTVarDecl*>& var_declarations() const
@@ -266,14 +285,15 @@ private:
 	std::vector<ASTFuncDecl*> _func_declarations;
 	// 库函数, 在创建 ASTCompUnit 时自动加入. *
 	std::vector<ASTFuncDecl*> _lib;
-	// 符号表. 拥有全局符号. 包括库函数, 全局变量和函数 *
-	TopScopeTableInAST* _scopeTable;
-
-protected:
-	ScopeTableInAST* getScopeTable() override;
+	// 全局变量声明符号表
+	std::map<std::string, ASTVarDecl*> _var_scopes;
+	// 函数声明符号表
+	std::map<std::string, ASTFuncDecl*> _func_scopes;
 
 public:
 	Value* accept(AST2IRVisitor* visitor) override;
+	bool pushScope(ASTDecl* decl) override;
+	ASTDecl* findScope(const std::string& id, bool isFunc) override;
 };
 
 // 声明, 该类型自身不会出现于树中. 只能是 ASTVarDecl 或 ASTFuncDecl
@@ -387,7 +407,7 @@ public:
 };
 
 // 语句. 该类型自身不会出现于树中.
-// 只能是 ASTBlock, ASTAssign, ASTExpression, ASTIf, ASTWhile, ASTBreak, ASTReturn
+// 只能是 ASTBlock, ASTAssign, ASTExpression, ASTIf, ASTWhile, ASTBreak, ASTContinue, ASTReturn
 class ASTStmt : public ASTNode
 {
 };
@@ -422,11 +442,6 @@ protected:
 	// 对于表达式, 插入一个 ASTCast; 如果允许转换为 bool, 将会插入 Math2Logic
 	virtual ASTExpression* castTypeTo(
 		Type* type, TypeCastEnvironment environment = TypeCastEnvironment::MATH_EXPRESSION);
-
-public:
-	// 寻找具有某类性质的第一个子表达式. 将父节点包含在内. 只会考虑同样为 ASTExpression 的子节点
-	// 不会进入初始化列表搜索
-	virtual ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) = 0;
 };
 
 // 左值, 包含其引用的声明和使用的数组索引
@@ -478,7 +493,7 @@ private:
 	std::vector<ASTExpression*> _index;
 
 	// 尽管逻辑上是左值可以转换为右值, 但是在 AST 中由于右值是表达式, 对数据结构更友好
-	ASTLVal* toLVal() const;
+	[[nodiscard]] ASTLVal* toLVal() const;
 
 public:
 	ASTRVal(const ASTRVal& other) = delete;
@@ -491,7 +506,6 @@ public:
 	[[nodiscard]] Type* getExpressionType() const override;
 	// 引用声明
 	[[nodiscard]] ASTVarDecl* getDeclaration() const;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 };
 
@@ -502,16 +516,7 @@ class ASTNumber final : public ASTExpression
 	friend class Antlr2AstVisitor;
 	friend class ASTCompUnit;
 
-	union Field
-	{
-		int _i_value = 0;
-		float _f_value;
-		bool _b_value;
-	};
-
-	Field _field;
-	// 类型
-	Type* _type;
+	ConstantValue _field;
 
 public:
 	explicit ASTNumber(int i);
@@ -542,7 +547,6 @@ public:
 	[[nodiscard]] Type* getExpressionType() const override;
 	//转化为初始化张量数据
 	[[nodiscard]] InitializeValue toInitializeValue() const;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 };
 
@@ -574,8 +578,6 @@ public:
 	ASTCast(ASTExpression* source, Type* cast_to);
 
 	[[nodiscard]] Type* getExpressionType() const override;
-
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
@@ -618,7 +620,6 @@ public:
 	ASTMathExp(Type* result_type, MathOP op, ASTExpression* l, ASTExpression* r);
 
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
@@ -676,13 +677,10 @@ public:
 	}
 
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 };
 
-// 相等表达式, 包含所有操作数和算符, 区别于比较表达式, 其操作数可以全为 bool 类型
-// AST 中结构化方法与文法不同, ASTEqual 下可能包含两个 OR 表达式.
-// AST 保证这种嵌套只会在表达式最外层发生一次, 并且其下的 ASTLogicExp 一定是 UNDEFINE 状态.
+// 相等表达式, 包含所有操作数和算符, 其操作数不能为 bool 类型
 class ASTEqual final : public ASTExpression
 {
 public:
@@ -731,11 +729,10 @@ private:
 
 public:
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 };
 
-// 比较表达式, 包含所有操作数和算符, 区别于相等表达式, 其操作数不能为 bool 类型
+// 比较表达式, 包含所有操作数和算符, 其操作数不能为 bool 类型
 class ASTRelation final : public ASTExpression
 {
 public:
@@ -784,7 +781,6 @@ private:
 
 public:
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 };
 
@@ -813,7 +809,6 @@ public:
 	ASTCall& operator=(ASTCall&& other) = delete;
 	ASTCall(ASTFuncDecl* function, const std::vector<ASTExpression*>& parameters);
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 
 private:
@@ -851,7 +846,6 @@ public:
 	explicit ASTNeg(ASTExpression* hold);
 
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 };
 
@@ -880,7 +874,6 @@ public:
 	// 作为 not 被创建
 	explicit ASTNot(ASTExpression* contained);
 	[[nodiscard]] Type* getExpressionType() const override;
-	ASTExpression* findChild(std::function<bool(const ASTExpression*)> func) override;
 	Value* accept(AST2IRVisitor* visitor) override;
 
 protected:
@@ -889,7 +882,7 @@ protected:
 };
 
 // 基本块. 包含一个语句列表和一个符号表. *
-class ASTBlock final : public ASTStmt
+class ASTBlock final : public ASTStmt, public HaveScope
 {
 public:
 	[[nodiscard]] std::vector<ASTNode*>& stmts()
@@ -905,10 +898,8 @@ private:
 	friend class ASTFuncDecl;
 
 protected:
-	ScopeTableInAST* getScopeTable() override;
-
-	// 符号表 *
-	BlockScopeTableInAST* _scope_table = new BlockScopeTableInAST();
+	// 符号表
+	std::map<std::string, ASTVarDecl*> _var_scopes;
 	// 语句列表, 可以是 ASTStmt 或 ASTVarDecl, 考虑到初始化时使用的函数调用, 声明列表无法与语句列表独立 *
 	std::vector<ASTNode*> _stmts;
 	// 块是否为空, 具体来说, 其中不包含任何语句与任何声明
@@ -921,6 +912,10 @@ public:
 	ASTBlock& operator=(const ASTBlock& other) = delete;
 	ASTBlock& operator=(ASTBlock&& other) = delete;
 	Value* accept(AST2IRVisitor* visitor) override;
+
+private:
+	bool pushScope(ASTDecl* decl) override;
+	ASTDecl* findScope(const std::string& id, bool isFunc) override;
 };
 
 // 赋值语句. 包含赋值目标左值和所赋值
@@ -1055,6 +1050,24 @@ public:
 
 private:
 	// 目标节点, 仅是为了方便定位, 同样只能跳出最近循环
+	ASTWhile* _target;
+};
+
+// CONTINUE 语句. 包含目标 While 节点
+class ASTContinue final : public ASTStmt
+{
+	std::list<std::string> toStringList() override;
+	friend class Antlr2AstVisitor;
+
+public:
+	ASTContinue(ASTWhile* target) : _target(target)
+	{
+	}
+
+	Value* accept(AST2IRVisitor* visitor) override;
+
+private:
+	// 目标节点
 	ASTWhile* _target;
 };
 

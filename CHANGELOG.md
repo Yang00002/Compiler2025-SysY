@@ -20,7 +20,14 @@
 
 ### 2025-5-22
 
-#### FIXED or IMPROVED
+#### Features
+
+- IR: 有了IR Builder的接口声明和大部分实现。
+
+- SysYIRGenerator: 完成了一部分语义分析，更换了main.cpp的visitor。
+
+
+#### Fixed
 
 - SysY.g4:
   - DecimalConst：写反了，非零十进制数在前;
@@ -28,24 +35,17 @@
   - funcRParams：{',' Exp}可以出现任意次数，也就是( ',' exp )*。
   - lAndExp和lOrExp：修改了文法以支持短路计算。
 
-#### IMPLEMENTED Features
+### 2025-5-27
 
-- IR: 有了IR Builder的接口声明和大部分实现。
+#### Features
 
-- SysYIRGenerator: 完成了一部分语义分析，更换了main.cpp的visitor。
+- 实现了 AST
+	- AST 已经测试通过所有测试样例
 
-#### TODO
+### 2025-6-1
 
-- SysYIRGenerator:  
-  - 补全语义分析部分；
-  - 处理 sylib 库函数的参数；
-  - 未区分Int1和Int32，有些地方需要调整，例如：需要添加位扩展指令、将布尔类型的变量改为1位；
-  - 验证可用性；
-  - 需要错误处理。
+#### Features
 
-- IR: 验证IR库的可用性，可能需要实现更多的类型。
-
-- IR Builder: 生成更多指令，例如srem。
-
-- 输出中间代码。
+- 实现了 IR
+	- IR 已经测试通过所有测试样例
 

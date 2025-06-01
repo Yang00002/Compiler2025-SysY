@@ -1,7 +1,7 @@
 #include "../../include/ir/AST2IR.hpp"
-#include "../../include/ast/Type.hpp"
+#include "../../include/util/Type.hpp"
 #include "../../include/ast/Ast.hpp"
-#include "../../include/ast/Tensor.hpp"
+#include "../../include/util/Tensor.hpp"
 #include "../../include/ir/Module.hpp"
 #include "../../include/ir/IRBuilder.hpp"
 #include "../../include/ir/BasicBlock.hpp"
@@ -14,6 +14,11 @@ AST2IRVisitor::AST2IRVisitor()
 {
 	_module = new Module{};
 	_builder = new IRBuilder(nullptr, _module);
+}
+
+AST2IRVisitor::~AST2IRVisitor()
+{
+	delete _builder;
 }
 
 Module* AST2IRVisitor::getModule() const { return _module; }
@@ -389,7 +394,7 @@ Value* AST2IRVisitor::visit(ASTRVal* r_val)
 		var_type = var_type->toPointerType()->typeContained();
 		// ? ** -> ? *
 		var = _builder->create_load(var);
-		int dimAll = static_cast<int>(var_type->toArrayType()->dimensions().size()) + 1;
+		int dimAll = (var_type->isArrayType() ? static_cast<int>(var_type->toArrayType()->dimensions().size()) : 0) + 1;
 		int dimGet = static_cast<int>(idx.size());
 		vector<Value*> indexes;
 		indexes.reserve(idx.size());
@@ -430,6 +435,12 @@ Value* AST2IRVisitor::visit(ASTRVal* r_val)
 
 Value* AST2IRVisitor::visit(ASTNumber* number)
 {
+	if (number->isBoolean())
+	{
+		if (number->toBoolean())_builder->create_br(_true_targets.back());
+		else _builder->create_br(_false_targets.back());
+		return nullptr;
+	}
 	return _builder->create_constant(number->toInitializeValue().toConstant());
 }
 
@@ -478,7 +489,7 @@ Value* AST2IRVisitor::visit(ASTCast* cast)
 			_builder->set_insert_point(bbt);
 			_builder->create_br(bbf);
 			_builder->set_insert_point(bbf);
-			return _builder->create_phi(INT, gets, labels);
+			return _builder->create_phi_back(INT, gets, labels);
 		}
 		return _builder->create_fptosi_to_i32(v->accept(this));
 	}
@@ -508,7 +519,7 @@ Value* AST2IRVisitor::visit(ASTCast* cast)
 		_builder->set_insert_point(bbt);
 		_builder->create_br(bbf);
 		_builder->set_insert_point(bbf);
-		return _builder->create_phi(FLOAT, gets, labels);
+		return _builder->create_phi_back(FLOAT, gets, labels);
 	}
 	return _builder->create_sitofp(v->accept(this));
 }
@@ -580,7 +591,7 @@ Value* AST2IRVisitor::visit(ASTEqual* equal)
 {
 	auto l = equal->l()->accept(this);
 	auto r = equal->r()->accept(this);
-	bool flt = equal->getExpressionType() == FLOAT;
+	bool flt = equal->l()->getExpressionType() == FLOAT;
 	if (equal->op_equal())
 	{
 		Value* cond;
@@ -602,7 +613,7 @@ Value* AST2IRVisitor::visit(ASTRelation* relation)
 {
 	auto l = relation->l()->accept(this);
 	auto r = relation->r()->accept(this);
-	bool flt = relation->getExpressionType() == FLOAT;
+	bool flt = relation->l()->getExpressionType() == FLOAT;
 	Value* cond;
 	switch (relation->op())
 	{
@@ -731,7 +742,6 @@ Value* AST2IRVisitor::visit(ASTIf* if_node)
 		auto res = visitStmts(if_node->if_stmt());
 		if (res == nullptr)
 			_builder->create_br(bbf);
-		else ret = res;
 		_builder->set_insert_point(bbf);
 	}
 	else
@@ -756,7 +766,10 @@ Value* AST2IRVisitor::visit(ASTIf* if_node)
 			_builder->create_br(bb);
 			if (ret != nullptr) ret = nullptr;
 		}
-		_builder->set_insert_point(bb);
+		if (ret != nullptr)
+			_functionBelong->remove(bb);
+		else
+			_builder->set_insert_point(bb);
 	}
 	return ret;
 }
@@ -789,9 +802,11 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 		_true_targets.pop_back();
 		_false_targets.pop_back();
 		_builder->set_insert_point(bb_while);
-		_while_nexts.emplace_back(bb_while);
+		_while_nexts.emplace_back(bb_next);
+		_while_conds.emplace_back(bb_cond);
 		auto res = visitStmts(while_node->stmt());
 		_while_nexts.pop_back();
+		_while_conds.pop_back();
 		if (res == nullptr)
 			_builder->create_br(bb_cond);
 		_builder->set_insert_point(bb_next);
@@ -802,7 +817,14 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 
 Value* AST2IRVisitor::visit(ASTBreak* break_node)
 {
+	_builder->create_br(_while_nexts.back());
 	return _while_nexts.back();
+}
+
+Value* AST2IRVisitor::visit(ASTContinue* break_node)
+{
+	_builder->create_br(_while_conds.back());
+	return _while_conds.back();
 }
 
 Value* AST2IRVisitor::visit(ASTReturn* return_node)
@@ -827,15 +849,19 @@ Value* AST2IRVisitor::visitStmts(const std::vector<ASTStmt*>& vec)
 		else
 		{
 			auto exp = dynamic_cast<ASTExpression*>(stmt);
-			if (exp != nullptr && exp->getExpressionType() == BOOL)
+			if (exp != nullptr)
 			{
-				auto bb = BasicBlock::create(_module, "", _functionBelong);
-				_true_targets.emplace_back(bb);
-				_false_targets.emplace_back(bb);
-				ret = stmt->accept(this);
-				_true_targets.pop_back();
-				_false_targets.pop_back();
-				_builder->set_insert_point(bb);
+				if (exp->getExpressionType() == BOOL)
+				{
+					auto bb = BasicBlock::create(_module, "", _functionBelong);
+					_true_targets.emplace_back(bb);
+					_false_targets.emplace_back(bb);
+					ret = stmt->accept(this);
+					_true_targets.pop_back();
+					_false_targets.pop_back();
+					_builder->set_insert_point(bb);
+				}
+				else stmt->accept(this);
 			}
 			else
 				ret = stmt->accept(this);
@@ -861,15 +887,19 @@ Value* AST2IRVisitor::visitStmts(const std::vector<ASTNode*>& vec)
 		else
 		{
 			auto exp = dynamic_cast<ASTExpression*>(stmt);
-			if (exp != nullptr && exp->getExpressionType() == BOOL)
+			if (exp != nullptr)
 			{
-				auto bb = BasicBlock::create(_module, "", _functionBelong);
-				_true_targets.emplace_back(bb);
-				_false_targets.emplace_back(bb);
-				ret = stmt->accept(this);
-				_true_targets.pop_back();
-				_false_targets.pop_back();
-				_builder->set_insert_point(bb);
+				if (exp->getExpressionType() == BOOL)
+				{
+					auto bb = BasicBlock::create(_module, "", _functionBelong);
+					_true_targets.emplace_back(bb);
+					_false_targets.emplace_back(bb);
+					ret = stmt->accept(this);
+					_true_targets.pop_back();
+					_false_targets.pop_back();
+					_builder->set_insert_point(bb);
+				}
+				else stmt->accept(this);
 			}
 			else
 				ret = stmt->accept(this);
