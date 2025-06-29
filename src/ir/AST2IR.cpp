@@ -107,9 +107,9 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 							if (v != ini->defaultValue())
 							{
 								seg_type |= 0b01;
-								prefill_cache[fill] = ini->defaultValue();
+								prefill_cache[fill] = v;
 							}
-							else prefill_cache[fill] = v;
+							else prefill_cache[fill] = ini->defaultValue();
 						}
 						fill++;
 						if (fill == 4)
@@ -191,7 +191,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 			_var_scope.pushFront(id, glob);
 			delete tensor;
 		}
-
+		auto glob_plain = glob != nullptr ? _builder->create_global_fix(glob) : nullptr;
 		int ed = static_cast<int>(segmentOpTypes.size());
 		int selfIdx = 0;
 		int cpIdx = 0;
@@ -211,7 +211,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 			{
 				auto dest = _builder->create_nump2charp(
 					_builder->create_gep(scope, index(ini->getShape(), selfIdx, 1)));
-				auto t_dest = _builder->create_nump2charp(_builder->create_gep(glob,
+				auto t_dest = _builder->create_nump2charp(_builder->create_gep(glob_plain,
 				                                                               {
 					                                                               _builder->create_constant(0),
 					                                                               _builder->create_constant(cpIdx)
