@@ -59,7 +59,7 @@ Value* AST2IRVisitor::visit(ASTCompUnit* comp_unit)
 Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 {
 	Type* type = decl->getType();
-	auto scope = AllocaInst::create_alloca(type, _builder->get_insert_block());
+	auto scope = AllocaInst::create_alloca(type, _builder->get_insert_block()->get_parent()->get_entry_block());
 	_var_scope.push(decl->id(), scope);
 	auto ini = decl->getInitList();
 	if (ini != nullptr)
@@ -135,10 +135,12 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 						auto [d, l] = i.getDefaultValues();
 						int lim = min(fill + l, 4);
 						for (int p = fill; p < lim; p++) prefill_cache[p] = ini->defaultValue();
+						bool ppd = false;
 						fill += l;
 						seg_type |= 0b10;
 						if (fill >= 4)
 						{
+							ppd = true;
 							if (segmentOpTypes.empty() || segmentOpTypes.back() != seg_type)
 							{
 								segmentOpTypes.emplace_back(seg_type);
@@ -157,15 +159,15 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 						fill &= 0b11;
 						if (len > 0)
 						{
-							if (segmentOpTypes.empty() || segmentOpTypes.back() != seg_type)
+							if (segmentOpTypes.empty() || segmentOpTypes.back() != 0b10)
 							{
-								segmentOpTypes.emplace_back(seg_type);
+								segmentOpTypes.emplace_back(0b10);
 								segmentLength.emplace_back(len);
 							}
 							else
 								segmentLength.back() += len;
 						}
-						if (fill > 0)
+						if (ppd && fill > 0)
 						{
 							seg_type |= 0b10;
 							for (int p = 0; p < fill; p++) prefill_cache[p] = ini->defaultValue();
@@ -203,14 +205,14 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 			if (ty == 0b10)
 			{
 				auto dest = _builder->create_nump2charp(
-					_builder->create_gep(scope, index(ini->getShape(), selfIdx, 1)));
+					_builder->create_gep(scope, index(ini->getDimCapacities(), selfIdx, 1)));
 				_builder->create_memclear(dest, len << 4);
 			}
 			// memcpy
 			else if (ty == 0b11)
 			{
 				auto dest = _builder->create_nump2charp(
-					_builder->create_gep(scope, index(ini->getShape(), selfIdx, 1)));
+					_builder->create_gep(scope, index(ini->getDimCapacities(), selfIdx, 1)));
 				auto t_dest = _builder->create_nump2charp(_builder->create_gep(glob_plain,
 				                                                               {
 					                                                               _builder->create_constant(0),
@@ -233,7 +235,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 				for (int ii = 0; ii < 4; ii++)
 				{
 					auto dest =
-						_builder->create_gep(scope, index(ini->getShape(), selfIdx + ii, 1));
+						_builder->create_gep(scope, index(ini->getDimCapacities(), selfIdx + ii, 1));
 					auto v = ini->visitData()->getElement(selfIdx + ii);
 					auto exp = v.getExpression();
 					auto expv = exp->accept(this);
@@ -248,7 +250,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 					if (v.isExpression())
 					{
 						auto dest =
-							_builder->create_gep(scope, index(ini->getShape(), selfIdx + ii, 1));
+							_builder->create_gep(scope, index(ini->getDimCapacities(), selfIdx + ii, 1));
 						auto exp = v.getExpression();
 						auto expv = exp->accept(this);
 						_builder->create_store(expv, dest);
@@ -262,7 +264,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 		{
 			auto v = ini->visitData()->getElement(i);
 			auto dest =
-				_builder->create_gep(scope, index(ini->getShape(), i, 1));
+				_builder->create_gep(scope, index(ini->getDimCapacities(), i, 1));
 			if (v.isExpression())
 			{
 				auto exp = v.getExpression();
@@ -915,16 +917,16 @@ std::string AST2IRVisitor::createPrivateGlobalVarID()
 	return "constinit." + std::to_string(_globalInitIdx++);
 }
 
-std::vector<Value*> AST2IRVisitor::index(const std::vector<int>& shape, int idx, int paddings) const
+std::vector<Value*> AST2IRVisitor::index(const std::vector<int>& capacity, int idx, int paddings) const
 {
 	std::vector<Value*> ret;
-	int ed = static_cast<int>(shape.size());
+	int ed = static_cast<int>(capacity.size());
 	ret.reserve(ed + paddings);
 	for (int i = 0; i < paddings; i++) ret.emplace_back(_builder->create_constant(0));
 	for (int i = 0; i < ed; i++)
 	{
-		int x = idx / shape[i];
-		idx -= x * shape[i];
+		int x = idx / capacity[i];
+		idx -= x * capacity[i];
 		ret.emplace_back(_builder->create_constant(x));
 	}
 	return ret;

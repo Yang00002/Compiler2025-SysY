@@ -159,6 +159,8 @@ public:
 	// 每一维的容量, 例如 Tensor[4][3][2], 0 维占用 6, 1 维占用 2, 2 维占用 1.
 	// 小于 0 的数输出张量总容量
 	[[nodiscard]] int getDimCapacity(int dim) const;
+	// 每一维的容量, 例如 Tensor[4][3][2], 0 维占用 6, 1 维占用 2, 2 维占用 1.
+	[[nodiscard]] const std::vector<int>& getDimCapacities() const;
 	std::string toString(const std::function<std::string(const Element&)>& outFunc) const;
 	// 获取张量存储的数据
 	[[nodiscard]] TensorData<Element>* getData();
@@ -386,6 +388,12 @@ int Tensor<Element>::getDimCapacity(const int dim) const
 	if (dim < 0) return _shape.empty() ? 1 : _shape[0] * _dimLen[0];
 	if (dim >= static_cast<int>(_dimLen.size())) throw error::TensorDimIndex(static_cast<int>(_dimLen.size()), dim);
 	return _dimLen[dim];
+}
+
+template <typename Element>
+const std::vector<int>& Tensor<Element>::getDimCapacities() const
+{
+	return _dimLen;
 }
 
 template <typename Element>

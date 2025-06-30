@@ -219,7 +219,7 @@ bool validateFile(const string &filePath, string shell = "compileTest.sh",
                   bool example = true) {
   if (example)
     cout << "checking " + filePath << endl;
-  string shown = last2LineRight(filePath);
+  string shown = filePath;
   if (!filesystem::exists(filePath)) {
     cerr << shown + red(" 文件不存在") << endl;
     return false;
@@ -278,7 +278,7 @@ void validate(const string &commonPathName, list<string> &fileList,
     string name = last2LineRight(pathWithoutType);
     string input = pathWithoutType + ".in";
     string output = pathWithoutType + ".out";
-    string command = "./build/example/" + name + ".out";
+    string command = "./build/custom/" + name + ".out";
     bool haveIntput = filesystem::exists(input);
     if (haveIntput) {
       command += " < " + input;
@@ -293,13 +293,12 @@ void validate(const string &commonPathName, list<string> &fileList,
     compOut = normalizeString(compOut);
     defOut = normalizeString(defOut);
     if (compOut == defOut) {
-      cout << last2LineRight(path) << green(" OK") << endl;
+      cout << path << green(" OK") << endl;
     } else {
-      cout << last2LineRight(path) << red(" 输出不一致") << endl;
+      cout << path << red(" 输出不一致") << endl;
       string pdif = "build/example_diff/" + name;
       makeDir(pdif);
-      writeFile(compOut, pdif + "/g++out.out");
-      writeFile(defOut, pdif + "/given.out");
+      writeFile(compOut, pdif + "/comp_out.out");
       if (haveIntput)
         filesystem::copy_file(input, pdif + "/" + lastLineRight(input),
                               filesystem::copy_options::overwrite_existing);

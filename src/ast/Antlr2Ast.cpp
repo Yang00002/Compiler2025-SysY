@@ -680,7 +680,24 @@ std::any Antlr2AstVisitor::visitPrimaryExp(SysYParser::PrimaryExpContext* contex
 std::any Antlr2AstVisitor::visitNumber(SysYParser::NumberContext* context)
 {
 	if (context->IntConst() != nullptr)
-		return static_cast<ASTExpression*>(new ASTNumber(stoi(context->IntConst()->toString())));
+	{
+		int c = 0;
+		auto str = context->IntConst()->toString();
+		if (str.size() >= 2)
+		{
+			if (str[0] == '0')
+			{
+				if (str[1] == 'x' || str[1] == 'X')
+					c = std::stoi(str, nullptr, 16);
+				else if (str[1] == 'b' || str[1] == 'B')
+					c = std::stoi(str, nullptr, 2);
+				else c = std::stoi(str, nullptr, 8);
+			}
+			else c = std::stoi(str);
+		}
+		else c = std::stoi(str);
+		return static_cast<ASTExpression*>(new ASTNumber(c));
+	}
 	return static_cast<ASTExpression*>(new ASTNumber(stof(context->FloatConst()->toString())));
 }
 
@@ -1050,7 +1067,7 @@ std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 			else res = lNum->toFloat() >= rNum->toFloat();
 		}
 		delete rNum;
-		lNum->_field = ConstantValue{ res };
+		lNum->_field = ConstantValue{res};
 		return static_cast<ASTExpression*>(lNum);
 	}
 	RelationOP op;
@@ -1092,7 +1109,7 @@ std::any Antlr2AstVisitor::visitEqExp(SysYParser::EqExpContext* context)
 			else res = lNum->toBoolean() != rNum->toBoolean();
 		}
 		delete rNum;
-		lNum->_field = ConstantValue{ res };
+		lNum->_field = ConstantValue{res};
 		return static_cast<ASTExpression*>(lNum);
 	}
 	auto node = new ASTEqual{context->EQ() != nullptr, l, r};

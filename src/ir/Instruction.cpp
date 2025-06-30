@@ -18,7 +18,12 @@ Instruction::Instruction(Type* ty, OpID id, BasicBlock* parent)
 	: User(ty, ""), op_id_(id), parent_(parent)
 {
 	if (parent)
-		parent->add_instruction(this);
+	{
+		if (id == alloca_)
+			parent->add_instr_begin(this);
+		else
+			parent->add_instruction(this);
+	}
 }
 
 Function* Instruction::get_function() const { return parent_->get_parent(); }
