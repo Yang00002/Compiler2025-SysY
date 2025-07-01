@@ -230,9 +230,10 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 		{
 			int ty = segmentOpTypes[i];
 			int len = segmentLength[i];
+			auto l = len << 2;
 			if (ty == 0b01)
 			{
-				for (int ii = 0; ii < 4; ii++)
+				for (int ii = 0; ii < l; ii++)
 				{
 					auto dest =
 						_builder->create_gep(scope, index(ini->getDimCapacities(), selfIdx + ii, 1));
@@ -244,7 +245,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 			}
 			else if (ty == 0b11)
 			{
-				for (int ii = 0; ii < 4; ii++)
+				for (int ii = 0; ii < l; ii++)
 				{
 					auto v = ini->visitData()->getElement(selfIdx + ii);
 					if (v.isExpression())
