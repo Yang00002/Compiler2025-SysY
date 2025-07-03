@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include "Instruction.hpp"
+#include <ir/Instruction.hpp>
 
 class Value;
 

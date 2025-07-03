@@ -1,4 +1,4 @@
-#include "../../include/ir/Value.hpp"
+#include <ir/Value.hpp>
 
 #include <cassert>
 

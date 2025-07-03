@@ -1,10 +1,10 @@
-#include "../../include/ir/IRPrinter.hpp"
-#include "../../include/ir/Instruction.hpp"
-#include "../../include/ir/BasicBlock.hpp"
-#include "../../include/ir/Constant.hpp"
-#include "../../include/util/Type.hpp"
-#include "../../include/ir/Function.hpp"
-#include "../../include/ir/GlobalVariable.hpp"
+#include <ir/IRPrinter.hpp>
+#include <ir/Instruction.hpp>
+#include <ir/BasicBlock.hpp>
+#include <ir/Constant.hpp>
+#include <util/Type.hpp>
+#include <ir/Function.hpp>
+#include <ir/GlobalVariable.hpp>
 #include <cassert>
 
 std::string print_as_op(Value* v, bool print_ty)

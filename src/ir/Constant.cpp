@@ -1,4 +1,4 @@
-#include "../../include/ir/Constant.hpp"
+#include <ir/Constant.hpp>
 
 #include <cstring>
 #include <iomanip>
@@ -6,10 +6,10 @@
 #include <sstream>
 #include <string>
 
-#include "../../include/util/System.hpp"
-#include "../../include/util/Tensor.hpp"
-#include "../../include/util/Type.hpp"
-#include "../../include/ir/Module.hpp"
+#include <util/System.hpp>
+#include <util/Tensor.hpp>
+#include <util/Type.hpp>
+#include <ir/Module.hpp>
 
 using namespace system_about;
 using namespace Types;

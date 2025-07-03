@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Value.hpp"
+#include <ir/Value.hpp>
 
 #include <list>
 #include <set>

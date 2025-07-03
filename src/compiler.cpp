@@ -1,10 +1,10 @@
-#include "../antlr/SysYLexer.h"
-#include "../antlr/SysYParser.h"
+#include <SysYLexer.h>
+#include <SysYParser.h>
 
-#include "../include/ast/Antlr2Ast.hpp"
-#include "../include/ir/AST2IR.hpp"
+#include <ast/Antlr2Ast.hpp>
+#include <ir/AST2IR.hpp>
 
-#include "../include/codegen/ARM_codegen.hpp"
+#include <codegen/ARM_codegen.hpp>
 
 #include <CharStream.h>
 #include <cstdlib>
