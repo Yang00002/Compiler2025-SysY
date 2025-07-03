@@ -342,7 +342,7 @@ private:
 	// 是否是全局变量
 	bool _is_global;
 	// 变量的类型
-	Type* _type;
+	Type* _type{};
 	// 初始值列表, 没有则为空 *
 	Tensor<InitializeValue>* _initList = nullptr;
 	// 需要被计算的非常量初始化表达式, 用于维护内存 *
@@ -395,11 +395,11 @@ private:
 	// 是否是库函数
 	bool _in_lib = false;
 	// 返回值类型
-	Type* _return_type;
+	Type* _return_type{};
 	// 参数列表, 参数由函数管理(虽然挂载在其基本块符号表中) *
 	std::vector<ASTVarDecl*> _args;
 	// 对应基本块 *
-	ASTBlock* _block;
+	ASTBlock* _block{};
 
 public:
 	// 是否是库函数
@@ -428,7 +428,7 @@ class ASTExpression : public ASTStmt
 
 protected:
 	// 该表达式是否调用了函数
-	bool _haveFuncCall;
+	bool _haveFuncCall{};
 
 public:
 	// 表达式值的类型
@@ -457,7 +457,7 @@ public:
 private:
 	std::list<std::string> toStringList() override;
 	// 引用声明
-	ASTVarDecl* _decl;
+	ASTVarDecl* _decl{};
 	// 索引, 若没有则为空 *
 	std::vector<ASTExpression*> _index;
 
@@ -489,9 +489,9 @@ private:
 	std::list<std::string> toStringList() override;
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
 	// 引用声明
-	ASTVarDecl* _decl;
+	ASTVarDecl* _decl{};
 	// 索引, 若没有则为空 *
-	std::vector<ASTExpression*> _index;
+	std::vector<ASTExpression*> _index{};
 
 	// 尽管逻辑上是左值可以转换为右值, 但是在 AST 中由于右值是表达式, 对数据结构更友好
 	[[nodiscard]] ASTLVal* toLVal() const;
@@ -517,7 +517,7 @@ class ASTNumber final : public ASTExpression
 	friend class Antlr2AstVisitor;
 	friend class ASTCompUnit;
 
-	ConstantValue _field;
+	ConstantValue _field{};
 
 public:
 	explicit ASTNumber(int i);
@@ -583,9 +583,9 @@ public:
 
 private:
 	// 源表达式 *
-	ASTExpression* _source;
+	ASTExpression* _source{};
 	// 目标类型
-	Type* _castTo;
+	Type* _castTo{};
 };
 
 // 算数表达式, 包含左右操作数(同一类型)和算符
@@ -625,13 +625,13 @@ public:
 
 private:
 	// 结果类型
-	Type* _result_type;
+	Type* _result_type{};
 	// 算符
-	MathOP _op;
+	MathOP _op{};
 	// 左操作数 *
-	ASTExpression* _l;
+	ASTExpression* _l{};
 	// 右操作数 *
-	ASTExpression* _r;
+	ASTExpression* _r{};
 };
 
 // 逻辑表达式, 包含所有操作数(bool 类型)和算符
@@ -659,12 +659,12 @@ private:
 
 	friend class Antlr2AstVisitor;
 	// 算符
-	LogicOP _op;
+	LogicOP _op{};
 	// 操作数 *
 	std::vector<ASTExpression*> _exps;
 	// 是否在编译期间就已经能够短路运算得到结果
 	// 通常代表该表达式可以得到结果, 但是考虑到副作用对表达式进行保留; 会改变此后表达式的短路策略.
-	LogicResult _have_result;
+	LogicResult _have_result{};
 
 public:
 	ASTLogicExp(const ASTLogicExp& other) = delete;
@@ -722,11 +722,11 @@ public:
 private:
 	friend class Antlr2AstVisitor;
 	// 算符 true 为 ==; false 为 !=
-	bool _op_equal;
+	bool _op_equal{};
 	// 左操作数 *
-	ASTExpression* _l;
+	ASTExpression* _l{};
 	// 右操作数 *
-	ASTExpression* _r;
+	ASTExpression* _r{};
 
 public:
 	[[nodiscard]] Type* getExpressionType() const override;
@@ -774,11 +774,11 @@ public:
 private:
 	friend class Antlr2AstVisitor;
 	// 比较算符
-	RelationOP _op;
+	RelationOP _op{};
 	// 左操作数 *
-	ASTExpression* _l;
+	ASTExpression* _l{};
 	// 右操作数 *
-	ASTExpression* _r;
+	ASTExpression* _r{};
 
 public:
 	[[nodiscard]] Type* getExpressionType() const override;
@@ -814,7 +814,7 @@ public:
 
 private:
 	// 函数声明
-	ASTFuncDecl* _function;
+	ASTFuncDecl* _function{};
 	// 参数 *
 	// 对于数组类型, AST 的检查保证参数一定可以传入函数, 但不代表它们的类型相同
 	// 例如函数参数是 integer[][2], 那它可能输入类型 integer[][2], integer[3][2]
@@ -837,7 +837,7 @@ private:
 	friend std::list<ASTExpression*> AST::cutExpressionToOnlyLeaveFuncCall(ASTExpression* input);
 	friend class Antlr2AstVisitor;
 	// 操作数 *
-	ASTExpression* _hold;
+	ASTExpression* _hold{};
 
 public:
 	ASTNeg(const ASTNeg& other) = delete;
@@ -879,7 +879,7 @@ public:
 
 protected:
 	// 所含表达式 *
-	ASTExpression* _hold;
+	ASTExpression* _hold{};
 };
 
 // 基本块. 包含一个语句列表和一个符号表. *
@@ -948,9 +948,9 @@ public:
 
 private:
 	// 目标左值 *
-	ASTLVal* _assign_to;
+	ASTLVal* _assign_to{};
 	// 所赋值 *
-	ASTExpression* _assign_value;
+	ASTExpression* _assign_value{};
 };
 
 // IF 语句. 包含条件, IF 子句和 ELSE 子句(没有则为空)
@@ -991,7 +991,7 @@ public:
 
 private:
 	// 条件 *
-	ASTExpression* _cond;
+	ASTExpression* _cond{};
 	// if 子句, 可能有 [1, ] 个元素. 它们与 cond 处于同一块中, 这通常由于优化, 是无法在代码中常规体现的. *
 	std::vector<ASTStmt*> _if_stmt;
 	// else 子句, 可能有 [0, ] 个元素. 它们与 cond 处于同一块中 *
@@ -1031,7 +1031,7 @@ public:
 
 private:
 	// 条件 *
-	ASTExpression* _cond;
+	ASTExpression* _cond{};
 	// 子句, 可能有 [0, ] 个元素. 它们与 cond 处于同一块中, 这通常由于优化, 是无法在代码中常规体现的. *
 	std::vector<ASTStmt*> _stmt;
 };
@@ -1069,7 +1069,7 @@ public:
 
 private:
 	// 目标节点
-	ASTWhile* _target;
+	ASTWhile* _target{};
 };
 
 // RETURN 语句. 包含返回值和目标返回函数
@@ -1108,7 +1108,7 @@ public:
 
 private:
 	// 返回值, 与函数返回值类型一致, 故可能为 nullptr *
-	ASTExpression* _return_value;
+	ASTExpression* _return_value{};
 	// 目标函数, 仅是为了方便定位
-	ASTFuncDecl* _function;
+	ASTFuncDecl* _function{};
 };

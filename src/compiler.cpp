@@ -74,5 +74,9 @@ int main(int argc, char* argv[]) {
     std::ofstream output_file(outfile);
     output_file << c.print();
     output_file.close();
+
+    delete ast;
+    delete m;
+    
     return 0;
 }

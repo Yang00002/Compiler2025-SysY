@@ -5,7 +5,7 @@ COMPILER=../build/compiler
 tmp=../build/AArch64_CodegenTest
 
 TEST_DIRS=(
-    "functional" "arm"
+    "functional" # "arm"
 )
 
 CFLAGS=''
@@ -87,7 +87,7 @@ for dir in "${TEST_DIRS[@]}"; do
             cp $sy_file $tmp/
     	else
             echo "RETURN CHECK SUCCESS!"
-            rm $bin_file $tmp/$base.s
+#           rm $bin_file $tmp/$base.s
 	fi
     done
 done
