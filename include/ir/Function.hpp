@@ -48,9 +48,10 @@ public:
 
 	Value* ret_alloca_;
 
-private:
 	// 是否是库函数, 以对函数参数进行不同的除了
 	bool is_lib_;
+
+private:
 	std::list<BasicBlock*> basic_blocks_;
 	std::list<Argument> arguments_;
 	Module* parent_;

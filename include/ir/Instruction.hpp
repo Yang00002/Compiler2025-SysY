@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include "Value.hpp"
+#include "BasicBlock.hpp"
 
 class GlobalVariable;
 class FuncType;
@@ -467,6 +468,24 @@ public:
 		this->add_operand(val);
 		this->add_operand(pre_bb);
 	}
+
+    void remove_phi_operand(Value *pre_bb) {
+        for (unsigned i = 0; i < this->get_num_operand(); i += 2) {
+            if (this->get_operand(i + 1) == pre_bb) {
+                this->remove_operand(i);
+                this->remove_operand(i);
+                return;
+            }
+        }
+    }
+
+    std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() {
+        std::vector<std::pair<Value *, BasicBlock *>> res;
+        for (size_t i = 0; i < get_num_operand(); i += 2) {
+            res.push_back({this->get_operand(i), dynamic_cast<BasicBlock*>(this->get_operand(i + 1))});
+        }
+        return res;
+    }
 
 	std::string print() override;
 };

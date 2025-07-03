@@ -5,7 +5,7 @@
 #include "Function.hpp"
 #include "Instruction.hpp"
 #include "Value.hpp"
-
+#include "util/Type.hpp"
 class IRBuilder
 {
 	BasicBlock* BB_;

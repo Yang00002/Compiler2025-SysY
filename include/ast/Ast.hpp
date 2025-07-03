@@ -1,5 +1,6 @@
 #pragma once
 #include <functional>
+#include <cstdint>
 #include <map>
 #include <list>
 #include <string>
