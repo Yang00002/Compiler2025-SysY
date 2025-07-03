@@ -32,6 +32,6 @@ aux_source_directory(src/ir irSource)
 aux_source_directory(src/codegen cgenSource)
 
 # 添加源文件
-add_executable(compiler src/main.cpp ${utilSource} ${astSource} ${irSource} ${cgenSource})
+add_executable(compiler src/compiler.cpp ${utilSource} ${astSource} ${irSource} ${cgenSource})
 
 target_link_libraries(compiler PRIVATE antlr_lib)
