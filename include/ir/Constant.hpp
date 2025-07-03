@@ -1,6 +1,6 @@
 #pragma once
-#include <ir/Value.hpp>
-#include <ast/Ast.hpp>
+#include <Value.hpp>
+#include <Ast.hpp>
 
 class Module;
 

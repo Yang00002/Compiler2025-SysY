@@ -1,11 +1,11 @@
 #pragma once
 
-#include <ir/BasicBlock.hpp>
-#include <ir/Constant.hpp>
-#include <ir/Function.hpp>
-#include <ir/Instruction.hpp>
-#include <ir/Value.hpp>
-#include <util/Type.hpp>
+#include <BasicBlock.hpp>
+#include <Constant.hpp>
+#include <Function.hpp>
+#include <Instruction.hpp>
+#include <Value.hpp>
+#include <Type.hpp>
 class IRBuilder
 {
 	BasicBlock* BB_;

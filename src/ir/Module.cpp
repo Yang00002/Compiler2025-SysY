@@ -1,7 +1,7 @@
-#include <ir/Module.hpp>
-#include <ir/Function.hpp>
-#include <ir/GlobalVariable.hpp>
-#include <ir/Constant.hpp>
+#include <Module.hpp>
+#include <Function.hpp>
+#include <GlobalVariable.hpp>
+#include <Constant.hpp>
 #include <string>
 
 Module::Module()

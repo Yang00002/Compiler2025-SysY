@@ -3,12 +3,12 @@
 #include <iomanip>
 #include <sstream>
 
-#include <ast/Ast.hpp>
-#include <util/System.hpp>
-#include <util/Tensor.hpp>
-#include <util/Type.hpp>
-#include <ir/AST2IR.hpp>
-#include <ir/Constant.hpp>
+#include <Ast.hpp>
+#include <System.hpp>
+#include <Tensor.hpp>
+#include <Type.hpp>
+#include <AST2IR.hpp>
+#include <Constant.hpp>
 
 using namespace system_about;
 

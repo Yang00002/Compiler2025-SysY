@@ -1,4 +1,4 @@
-#include <util/Type.hpp>
+#include <Type.hpp>
 
 #include <iostream>
 #include <map>

@@ -1,10 +1,10 @@
-#include <ir/AST2IR.hpp>
-#include <util/Type.hpp>
-#include <ast/Ast.hpp>
-#include <util/Tensor.hpp>
-#include <ir/Module.hpp>
-#include <ir/IRBuilder.hpp>
-#include <ir/BasicBlock.hpp>
+#include <AST2IR.hpp>
+#include <Type.hpp>
+#include <Ast.hpp>
+#include <Tensor.hpp>
+#include <Module.hpp>
+#include <IRBuilder.hpp>
+#include <BasicBlock.hpp>
 
 using namespace std;
 using namespace Types;

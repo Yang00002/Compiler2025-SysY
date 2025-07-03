@@ -1,7 +1,7 @@
-#include <ast/Antlr2Ast.hpp>
-#include <ast/Ast.hpp>
-#include <util/Type.hpp>
-#include <util/Tensor.hpp>
+#include <Antlr2Ast.hpp>
+#include <Ast.hpp>
+#include <Type.hpp>
+#include <Tensor.hpp>
 
 
 using namespace Types;

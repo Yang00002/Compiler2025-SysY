@@ -6,12 +6,12 @@
 #include <map>
 #include <cstdint>
 
-#include <util/Type.hpp>
-#include <util/Tensor.hpp>
-#include <ir/Constant.hpp>
-#include <ir/Instruction.hpp>
-#include <ir/Module.hpp>
-#include <ir/BasicBlock.hpp>
+#include <Type.hpp>
+#include <Tensor.hpp>
+#include <Constant.hpp>
+#include <Instruction.hpp>
+#include <Module.hpp>
+#include <BasicBlock.hpp>
 
 #define IMM8_MAX 0xFF
 #define IMM8_MIN -0x100

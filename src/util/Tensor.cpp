@@ -1,4 +1,4 @@
-#include <util/Tensor.hpp>
+#include <Tensor.hpp>
 #include <string>
 
 using namespace std;

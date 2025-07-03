@@ -1,8 +1,8 @@
-#include <ir/Function.hpp>
-#include <ir/BasicBlock.hpp>
-#include <ir/IRPrinter.hpp>
-#include <ir/Module.hpp>
-#include <util/Type.hpp>
+#include <Function.hpp>
+#include <BasicBlock.hpp>
+#include <IRPrinter.hpp>
+#include <Module.hpp>
+#include <Type.hpp>
 #include <map>
 
 Function::Function(FuncType* ty, const std::string& name, Module* parent, const bool is_lib)

@@ -1,5 +1,5 @@
 #pragma once
-#include <ir/Value.hpp>
+#include <Value.hpp>
 
 template <typename Element>
 class Tensor;

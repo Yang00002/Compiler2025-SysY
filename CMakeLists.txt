@@ -17,7 +17,10 @@ add_library(antlr_lib INTERFACE)
 target_link_libraries(antlr_lib INTERFACE antlr_sysy antlr4-runtime)
 
 # 添加头文件搜索路径
-include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/include/ast)
+include_directories(${PROJECT_SOURCE_DIR}/include/codegen)
+include_directories(${PROJECT_SOURCE_DIR}/include/ir)
+include_directories(${PROJECT_SOURCE_DIR}/include/util)
 include_directories(${PROJECT_SOURCE_DIR}/antlr)
 
 # util 源文件集 

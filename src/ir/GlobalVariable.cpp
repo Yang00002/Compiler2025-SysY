@@ -1,12 +1,12 @@
 #include <utility>
 
-#include <ir/GlobalVariable.hpp>
-#include <ir/IRPrinter.hpp>
-#include <ir/Module.hpp>
-#include <ir/Constant.hpp>
-#include <util/Tensor.hpp>
-#include <ast/Ast.hpp>
-#include <util/Type.hpp>
+#include <GlobalVariable.hpp>
+#include <IRPrinter.hpp>
+#include <Module.hpp>
+#include <Constant.hpp>
+#include <Tensor.hpp>
+#include <Ast.hpp>
+#include <Type.hpp>
 
 using namespace std;
 using namespace Types;

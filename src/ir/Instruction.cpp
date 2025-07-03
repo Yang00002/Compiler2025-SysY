@@ -1,9 +1,9 @@
-#include <ir/Instruction.hpp>
-#include <ir/BasicBlock.hpp>
-#include <ir/Function.hpp>
-#include <ir/IRPrinter.hpp>
-#include <ir/GlobalVariable.hpp>
-#include <util/Type.hpp>
+#include <Instruction.hpp>
+#include <BasicBlock.hpp>
+#include <Function.hpp>
+#include <IRPrinter.hpp>
+#include <GlobalVariable.hpp>
+#include <Type.hpp>
 
 #include <algorithm>
 #include <array>
