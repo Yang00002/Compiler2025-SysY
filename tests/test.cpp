@@ -271,6 +271,7 @@ void validate(const string &commonPathName, list<string> &fileList,
   makeDir("build/example/" + commonPathName);
   makeDir("build/custom/" + commonPathName);
   fileList.remove_if([](const string &v) -> bool { return !validateFile(v); });
+  fileList.sort();
   if (filesystem::exists("build/example_diff/" + commonPathName))
     filesystem::remove_all("build/example_diff/" + commonPathName);
   for (auto &path : fileList) {
@@ -290,16 +291,16 @@ void validate(const string &commonPathName, list<string> &fileList,
       if (!valid)
         continue;
     }
-    string compOut =
-        runCommand("qemu-aarch64 -L /usr/aarch64-linux-gnu -cpu cortex-a53 " +
-                       command,
-                   INT_MAX, shouldReturn)
-            .first;
+    auto out = runCommand(
+        "qemu-aarch64 -L /usr/aarch64-linux-gnu -cpu cortex-a53 " + command,
+        INT_MAX, shouldReturn);
+    string compOut = out.first;
+    string compMessage = out.second;
     string defOut = readFile(output);
     compOut = normalizeString(compOut);
     defOut = normalizeString(defOut);
     if (compOut == defOut) {
-      cout << path << green(" OK") << endl;
+      cout << path << green(" OK ") << compMessage << endl;
     } else {
       cout << path << red(" 输出不一致") << endl;
       string pdif = "build/example_diff/" + name;
