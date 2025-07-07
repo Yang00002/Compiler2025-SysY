@@ -1,9 +1,8 @@
 #include <utility>
 
-#include <GlobalVariable.hpp>
+#include "GlobalVariable.hpp"
 #include <IRPrinter.hpp>
 #include <Module.hpp>
-#include <Constant.hpp>
 #include <Tensor.hpp>
 #include <Ast.hpp>
 #include <Type.hpp>

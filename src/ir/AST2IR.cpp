@@ -1,10 +1,10 @@
-#include <AST2IR.hpp>
-#include <Type.hpp>
-#include <Ast.hpp>
-#include <Tensor.hpp>
-#include <Module.hpp>
-#include <IRBuilder.hpp>
-#include <BasicBlock.hpp>
+#include "AST2IR.hpp"
+#include "Type.hpp"
+#include "Ast.hpp"
+#include "Tensor.hpp"
+#include "Module.hpp"
+#include "IRBuilder.hpp"
+#include "BasicBlock.hpp"
 
 using namespace std;
 using namespace Types;
@@ -59,7 +59,7 @@ Value* AST2IRVisitor::visit(ASTCompUnit* comp_unit)
 Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 {
 	Type* type = decl->getType();
-	auto scope = AllocaInst::create_alloca(type, _builder->get_insert_block()->get_parent()->get_entry_block());
+	auto scope = _builder->create_alloca(type);
 	_var_scope.push(decl->id(), scope);
 	auto ini = decl->getInitList();
 	if (ini != nullptr)

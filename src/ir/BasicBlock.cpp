@@ -1,7 +1,7 @@
-#include <BasicBlock.hpp>
-#include <Function.hpp>
-#include <IRPrinter.hpp>
-#include <Type.hpp>
+#include "BasicBlock.hpp"
+#include "Function.hpp"
+#include "IRPrinter.hpp"
+#include "Type.hpp"
 
 #include <cassert>
 
@@ -55,6 +55,18 @@ void BasicBlock::erase_instr(const Instruction* instr)
 {
 	instr_list_.erase(std::find(instr_list_.begin(), instr_list_.end(), instr));
 	delete instr;
+}
+
+void BasicBlock::erase_instr_from_last(const Instruction* instr)
+{
+	for (auto it = instr_list_.end(); it != instr_list_.begin(); )
+	{
+		--it;
+		if (*it == instr)
+		{
+			instr_list_.erase(it);
+		}
+	}
 }
 
 std::string BasicBlock::print()

@@ -8,7 +8,6 @@
 #include <Tensor.hpp>
 #include <Type.hpp>
 #include <AST2IR.hpp>
-#include <Constant.hpp>
 
 using namespace system_about;
 

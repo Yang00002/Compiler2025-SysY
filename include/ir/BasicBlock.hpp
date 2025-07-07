@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Value.hpp>
+#include "Value.hpp"
 
 #include <list>
 #include <set>
@@ -59,6 +59,8 @@ public:
 	void add_instr_begin(Instruction* instr) { instr_list_.push_front(instr); }
 	// 移除指令, 移除基本块中指令
 	void erase_instr(const Instruction* instr);
+	// 移除指令, 从尾部开始搜索  
+	void erase_instr_from_last(const Instruction* instr);
 
 	// 获取所有指令
 	std::list<Instruction*>& get_instructions() { return instr_list_; }

@@ -19,10 +19,7 @@ Instruction::Instruction(Type* ty, OpID id, BasicBlock* parent)
 {
 	if (parent)
 	{
-		if (id == alloca_)
-			parent->add_instr_begin(this);
-		else
-			parent->add_instruction(this);
+		parent->add_instruction(this);
 	}
 }
 

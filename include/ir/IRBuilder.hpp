@@ -6,6 +6,7 @@
 #include <Instruction.hpp>
 #include <Value.hpp>
 #include <Type.hpp>
+
 class IRBuilder
 {
 	BasicBlock* BB_;
@@ -167,7 +168,10 @@ public:
 
 	AllocaInst* create_alloca(Type* ty) const
 	{
-		return AllocaInst::create_alloca(ty, this->BB_);
+		auto inst = AllocaInst::create_alloca(ty, nullptr);
+		auto entryBB = this->BB_->get_parent()->get_entry_block();
+		entryBB->add_instr_begin(inst);
+		return inst;
 	}
 
 	ZextInst* create_zext_to_i32(Value* val) const

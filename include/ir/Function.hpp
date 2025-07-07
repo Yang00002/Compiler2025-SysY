@@ -3,7 +3,7 @@
 #include <cassert>
 #include <list>
 
-#include <Value.hpp>
+#include "Value.hpp"
 
 class FuncType;
 class BasicBlock;
