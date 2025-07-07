@@ -40,6 +40,9 @@ public:
 
 	const std::vector<BasicBlock*>& get_dom_post_order();
 
+	// for debug
+	void print_idom(Function* f) const;
+	void print_dominance_frontier(Function* f);
 private:
 	void dfs(BasicBlock* bb, std::set<BasicBlock*>& visited);
 	void create_idom(Function* f);
@@ -58,9 +61,6 @@ private:
 
 	unsigned int get_post_order(BasicBlock* bb) const;
 
-	// for debug
-	void print_idom(Function* f) const;
-	void print_dominance_frontier(Function* f);
 
 	std::list<BasicBlock*> reverse_post_order_{};
 	std::map<BasicBlock*, int> post_order_id_{}; // the root has the highest ID
