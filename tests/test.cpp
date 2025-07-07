@@ -5,6 +5,8 @@
 #include <iostream>
 #include <iterator>
 #include <list>
+#include <optional>
+#include <regex>
 #include <string>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -22,6 +24,22 @@ std::string firstSpaceLeft(const std::string &str) {
   } else {
     return str.substr(0, spacePos);
   }
+}
+
+// 定义一个函数来解析字符串并提取时间信息
+std::optional<std::vector<int>> extractTime(const std::string &input) {
+  std::regex pattern(R"(TOTAL:\s*(\d+)H-(\d+)M-(\d+)S-(\d+)us)");
+  std::smatch match;
+
+  if (std::regex_search(input, match, pattern) && match.size() > 4) {
+    std::vector<int> timeValues;
+    for (size_t i = 1; i < match.size(); ++i) {
+      timeValues.push_back(std::stoi(match[i].str()));
+    }
+    return timeValues;
+  }
+
+  return std::nullopt;
 }
 
 std::pair<std::string, std::string>
@@ -266,6 +284,81 @@ std::string normalizeString(const std::string &input) {
   return result;
 }
 
+int timeCmp(vector<int> &a, vector<int> &b) {
+  long ta = a[0] * 3600000000 + a[1] * 60000000 + a[2] * 1000000 + a[3];
+  long tb = b[0] * 3600000000 + b[1] * 60000000 + b[2] * 1000000 + b[3];
+  long av = (ta + tb) >> 1;
+  long dif = abs(ta - tb);
+  if (av == 0)
+    return 0;
+  if (dif * 20 < av)
+    return 0;
+  if (ta < tb)
+    return -1;
+  if (ta > tb)
+    return 1;
+  return 0;
+}
+
+int strictTimeCmp(vector<int> &a, vector<int> &b) {
+  for (int i = 0; i < 4; i++) {
+    if (a[i] > b[i])
+      return 1;
+    if (a[i] < b[i])
+      return -1;
+  }
+  return 0;
+}
+
+string time2Str(vector<int> &a) {
+  return to_string(a[0]) + "H-" + to_string(a[1]) + "M-" + to_string(a[2]) +
+         "S-" + to_string(a[3]) + "us";
+}
+
+void showTime(vector<int> &get, string name, bool toExample) {
+  string exampleTimePath = "./build/example/" + name + ".time";
+  string customBestTimePath = "./build/custom/" + name + ".time";
+  string exampleTimeString =
+      filesystem::exists(exampleTimePath) ? readFile(exampleTimePath) : "";
+  string customBestTimeString = filesystem::exists(customBestTimePath)
+                                    ? readFile(customBestTimePath)
+                                    : "";
+  auto exampleTimeOp = extractTime(exampleTimeString);
+  auto customBestTimeOp = extractTime(customBestTimeString);
+  string ret;
+  if (exampleTimeOp) {
+    int cmp = timeCmp(get, *exampleTimeOp);
+    if (cmp < 0)
+      ret += green(time2Str(get));
+    else if (cmp > 0)
+      ret += red(time2Str(get));
+    else
+      ret += yellow(time2Str(get));
+    ret += " [ gcc ";
+    ret += time2Str(*exampleTimeOp);
+    ret += " ]";
+  } else
+    ret += time2Str(get);
+  if (customBestTimeOp) {
+    ret += " [ best ";
+    int cmp = timeCmp(get, *customBestTimeOp);
+    if (cmp < 0)
+      ret += green(time2Str(get));
+    else if (cmp > 0)
+      ret += red(time2Str(get));
+    else
+      ret += yellow(time2Str(get));
+    ret += "]";
+  }
+  if (!customBestTimeOp || strictTimeCmp(get, *customBestTimeOp) < 0 || toExample) {
+    if (toExample)
+      writeFile("TOTAL: " + time2Str(get), exampleTimePath);
+    else
+      writeFile("TOTAL: " + time2Str(get), customBestTimePath);
+  }
+  cout << ret;
+}
+
 void validate(const string &commonPathName, list<string> &fileList,
               bool shouldReturn, string shell) {
   makeDir("build/example/" + commonPathName);
@@ -279,8 +372,8 @@ void validate(const string &commonPathName, list<string> &fileList,
     string name = last2LineRight(pathWithoutType);
     string input = pathWithoutType + ".in";
     string output = pathWithoutType + ".out";
-    string command = shell == "compileTest.sh"
-                         ? ("./build/example/" + name + ".out")
+    bool exp = shell == "compileTest.sh";
+    string command = exp ? ("./build/example/" + name + ".out")
                          : ("./build/custom/" + name + ".out");
     bool haveIntput = filesystem::exists(input);
     if (haveIntput) {
@@ -296,11 +389,17 @@ void validate(const string &commonPathName, list<string> &fileList,
         INT_MAX, shouldReturn);
     string compOut = out.first;
     string compMessage = out.second;
+    optional<vector<int>> time = extractTime(compMessage);
+
     string defOut = readFile(output);
     compOut = normalizeString(compOut);
     defOut = normalizeString(defOut);
     if (compOut == defOut) {
-      cout << path << green(" OK ") << compMessage << endl;
+      cout << path << green(" OK ");
+      if (time) {
+        showTime(*time, name, exp);
+      }
+      cout << endl;
     } else {
       cout << path << red(" 输出不一致") << endl;
       string pdif = "build/example_diff/" + name;

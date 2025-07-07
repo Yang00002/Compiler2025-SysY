@@ -6,6 +6,7 @@
 #include "../include/ir/Module.hpp"
 #include "../include/passes/PassManager.hpp"
 #include "DeadCode.hpp"
+#include "LICM.hpp"
 #include "Mem2Reg.hpp"
 
 #include <CharStream.h>
@@ -46,6 +47,8 @@ int main(int argc, char *argv[]) {
   auto module = ast2ir.getModule();
   PassManager* manager = new PassManager{module};
   manager->add_pass<Mem2Reg>();
+  manager->add_pass<DeadCode>();
+  manager->add_pass<LoopInvariantCodeMotion>();
   manager->add_pass<DeadCode>();
   manager->run();
   delete manager;

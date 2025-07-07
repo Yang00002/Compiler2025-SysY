@@ -381,6 +381,7 @@ void LoopInvariantCodeMotion::run_on_loop(const std::shared_ptr<Loop>& loop) con
 		LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
 		ins->get_parent()->erase_instr(ins);
 		preheader->add_instruction(ins);
+		ins->set_parent(preheader);
 	}
 	POP;
 
