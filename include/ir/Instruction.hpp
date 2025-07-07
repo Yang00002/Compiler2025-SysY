@@ -1,8 +1,8 @@
 #pragma once
 
 #include <cstdint>
-#include <Value.hpp>
-#include <BasicBlock.hpp>
+#include "Value.hpp"
+#include "BasicBlock.hpp"
 
 class GlobalVariable;
 class FuncType;

@@ -171,6 +171,7 @@ public:
 		auto inst = AllocaInst::create_alloca(ty, nullptr);
 		auto entryBB = this->BB_->get_parent()->get_entry_block();
 		entryBB->add_instr_begin(inst);
+		inst->set_parent(entryBB);
 		return inst;
 	}
 

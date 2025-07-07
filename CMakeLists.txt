@@ -16,7 +16,7 @@ add_library(antlr_sysy SHARED ${antlr_sources})
 add_library(antlr_lib INTERFACE)
 target_link_libraries(antlr_lib INTERFACE antlr_sysy antlr4-runtime)
 
-include_directories(${PROJECT_SOURCE_DIR}/include/)
+include_directories(${PROJECT_SOURCE_DIR}/include/passes)
 include_directories(${PROJECT_SOURCE_DIR}/include/ast)
 include_directories(${PROJECT_SOURCE_DIR}/include/codegen)
 include_directories(${PROJECT_SOURCE_DIR}/include/ir)
@@ -33,13 +33,18 @@ aux_source_directory(src/ir irSource)
 list(REMOVE_ITEM irSource "src/ir/main.cpp")
 # codegen 源文件集 
 aux_source_directory(src/codegen codegenSource)
+# passes 源文件集
+aux_source_directory(src/passes passesSource)
+list(REMOVE_ITEM passesSource "src/passes/main.cpp")
 
 
 # 添加源文件
 add_executable(compiler src/compiler.cpp ${utilSource} ${astSource} ${irSource} ${codegenSource})
 add_executable(astTest src/ast/main.cpp ${utilSource} ${astSource}  ${irSource})
 add_executable(irTest src/ir/main.cpp ${utilSource} ${astSource} ${irSource})
+add_executable(passesTest src/passes/main.cpp ${utilSource} ${astSource} ${irSource} ${passesSource})
 
 target_link_libraries(compiler PRIVATE antlr_lib)
 target_link_libraries(astTest PRIVATE antlr_lib)
 target_link_libraries(irTest PRIVATE antlr_lib)
+target_link_libraries(passesTest PRIVATE antlr_lib)

@@ -100,6 +100,14 @@ std::string print_instr_op_name(Instruction::OpID id)
 			return "fptosi";
 		case Instruction::sitofp:
 			return "sitofp";
+		case Instruction::global_fix:
+			return "globalFix";
+		case Instruction::nump2charp:
+			return "num2charp";
+		case Instruction::memcpy_:
+			return "memcpy";
+		case Instruction::memclear_:
+			return "memclear";
 	}
 	// mem 系列指令是某些复杂指令的包装, 单独获得指令名称不具有相同意义
 	assert(false && "Must be bug");
