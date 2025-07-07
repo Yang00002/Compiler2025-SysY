@@ -432,7 +432,11 @@ public:
 	void clean() const
 	{
 		for (const auto instr : wait_delete) LOG(color::yellow("Remove " + instr->print()));
-		for (const auto instr : wait_delete) instr->get_parent()->erase_instr(instr);
+		for (const auto instr : wait_delete)
+		{
+			instr->get_parent()->erase_instr(instr);
+			delete instr;
+		}
 	}
 };
 

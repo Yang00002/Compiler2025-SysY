@@ -530,7 +530,7 @@ typename Tensor<Element>::Iterator& Tensor<Element>::Iterator::operator++()
 	{
 		_index.pop();
 		_data.pop();
-		int size = _data.top()->getSubTensors()->size();
+		int size = static_cast<int>(_data.top()->getSubTensors()->size());
 		auto allocated = _data.top()->getSpaceAllocated();
 		auto all = _data.top()->getDimCapacity(-1);
 		idx = _index.top();
@@ -560,7 +560,7 @@ typename Tensor<Element>::Iterator& Tensor<Element>::Iterator::operator++()
 		}
 	}
 	_index.pop();
-	int size = _data.top()->getSubTensors()->size();
+	int size = static_cast<int>(_data.top()->getSubTensors()->size());
 	auto allocated = dataTop->getSpaceAllocated();
 	auto all = dataTop->getDimCapacity(-1);
 	if ((idx + 1 < size) || (idx + 1 == size && all > allocated))

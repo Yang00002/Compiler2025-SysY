@@ -479,10 +479,11 @@ public:
         }
     }
 
-    std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() {
+	[[nodiscard]] std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() const
+    {
         std::vector<std::pair<Value *, BasicBlock *>> res;
-        for (size_t i = 0; i < get_num_operand(); i += 2) {
-            res.push_back({this->get_operand(i), dynamic_cast<BasicBlock*>(this->get_operand(i + 1))});
+        for (int i = 0; i < static_cast<int>(get_num_operand()); i += 2) {
+            res.emplace_back(this->get_operand(i), dynamic_cast<BasicBlock*>(this->get_operand(i + 1)));
         }
         return res;
     }

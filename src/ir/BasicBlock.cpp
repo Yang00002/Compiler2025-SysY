@@ -54,7 +54,6 @@ void BasicBlock::add_instruction(Instruction* instr)
 void BasicBlock::erase_instr(const Instruction* instr)
 {
 	instr_list_.erase(std::find(instr_list_.begin(), instr_list_.end(), instr));
-	delete instr;
 }
 
 void BasicBlock::erase_instr_from_last(const Instruction* instr)

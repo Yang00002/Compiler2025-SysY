@@ -99,7 +99,7 @@ void Function::set_instr_name()
 			}
 		}
 	}
-	seq_cnt_ += seq.size();
+	seq_cnt_ += static_cast<unsigned>(seq.size());
 }
 
 std::string Function::print()
