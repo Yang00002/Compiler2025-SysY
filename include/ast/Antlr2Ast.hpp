@@ -1,5 +1,5 @@
 #pragma once
-#include <SysYBaseVisitor.h>
+#include "SysYBaseVisitor.h"
 
 class ASTFuncDecl;
 class HaveScope;

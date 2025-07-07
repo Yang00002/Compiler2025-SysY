@@ -37,7 +37,6 @@ bool DeadCode::clear_basic_blocks(Function* func)
 	for (const auto& bb : to_erase)
 	{
 		bb->erase_from_parent();
-		delete bb;
 	}
 	return changed;
 }
@@ -120,6 +119,8 @@ bool DeadCode::is_critical(Instruction* ins) const
 			return false;
 		return true;
 	}
+	if (ins->is_memcpy() || ins->is_memclear())
+		return true;
 	if (ins->is_br() || ins->is_ret())
 		return true;
 	if (ins->is_store())

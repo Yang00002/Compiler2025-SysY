@@ -56,12 +56,14 @@ namespace
 #define LOGIF(a,b) debug::_0__log_if_func((a), (b))
 #define GAP debug::_0__gap_func()
 #define PUSH debug::_0__counts_push()
+#define RUN(a) (a)
 #define POP debug::_0__counts_pop()
 #endif
 #if DEBUG != 1
 #define LOG(a)
 #define LOGIF(a,b)
 #define GAP
+#define RUN(a)
 #define PUSH
 #define POP
 #endif
@@ -100,9 +102,9 @@ void Mem2Reg::run()
 			continue;
 		LOG(color::blue("Working on Function " ) + f->get_name());
 		GAP;
-		dominators_->print_dominance_frontier(f);
+		RUN(dominators_->print_dominance_frontier(f));
 		GAP;
-		dominators_->print_idom(f);
+		RUN(dominators_->print_idom(f));
 		GAP;
 		PUSH;
 		// dominators_->dump_dominator_tree(&f);
@@ -125,6 +127,7 @@ void Mem2Reg::run()
 		POP;
 		// 后续 DeadCode 将移除冗余的局部变量的分配空间
 	}
+	LOG(color::cyan("Mem2Reg Done"));
 }
 
 /**
@@ -187,6 +190,7 @@ void Mem2Reg::generate_phi()
 			auto bb = work_list[i];
 			LOGIF(color::yellow("BasicBlock ") + bb->get_name() + color::yellow(" have no dominance frontier"),
 			      dominators_->get_dominance_frontier(bb).empty());
+			auto g = dominators_->get_dominance_frontier(bb);
 			for (auto bb_dominance_frontier_bb :
 			     dominators_->get_dominance_frontier(bb))
 			{
@@ -265,7 +269,7 @@ public:
 		return ret;
 	}
 
-	void run(BasicBlock* bb, Module* m)
+	void run(BasicBlock* bb)
 	{
 		run_inner(bb);
 		visited.insert(bb);
@@ -274,7 +278,7 @@ public:
 			if (visited.count(i) == 0)
 			{
 				visited.insert(i);
-				run(i, m);
+				run(i);
 				auto ic = count_map.top();
 				count_map.pop();
 				// cout << "clear stack of " + i->get_name() << "\n";
@@ -427,10 +431,8 @@ public:
 
 	void clean() const
 	{
-		for (auto instr : wait_delete)
-		{
-			instr->get_parent()->erase_instr(instr);
-		}
+		for (const auto instr : wait_delete) LOG(color::yellow("Remove " + instr->print()));
+		for (const auto instr : wait_delete) instr->get_parent()->erase_instr(instr);
 	}
 };
 
@@ -439,9 +441,13 @@ void Mem2Reg::rename(BasicBlock* bb)
 	LOG(color::blue("Begin Rename ") + bb->get_parent()->get_name());
 	PUSH;
 	rename_helper helper(phi_lval);
-	helper.run(bb, m_);
+	helper.run(bb);
+	POP;
+	LOG(color::blue("Begin Clean ") + bb->get_parent()->get_name());
+	PUSH;
 	helper.clean();
 	POP;
+	LOG(color::green("Rename Done"));
 	// DONE
 	// 步骤一：将 phi 指令作为 lval 的最新定值，lval 即是为局部变量 alloca
 	// 出的地址空间
