@@ -306,7 +306,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 		if (preCount > 1)
 		{
 			auto phi2 = PhiInst::create_phi(v->get_type(), preheader);
-			preheader->add_instr_begin(phi2);
+			preheader->add_instruction(phi2);
 			for (auto [bb, value] : phiMap)
 			{
 				if (blocks.count(bb))

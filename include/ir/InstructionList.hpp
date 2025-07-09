@@ -1,6 +1,7 @@
 #pragma once
 
 class Instruction;
+class InstructionList;
 
 class InstructionListNode
 {
@@ -43,13 +44,13 @@ public:
 	 * 注意其不检查迭代器是否越界, 一般配合 while 和 get_and_sub 使用
 	 * @return 去掉的指令, 如果未去掉则返回 nullptr
 	 */
-	[[nodiscard]] Instruction* remove_next() const;
+	Instruction* remove_next() const;
 	/**
 	 * 去掉迭代器下一个指向的指令, 只会更新迭代器自身和 InstructionList, 如果不指向指令则不去掉.
 	 * 注意其不检查迭代器是否越界, 一般配合 while 和 get_and_add 使用
 	 * @return 去掉的指令, 如果未去掉则返回 nullptr
 	 */
-	[[nodiscard]] Instruction* remove_pre() const;
+	Instruction* remove_pre() const;
 	/**
 	 * 获取指令并将迭代器自增, 如果获取指令为空则不自增
 	 * @return 获取的指令, 如果不存在则返回 nullptr
