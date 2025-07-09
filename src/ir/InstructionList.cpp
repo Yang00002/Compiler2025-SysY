@@ -42,12 +42,14 @@ Instruction* InstructionListIterator::operator*() const
 	return current_->instruction;
 }
 
-Instruction* InstructionListIterator::remove_next() const
+// ReSharper disable once CppMemberFunctionMayBeConst
+Instruction* InstructionListIterator::remove_next()
 {
 	return parent_->erase(current_->next);
 }
 
-Instruction* InstructionListIterator::remove_pre() const
+// ReSharper disable once CppMemberFunctionMayBeConst
+Instruction* InstructionListIterator::remove_pre()
 {
 	return parent_->erase(current_->pre);
 }
@@ -116,7 +118,9 @@ bool InstructionListView::remove_first(const Instruction* instruction) const
 		{
 			node->pre->next = node->next;
 			node->next->pre = node->pre;
-			parent_->size_--;
+			if (instruction->is_phi() || instruction->is_alloca())
+				parent_->phi_alloca_size_--;
+			else parent_->common_inst_size_--;
 			delete node;
 			return true;
 		}
@@ -136,7 +140,9 @@ bool InstructionListView::remove_last(const Instruction* instruction) const
 			node->pre->next = node->next;
 			node->next->pre = node->pre;
 			delete node;
-			parent_->size_--;
+			if (instruction->is_phi() || instruction->is_alloca())
+				parent_->phi_alloca_size_--;
+			else parent_->common_inst_size_--;
 			return true;
 		}
 		node = node->pre;
@@ -177,22 +183,28 @@ const InstructionListNode* InstructionList::rend() const
 InstructionList::InstructionList() : end_node_(new InstructionListNode())
 {
 	common_inst_begin_ = end_node_;
-	size_ = 0;
+	phi_alloca_size_ = 0;
+	common_inst_size_ = 0;
 }
 
-InstructionListView InstructionList::view() const
+InstructionListView InstructionList::all_instructions() const
 {
 	return InstructionListView{end_node_, end_node_, const_cast<InstructionList*>(this)};
 }
 
+InstructionListView InstructionList::phi_and_allocas() const
+{
+	return InstructionListView{end_node_, common_inst_begin_, const_cast<InstructionList*>(this)};
+}
+
 bool InstructionList::empty() const
 {
-	return size_ == 0;
+	return phi_alloca_size_ == 0 && common_inst_size_ == 0;
 }
 
 int InstructionList::size() const
 {
-	return size_;
+	return phi_alloca_size_ + common_inst_size_;
 }
 
 Instruction* InstructionList::back() const
@@ -203,6 +215,42 @@ Instruction* InstructionList::back() const
 Instruction* InstructionList::remove(const InstructionListIterator& iterator)
 {
 	return erase(iterator.current_);
+}
+
+void InstructionList::addAll(const InstructionList& instructions)
+{
+	if (instructions.phi_alloca_size_ > 0)
+	{
+		auto appendNode = common_inst_begin_->pre;
+		phi_alloca_size_ += instructions.phi_alloca_size_;
+		auto b = instructions.end_node_->next;
+		auto e = instructions.common_inst_begin_;
+		while (b != e)
+		{
+			InstructionListNode* node = new InstructionListNode{b->instruction, nullptr, appendNode};
+			appendNode->next = node;
+			appendNode = node;
+			b = b->next;
+		}
+		appendNode->next = common_inst_begin_;
+		common_inst_begin_->pre = appendNode;
+	}
+	if (instructions.common_inst_size_ > 0)
+	{
+		auto appendNode = end_node_->pre;
+		common_inst_size_ += instructions.common_inst_size_;
+		auto b = instructions.common_inst_begin_;
+		auto e = instructions.end_node_;
+		while (b != e)
+		{
+			InstructionListNode* node = new InstructionListNode{b->instruction, nullptr, appendNode};
+			appendNode->next = node;
+			appendNode = node;
+			b = b->next;
+		}
+		appendNode->next = end_node_;
+		end_node_->pre = appendNode;
+	}
 }
 
 bool InstructionList::remove_first(const Instruction* instruction)
@@ -217,7 +265,7 @@ bool InstructionList::remove_first(const Instruction* instruction)
 				node->pre->next = node->next;
 				node->next->pre = node->pre;
 				delete node;
-				size_--;
+				phi_alloca_size_--;
 				return true;
 			}
 			node = node->next;
@@ -232,7 +280,7 @@ bool InstructionList::remove_first(const Instruction* instruction)
 		const auto del = common_inst_begin_;
 		common_inst_begin_ = common_inst_begin_->next;
 		delete del;
-		size_--;
+		common_inst_size_--;
 		return true;
 	}
 	auto node = common_inst_begin_->next;
@@ -243,7 +291,7 @@ bool InstructionList::remove_first(const Instruction* instruction)
 			node->pre->next = node->next;
 			node->next->pre = node->pre;
 			delete node;
-			size_--;
+			common_inst_size_--;
 			return true;
 		}
 		node = node->next;
@@ -263,7 +311,7 @@ bool InstructionList::remove_last(const Instruction* instruction)
 				node->pre->next = node->next;
 				node->next->pre = node->pre;
 				delete node;
-				size_--;
+				phi_alloca_size_--;
 				return true;
 			}
 			node = node->pre;
@@ -278,7 +326,7 @@ bool InstructionList::remove_last(const Instruction* instruction)
 		const auto del = common_inst_begin_;
 		common_inst_begin_ = common_inst_begin_->next;
 		delete del;
-		size_--;
+		common_inst_size_--;
 		return true;
 	}
 	auto node = end_node_->pre;
@@ -289,7 +337,7 @@ bool InstructionList::remove_last(const Instruction* instruction)
 			node->pre->next = node->next;
 			node->next->pre = node->pre;
 			delete node;
-			size_--;
+			common_inst_size_--;
 			return true;
 		}
 		node = node->pre;
@@ -332,7 +380,7 @@ void InstructionList::emplace_back_common_inst(Instruction* instruction)
 	end_node_->pre->next = node;
 	end_node_->pre = node;
 	if (common_inst_begin_ == end_node_) common_inst_begin_ = node;
-	size_++;
+	common_inst_size_++;
 }
 
 void InstructionList::emplace_back_phi_alloca_inst(Instruction* instruction)
@@ -342,7 +390,7 @@ void InstructionList::emplace_back_phi_alloca_inst(Instruction* instruction)
 	const auto node = new InstructionListNode{instruction, common_inst_begin_, common_inst_begin_->pre};
 	common_inst_begin_->pre->next = node;
 	common_inst_begin_->pre = node;
-	size_++;
+	phi_alloca_size_++;
 }
 
 void InstructionList::emplace_front_phi_alloca_inst(Instruction* instruction)
@@ -352,7 +400,7 @@ void InstructionList::emplace_front_phi_alloca_inst(Instruction* instruction)
 	const auto node = new InstructionListNode{instruction, end_node_->next, end_node_};
 	end_node_->next->pre = node;
 	end_node_->next = node;
-	size_++;
+	phi_alloca_size_++;
 }
 
 void InstructionList::emplace_front_common_inst(Instruction* instruction)
@@ -363,7 +411,7 @@ void InstructionList::emplace_front_common_inst(Instruction* instruction)
 	common_inst_begin_->pre->next = node;
 	common_inst_begin_->pre = node;
 	common_inst_begin_ = node;
-	size_++;
+	common_inst_size_++;
 }
 
 Instruction* InstructionList::erase(const InstructionListNode* node)
@@ -375,7 +423,9 @@ Instruction* InstructionList::erase(const InstructionListNode* node)
 		common_inst_begin_ = node->next;
 	const auto ret = node->instruction;
 	delete node;
-	size_--;
+	if (ret->is_phi() || ret->is_alloca())
+		phi_alloca_size_--;
+	else common_inst_size_--;
 	return ret;
 }
 

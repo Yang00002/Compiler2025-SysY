@@ -28,7 +28,6 @@ private:
 	std::unique_ptr<FuncInfo> func_info_;
 	void traverse_loop(Loop* loop);
 	void run_on_loop(Loop* loop) const;
-	void collect_loop_info(Loop* loop,
-	                       std::set<Value*>& loop_instructions,
-	                       bool& contains_impure_call) const;
+	static void collect_loop_info(Loop* loop,
+	                              InstructionList& loop_instructions);
 };

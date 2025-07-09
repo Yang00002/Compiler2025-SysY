@@ -44,13 +44,13 @@ public:
 	 * 注意其不检查迭代器是否越界, 一般配合 while 和 get_and_sub 使用
 	 * @return 去掉的指令, 如果未去掉则返回 nullptr
 	 */
-	Instruction* remove_next() const;
+	Instruction* remove_next();
 	/**
 	 * 去掉迭代器下一个指向的指令, 只会更新迭代器自身和 InstructionList, 如果不指向指令则不去掉.
 	 * 注意其不检查迭代器是否越界, 一般配合 while 和 get_and_add 使用
 	 * @return 去掉的指令, 如果未去掉则返回 nullptr
 	 */
-	Instruction* remove_pre() const;
+	Instruction* remove_pre();
 	/**
 	 * 获取指令并将迭代器自增, 如果获取指令为空则不自增
 	 * @return 获取的指令, 如果不存在则返回 nullptr
@@ -183,7 +183,8 @@ public:
 
 	InstructionList();
 
-	[[nodiscard]] InstructionListView view() const;
+	[[nodiscard]] InstructionListView all_instructions() const;
+	[[nodiscard]] InstructionListView phi_and_allocas() const;
 
 	[[nodiscard]] bool empty() const;
 
@@ -206,6 +207,10 @@ public:
 	 * @return 被去掉的指令, 它不会被 delete. 如果未去掉任何指令, 返回 nullptr
 	 */
 	Instruction* remove(const InstructionListIterator& iterator);
+	/**
+	 * 作为单纯的容器使用时, 将另一个列表中所有元素添加进来. 不会检查重复和排序.
+	 */
+	void addAll(const InstructionList& instructions);
 	/**
 	 * 去除第一个匹配的指令.
 	 * @param instruction 要去除的指令
@@ -246,7 +251,8 @@ public:
 private:
 	InstructionListNode* common_inst_begin_;
 	InstructionListNode* end_node_;
-	int size_;
+	int phi_alloca_size_;
+	int common_inst_size_;
 	/**
 	 * @return 被去掉的指令, 它不会被 delete. 如果未去掉任何指令, 返回 nullptr
 	 */

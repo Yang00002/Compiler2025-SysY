@@ -19,7 +19,7 @@
 #include "PassManager.hpp"
 #include "Value.hpp"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG == 1
 namespace
@@ -127,27 +127,11 @@ void LoopInvariantCodeMotion::traverse_loop(Loop* loop)
 // 3. 检查store指令是否修改了全局变量，如果是则添加到updated_global中
 // 4. 检查是否包含非纯函数调用，如果有则设置contains_impure_call为true
 void LoopInvariantCodeMotion::collect_loop_info(
-	Loop* loop, std::set<Value*>& loop_instructions, bool& contains_impure_call) const
+	Loop* loop, InstructionList& loop_instructions)
 {
 	for (auto bb : loop->get_blocks())
 	{
-		for (auto ins : bb->get_instructions())
-		{
-			loop_instructions.emplace(ins);
-		}
-	}
-	for (auto ins : loop_instructions)
-	{
-		auto inst = dynamic_cast<Instruction*>(ins);
-		if (!contains_impure_call)
-		{
-			if (inst->is_call())
-			{
-				if (const auto func = dynamic_cast<CallInst*>(inst)->get_function();
-					func_info_->is_pure_function(func) == false)
-					contains_impure_call = true;
-			}
-		}
+		loop_instructions.addAll(bb->get_instructions());
 	}
 }
 
@@ -174,94 +158,103 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 {
 	LOG(color::blue("Handling Loop Begin At ") + loop->get_header()->get_name());
 	PUSH;
-	std::set<Value*> loop_instructions;
-	std::set<BasicBlock*> blocks;
+	InstructionList loop_instructions;
+	std::unordered_set<BasicBlock*> blocks;
 	for (auto b : loop->get_blocks())
 		blocks.insert(b);
-	bool contains_impure_call = false;
-	collect_loop_info(loop, loop_instructions,
-	                  contains_impure_call);
+	collect_loop_info(loop, loop_instructions);
 
-	InstVec loop_invariant;
+	std::unordered_set<Instruction*> in_loop_instructions;
+	for (auto i : loop_instructions) in_loop_instructions.insert(i);
+	std::unordered_set<Instruction*> loop_invariant;
+	std::unordered_set<Instruction*> loop_variant;
 
 	// - 如果指令已被标记为不变式则跳过
 	// - 跳过 store、load、ret、br、phi 等指令与非纯函数调用
 	// - 特殊处理全局变量的  指令
 	// - 检查指令的所有操作数是否都是循环不变的
 	// - 如果有新的不变式被添加则注意更新 changed 标志，继续迭代
-	std::set<Function*> func_set;
-	std::set<Function*> impure_set;
 	bool changed;
 	do
 	{
 		changed = false;
-		for (auto& v : loop_instructions)
+		auto it = loop_instructions.begin();
+		while (it != loop_instructions.end())
 		{
-			LOG(color::pink("Checking ") + v->print());
-			if (loop_invariant.contain(v))
-			{
-				PUSH;
-				LOG(color::yellow("Already Invariant, next"));
-				POP;
-				continue;
-			}
-			const auto inst = dynamic_cast<Instruction*>(v);
+			auto inst = it.get_and_add();
+			LOG(color::pink("Checking ") + inst->print());
 			int idx = 0;
 			if (inst->is_store() || inst->is_load() || inst->is_ret() || inst->is_br() ||
 			    inst->is_phi() || inst->is_memcpy() || inst->is_memclear())
 			{
+				loop_variant.insert(inst);
+				it.remove_pre();
 				PUSH;
 				LOG(color::yellow("Instruction type can not lead to invariant"));
 				POP;
 				continue;
 			}
-			if (inst->is_call() && contains_impure_call)
+			if (inst->is_call())
 			{
 				const auto call = dynamic_cast<CallInst*>(inst);
-				if (auto func = call->get_function(); func_set.count(func) == 0)
-				{
-					func_set.insert(func);
-					if (!func_info_->is_pure_function(func))
-					{
-						impure_set.insert(func);
-						PUSH;
-						LOG(color::yellow("Impure function call"));
-						POP;
-						continue;
-					}
-				}
-				else if (impure_set.count(func))
+				auto func = call->get_function();
+				if (!func_info_->is_pure_function(func))
 				{
 					PUSH;
 					LOG(color::yellow("Impure function call"));
 					POP;
+					it.remove_pre();
+					loop_variant.insert(inst);
 					continue;
 				}
 				idx = 1;
 			}
 			auto& ops = inst->get_operands();
 			int size = static_cast<int>(ops.size());
-			bool c = true;
+			int c = 1;
 			for (int i = idx; i < size; i++)
 			{
 				auto& op = ops[i];
-				if (dynamic_cast<Constant*>(op) == nullptr &&
-				    loop_instructions.count(op) != 0 &&
-				    !loop_invariant.contain(op))
+				if (dynamic_cast<Constant*>(op) != nullptr) continue;
+				auto iop = dynamic_cast<Instruction*>(op);
+				if (iop == nullptr)
 				{
-					c = false;
+					PUSH;
+					LOG(color::yellow("Contain global var, no invariant"));
+					POP;
+					c = -1;
 					break;
+				}
+				if (in_loop_instructions.count(iop) != 0 && loop_invariant.count(iop) == 0)
+				{
+					if (loop_variant.count(iop) != 0)
+					{
+						PUSH;
+						LOG(color::yellow("Contain variant, no invariant"));
+						POP;
+						c = -1;
+						break;
+					}
+					c = 0;
 				}
 			}
 			PUSH;
-			if (c)
+			if (c == 1)
 			{
 				loop_invariant.insert(inst);
+				it.remove_pre();
 				changed = true;
 				LOG(color::green("Invariant"));
 			}
-			else
+			else if (c == 0)
+			{
 				LOG("Can not decide");
+			}
+			else
+			{
+				loop_variant.insert(inst);
+				it.remove_pre();
+			}
 			POP;
 		}
 		if (changed == true)
@@ -286,10 +279,10 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 
 	auto preheader = loop->get_preheader();
 
-	for (auto phi_inst_ : loop->get_header()->get_instructions())
+	for (auto phi_inst_ : loop->get_header()->get_instructions().phi_and_allocas())
 	{
 		if (phi_inst_->get_instr_type() != Instruction::phi)
-			break;
+			throw std::runtime_error("loop on entry block");
 		LOG(color::pink("Processing ") + phi_inst_->print());
 		auto phi = dynamic_cast<PhiInst*>(phi_inst_);
 		std::map<BasicBlock*, Value*> phiMap;

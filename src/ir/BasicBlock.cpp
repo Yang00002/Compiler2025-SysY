@@ -47,11 +47,16 @@ Instruction* BasicBlock::get_terminator() const
 
 void BasicBlock::add_instruction(Instruction* instr)
 {
+	assert((!instr->is_phi() || !is_entry_block()) && "Phi can only insert to not entry block");
+	assert((!instr->is_alloca() || is_entry_block()) && "Alloca can only insert to entry block");
+	assert((instr->is_alloca() || instr->is_phi() || !is_terminated()) && "Can not insert to terminated block");
 	instr_list_.emplace_back(instr);
 }
 
 void BasicBlock::add_instr_begin(Instruction* instr)
 {
+	assert((!instr->is_phi() || !is_entry_block()) && "Phi can only insert to not entry block");
+	assert((!instr->is_alloca() || is_entry_block()) && "Alloca can only insert to entry block");
 	instr_list_.emplace_front(instr);
 }
 
