@@ -20,6 +20,11 @@ class DeadCode final : public Pass {
 
     void mark(Function *func);
     void mark(const Instruction *ins);
+	/**
+	 * 去除函数中空的基本块(仅含一条指令, 这条指令有唯一目标)
+	 * @param function 处理的函数
+	 */
+	static bool removeEmptyBasicBlock(Function* function);
     bool sweep(Function *func);
 	static bool clear_basic_blocks(Function *func);
     bool is_critical(Instruction *ins) const;

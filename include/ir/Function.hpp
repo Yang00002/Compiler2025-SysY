@@ -34,7 +34,10 @@ public:
 	[[nodiscard]] unsigned get_num_basic_blocks() const;
 
 	[[nodiscard]] Module* get_parent() const;
-
+	/**
+	 * 移除函数的基本块并删除它, 这同时也删除了其中所有指令
+	 * @param bb 要移除的基本块
+	 */
 	void remove(BasicBlock* bb);
 	[[nodiscard]] BasicBlock* get_entry_block() const { return *basic_blocks_.begin(); }
 

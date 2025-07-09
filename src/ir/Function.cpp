@@ -58,6 +58,14 @@ void Function::remove(BasicBlock* bb)
 	{
 		succ->remove_pre_basic_block(bb);
 	}
+	auto l = bb->get_use_list();
+	for (auto& use_list : l)
+	{
+		if (auto phi_inst = dynamic_cast<PhiInst*>(use_list.val_); phi_inst != nullptr)
+		{
+			phi_inst->remove_phi_operand(bb, use_list.arg_no_);
+		}
+	}
 	delete bb;
 }
 

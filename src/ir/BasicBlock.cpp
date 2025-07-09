@@ -22,6 +22,79 @@ BasicBlock::~BasicBlock()
 		delete i;
 }
 
+bool BasicBlock::replace_self_with_block(BasicBlock* bb)
+{
+	if (bb == this) return false;
+	// 收集使用该基本块定值的 phi 指令
+	std::list<std::pair<PhiInst*, unsigned>> phiInsts;
+	for (auto use : get_use_list())
+	{
+		auto phi = dynamic_cast<PhiInst*>(use.val_);
+		if (phi != nullptr) phiInsts.emplace_back(phi, use.arg_no_);
+	}
+	if (!phiInsts.empty())
+	{
+		// 替代会增加 phi 的长度
+		if (get_pre_basic_blocks().size() > 1) return false;
+		for (auto phi_inst : phiInsts)
+		{
+			auto phi = phi_inst.first;
+			auto id = phi_inst.second;
+			auto val = phi->get_operand(id - 1);
+			for (const auto block : get_pre_basic_blocks())
+			{
+				phi->add_phi_pair_operand(val, block);
+			}
+		}
+	}
+	for (auto pre_basic_block : get_pre_basic_blocks())
+	{
+		pre_basic_block->remove_succ_basic_block(this);
+		pre_basic_block->add_succ_basic_block(bb);
+		bb->add_pre_basic_block(pre_basic_block);
+		auto term = pre_basic_block->get_terminator();
+		unsigned size = static_cast<int>(term->get_operands().size());
+		for (unsigned i = 0; i < size; i++)
+		{
+			auto op = term->get_operand(i);
+			if (op == this)
+			{
+				term->set_operand(i, bb);
+			}
+		}
+	}
+	pre_bbs_.clear();
+	return true;
+}
+
+void BasicBlock::replace_terminate_with_return_value(Value* value)
+{
+	assert(is_terminated() && "not terminated");
+	auto pre = get_terminator();
+	auto preRet = dynamic_cast<ReturnInst*>(pre);
+	auto preBr = dynamic_cast<BranchInst*>(pre);
+	if (!preRet)
+	{
+		if (preBr->is_cond_br())
+		{
+			auto t1 = dynamic_cast<BasicBlock*>(preBr->get_operand(1));
+			auto t2 = dynamic_cast<BasicBlock*>(preBr->get_operand(2));
+			t1->remove_pre_basic_block(this);
+			t2->remove_pre_basic_block(this);
+			remove_succ_basic_block(t1);
+			remove_succ_basic_block(t2);
+		}
+		else
+		{
+			auto t1 = dynamic_cast<BasicBlock*>(preBr->get_operand(0));
+			t1->remove_pre_basic_block(this);
+			remove_succ_basic_block(t1);
+		}
+	}
+	instr_list_.pop_back();
+	ReturnInst::create_ret(value, this);
+}
+
 bool BasicBlock::is_terminated() const
 {
 	if (instr_list_.empty())
@@ -44,6 +117,13 @@ Instruction* BasicBlock::get_terminator() const
 		"Trying to get terminator from an bb which is not terminated");
 	return instr_list_.back();
 }
+
+Instruction* BasicBlock::get_terminator_or_null() const
+{
+	if (is_terminated()) return instr_list_.back();
+	return nullptr;
+}
+
 
 void BasicBlock::add_instruction(Instruction* instr)
 {

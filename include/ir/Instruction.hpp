@@ -463,30 +463,43 @@ public:
 	                           const std::vector<Value*>& vals = {},
 	                           const std::vector<BasicBlock*>& val_bbs = {});
 
-	void add_phi_pair_operand(Value* val, Value* pre_bb)
+	void add_phi_pair_operand(Value* val, BasicBlock* pre_bb)
 	{
 		this->add_operand(val);
 		this->add_operand(pre_bb);
 	}
 
-    void remove_phi_operand(Value *pre_bb) {
-        for (unsigned i = 0; i < this->get_num_operand(); i += 2) {
-            if (this->get_operand(i + 1) == pre_bb) {
-                this->remove_operand(i);
-                this->remove_operand(i);
-                return;
-            }
-        }
-    }
+	void remove_phi_operand(const Value* pre_bb)
+	{
+		for (unsigned i = 0; i < this->get_num_operand(); i += 2)
+		{
+			if (this->get_operand(i + 1) == pre_bb)
+			{
+				this->remove_operand(i);
+				this->remove_operand(i);
+				return;
+			}
+		}
+	}
 
-	[[nodiscard]] std::vector<std::pair<Value *, BasicBlock *>> get_phi_pairs() const
-    {
-        std::vector<std::pair<Value *, BasicBlock *>> res;
-        for (int i = 0; i < static_cast<int>(get_num_operand()); i += 2) {
-            res.emplace_back(this->get_operand(i), dynamic_cast<BasicBlock*>(this->get_operand(i + 1)));
-        }
-        return res;
-    }
+	void remove_phi_operand(const Value* pre_bb, unsigned opId)
+	{
+		if (get_operand(opId) == pre_bb)
+		{
+			this->remove_operand(opId);
+			this->remove_operand(opId - 1);
+		}
+	}
+
+	[[nodiscard]] std::vector<std::pair<Value*, BasicBlock*>> get_phi_pairs() const
+	{
+		std::vector<std::pair<Value*, BasicBlock*>> res;
+		for (int i = 0; i < static_cast<int>(get_num_operand()); i += 2)
+		{
+			res.emplace_back(this->get_operand(i), dynamic_cast<BasicBlock*>(this->get_operand(i + 1)));
+		}
+		return res;
+	}
 
 	std::string print() override;
 };

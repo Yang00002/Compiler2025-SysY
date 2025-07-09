@@ -718,7 +718,8 @@ Value* AST2IRVisitor::visit(ASTNot* not_node)
 
 Value* AST2IRVisitor::visit(ASTBlock* block)
 {
-	return visitStmts(block->stmts());
+	visitStmts(block->stmts());
+	return nullptr;
 }
 
 Value* AST2IRVisitor::visit(ASTAssign* assign)
@@ -731,7 +732,6 @@ Value* AST2IRVisitor::visit(ASTAssign* assign)
 
 Value* AST2IRVisitor::visit(ASTIf* if_node)
 {
-	Value* ret = nullptr;
 	if (if_node->else_stmt().empty())
 	{
 		auto bbt = BasicBlock::create(_module, "", _functionBelong);
@@ -742,8 +742,8 @@ Value* AST2IRVisitor::visit(ASTIf* if_node)
 		_true_targets.pop_back();
 		_false_targets.pop_back();
 		_builder->set_insert_point(bbt);
-		auto res = visitStmts(if_node->if_stmt());
-		if (res == nullptr)
+		visitStmts(if_node->if_stmt());
+		if (!_builder->get_insert_block()->is_terminated())
 			_builder->create_br(bbf);
 		_builder->set_insert_point(bbf);
 	}
@@ -758,23 +758,19 @@ Value* AST2IRVisitor::visit(ASTIf* if_node)
 		_true_targets.pop_back();
 		_false_targets.pop_back();
 		_builder->set_insert_point(bbt);
-		auto res = visitStmts(if_node->if_stmt());
-		if (res == nullptr)
+		visitStmts(if_node->if_stmt());
+		if (!_builder->get_insert_block()->is_terminated())
 			_builder->create_br(bb);
-		else ret = res;
 		_builder->set_insert_point(bbf);
-		res = visitStmts(if_node->else_stmt());
-		if (res == nullptr)
-		{
+		visitStmts(if_node->else_stmt());
+		if (!_builder->get_insert_block()->is_terminated())
 			_builder->create_br(bb);
-			if (ret != nullptr) ret = nullptr;
-		}
-		if (ret != nullptr)
+		if (bb->get_pre_basic_blocks().empty())
 			_functionBelong->remove(bb);
 		else
 			_builder->set_insert_point(bb);
 	}
-	return ret;
+	return nullptr;
 }
 
 Value* AST2IRVisitor::visit(ASTWhile* while_node)
@@ -807,13 +803,12 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 		_builder->set_insert_point(bb_while);
 		_while_nexts.emplace_back(bb_next);
 		_while_conds.emplace_back(bb_cond);
-		auto res = visitStmts(while_node->stmt());
+		visitStmts(while_node->stmt());
 		_while_nexts.pop_back();
 		_while_conds.pop_back();
-		if (res == nullptr)
+		if (!_builder->get_insert_block()->is_terminated())
 			_builder->create_br(bb_cond);
 		_builder->set_insert_point(bb_next);
-		return res;
 	}
 	return nullptr;
 }
@@ -821,32 +816,32 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 Value* AST2IRVisitor::visit(ASTBreak* break_node)
 {
 	_builder->create_br(_while_nexts.back());
-	return _while_nexts.back();
+	return nullptr;
 }
 
 Value* AST2IRVisitor::visit(ASTContinue* break_node)
 {
 	_builder->create_br(_while_conds.back());
-	return _while_conds.back();
+	return nullptr;
 }
 
 Value* AST2IRVisitor::visit(ASTReturn* return_node)
 {
 	if (_functionBelong->get_return_type() == Types::VOID)
 		return _builder->create_void_ret();
-	return _builder->create_ret(return_node->return_value()->accept(this));
+	_builder->create_ret(return_node->return_value()->accept(this));
+	return nullptr;
 }
 
-Value* AST2IRVisitor::visitStmts(const std::vector<ASTStmt*>& vec)
+void AST2IRVisitor::visitStmts(const std::vector<ASTStmt*>& vec)
 {
-	Value* ret = nullptr;
 	for (auto& stmt : vec)
 	{
 		auto block2 = dynamic_cast<ASTBlock*>(stmt);
 		if (block2 != nullptr)
 		{
 			_var_scope.enter();
-			ret = block2->accept(this);
+			block2->accept(this);
 			_var_scope.exit();
 		}
 		else
@@ -859,7 +854,7 @@ Value* AST2IRVisitor::visitStmts(const std::vector<ASTStmt*>& vec)
 					auto bb = BasicBlock::create(_module, "", _functionBelong);
 					_true_targets.emplace_back(bb);
 					_false_targets.emplace_back(bb);
-					ret = stmt->accept(this);
+					stmt->accept(this);
 					_true_targets.pop_back();
 					_false_targets.pop_back();
 					_builder->set_insert_point(bb);
@@ -867,24 +862,22 @@ Value* AST2IRVisitor::visitStmts(const std::vector<ASTStmt*>& vec)
 				else stmt->accept(this);
 			}
 			else
-				ret = stmt->accept(this);
+				stmt->accept(this);
 		}
 		if (_builder->get_insert_block()->is_terminated())
 			break;
 	}
-	return ret;
 }
 
-Value* AST2IRVisitor::visitStmts(const std::vector<ASTNode*>& vec)
+void AST2IRVisitor::visitStmts(const std::vector<ASTNode*>& vec)
 {
-	Value* ret = nullptr;
 	for (auto& stmt : vec)
 	{
 		auto block2 = dynamic_cast<ASTBlock*>(stmt);
 		if (block2 != nullptr)
 		{
 			_var_scope.enter();
-			ret = block2->accept(this);
+			block2->accept(this);
 			_var_scope.exit();
 		}
 		else
@@ -897,7 +890,7 @@ Value* AST2IRVisitor::visitStmts(const std::vector<ASTNode*>& vec)
 					auto bb = BasicBlock::create(_module, "", _functionBelong);
 					_true_targets.emplace_back(bb);
 					_false_targets.emplace_back(bb);
-					ret = stmt->accept(this);
+					stmt->accept(this);
 					_true_targets.pop_back();
 					_false_targets.pop_back();
 					_builder->set_insert_point(bb);
@@ -905,12 +898,11 @@ Value* AST2IRVisitor::visitStmts(const std::vector<ASTNode*>& vec)
 				else stmt->accept(this);
 			}
 			else
-				ret = stmt->accept(this);
+				stmt->accept(this);
 		}
 		if (_builder->get_insert_block()->is_terminated())
 			break;
 	}
-	return ret;
 }
 
 std::string AST2IRVisitor::createPrivateGlobalVarID()

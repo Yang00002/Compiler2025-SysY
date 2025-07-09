@@ -15,7 +15,7 @@
 #include "Type.hpp"
 #include "Value.hpp"
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG == 1
 namespace
@@ -127,6 +127,10 @@ void Mem2Reg::run()
 		POP;
 		// 后续 DeadCode 将移除冗余的局部变量的分配空间
 	}
+	LOG(color::green("Getting:"));
+	GAP;
+	LOG(m_->print());
+	GAP;
 	LOG(color::cyan("Mem2Reg Done"));
 }
 

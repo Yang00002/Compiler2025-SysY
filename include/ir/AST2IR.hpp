@@ -122,10 +122,10 @@ public:
 	Value* visit(ASTContinue*);
 	Value* visit(ASTReturn*);
 
-	// 访问一个语句序列, 如果这个语句序列无论如何都会在中间退出, 则 Value* 非空, 不对 Value* 的具体值做任何保证
-	Value* visitStmts(const std::vector<ASTStmt*>& vec);
-	// 访问一个语句序列, 如果这个语句序列无论如何都会在中间退出, 则 Value* 非空, 不对 Value* 的具体值做任何保证
-	Value* visitStmts(const std::vector<ASTNode*>& vec);
+	// 访问一个语句序列, 如果这个语句序列无论如何都会在中间退出, 则返回退出理由, 否则返回 NONE
+	void visitStmts(const std::vector<ASTStmt*>& vec);
+	// 访问一个语句序列, 如果这个语句序列无论如何都会在中间退出, 则返回退出理由, 否则返回 NONE
+	void visitStmts(const std::vector<ASTNode*>& vec);
 
 	std::string createPrivateGlobalVarID();
 

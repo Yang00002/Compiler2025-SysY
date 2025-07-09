@@ -1,6 +1,7 @@
 #include "DeadCode.hpp"
 
 #include <iostream>
+#include <queue>
 
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
@@ -10,7 +11,7 @@
 #include "Color.hpp"
 
 
-#define DEBUG 0
+#define DEBUG 1
 
 #if DEBUG == 1
 namespace
@@ -81,10 +82,15 @@ void DeadCode::run()
 			changed |= clear_basic_blocks(func);
 			mark(func);
 			changed |= sweep(func);
+			changed |= removeEmptyBasicBlock(func);
 		}
 	}
 	while (changed);
 	POP;
+	LOG(color::green("Getting:"));
+	GAP;
+	LOG(m_->print());
+	GAP;
 	LOG(color::cyan("DeadCode Done"));
 }
 
@@ -157,6 +163,71 @@ void DeadCode::mark(const Instruction* ins)
 	}
 }
 
+bool DeadCode::removeEmptyBasicBlock(Function* function)
+{
+	LOG(color::blue("Begin Remove Empty Block of ") + function->get_name());
+	PUSH;
+	const auto blocks = function->get_basic_blocks();
+	bool rm = false;
+	for (const auto block : blocks)
+	{
+		LOG(color::pink("Check Block ") + block->get_name());
+		if (block->get_instructions().size() == 1)
+		{
+			if (const auto inst = block->get_instructions().back(); inst->is_br())
+			{
+				if (block->is_entry_block()) continue;
+				if (const auto br = dynamic_cast<BranchInst*>(inst); !br->is_cond_br())
+				{
+					if (const auto to = dynamic_cast<BasicBlock*>(br->get_operand(0)); block->
+						replace_self_with_block(to))
+					{
+						PUSH;
+						LOG("Return Instruction " + br->print());
+						LOG("Redirect use with " + to->get_name());
+						POP;
+						rm = true;
+						function->remove(block);
+					}
+				}
+			}
+			else if (inst->is_ret())
+			{
+				const auto ret = dynamic_cast<ReturnInst*>(inst);
+				auto& uses = block->get_use_list();
+				bool stillUse = false;
+				for (const auto use : uses)
+				{
+					const auto user = use.val_;
+					if (const auto br = dynamic_cast<BranchInst*>(user); br != nullptr && !br->is_cond_br())
+					{
+						PUSH;
+						LOG(br->get_parent()->get_name() + " Return Instruction " + br->print());
+						LOG(ret->is_void_ret() ? "Replace with Return Value " :"Replace with Return Value " + ret->
+							get_operand(0)->print());
+						POP;
+						const auto bb = br->get_parent();
+						bb->replace_terminate_with_return_value(ret->is_void_ret() ? nullptr : ret->get_operand(0));
+					}
+					else stillUse = true;
+				}
+				if (!stillUse)
+				{
+					if (block->is_entry_block())
+					{
+						POP;
+						return false;
+					}
+					function->remove(block);
+					rm = true;
+				}
+			}
+		}
+	}
+	POP;
+	return rm;
+}
+
 bool DeadCode::sweep(Function* func)
 {
 	LOG(color::blue("Begin Sweep ") + func->get_name());
@@ -172,7 +243,7 @@ bool DeadCode::sweep(Function* func)
 		{
 			auto n = it.get_and_add();
 			if (marked[n]) continue;
-			LOG(color::pink("Remove Instruction ") + n->print());
+			LOG(color::pink("Remove Instruction ") + n->get_name() + " " + n->get_instr_op_name());
 			n->remove_all_operands();
 			// ReSharper disable once CppNoDiscardExpression
 			it.remove_pre();

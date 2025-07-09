@@ -47,11 +47,22 @@ public:
 	void remove_pre_basic_block(BasicBlock* bb) { pre_bbs_.remove(bb); }
 	// 移除后继块
 	void remove_succ_basic_block(BasicBlock* bb) { succ_bbs_.remove(bb); }
+	// 尝试将跳转到自己的基本块改为跳转到目标基本块, 并且给后继添加 phi 定值
+	// 自身的指令在替换后不能正常工作. 应该只为不产生值和副作用的基本块使用该函数.
+	// 不但替换 use, 还更新函数的基本块前后关系
+	bool replace_self_with_block(BasicBlock* bb);
+	/**
+	 * 将自己的终止指令替换为返回目标值, 并维护块关系. 如果未终止就报错.
+	 * @param value 要返回的值, 如果为 nullptr 则返回 void
+	 */
+	void replace_terminate_with_return_value(Value* value);
 
 	// 该块是否被 ret/br 等指令终止
 	[[nodiscard]] bool is_terminated() const;
 	// 获取终止该块的指令, 没有则报错
 	[[nodiscard]] Instruction* get_terminator() const;
+	// 获取终止该块的指令, 没有则返回空
+	[[nodiscard]] Instruction* get_terminator_or_null() const;
 
 	/****************api about Instruction****************/
 

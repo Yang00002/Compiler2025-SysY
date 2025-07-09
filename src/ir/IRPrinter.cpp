@@ -414,7 +414,12 @@ std::string PhiInst::print()
 	instr_ir += get_instr_op_name();
 	if (this->get_operands().empty()) return instr_ir;
 	instr_ir += " ";
-	instr_ir += this->get_operand(0)->get_type()->print();
+	if (this->get_operand(0) == nullptr)
+	{
+		instr_ir += "?"; return instr_ir;
+	}
+	else
+		instr_ir += this->get_operand(0)->get_type()->print();
 	instr_ir += " ";
 	for (unsigned i = 0; i < this->get_num_operand() / 2; i++)
 	{

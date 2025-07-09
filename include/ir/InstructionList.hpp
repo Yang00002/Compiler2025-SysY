@@ -208,6 +208,11 @@ public:
 	 */
 	Instruction* remove(const InstructionListIterator& iterator);
 	/**
+	 * 去除最后一个指令
+	 * @return 被去掉的指令, 它不会被 delete. 如果未去掉任何指令, 返回 nullptr
+	 */
+	Instruction* pop_back();
+	/**
 	 * 作为单纯的容器使用时, 将另一个列表中所有元素添加进来. 不会检查重复和排序.
 	 */
 	void addAll(const InstructionList& instructions);

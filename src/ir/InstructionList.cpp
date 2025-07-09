@@ -217,6 +217,29 @@ Instruction* InstructionList::remove(const InstructionListIterator& iterator)
 	return erase(iterator.current_);
 }
 
+Instruction* InstructionList::pop_back()
+{
+	if (common_inst_size_ == 0)
+	{
+		if (phi_alloca_size_ == 0) return nullptr;
+		auto target = common_inst_begin_->pre;
+		target->next->pre = target->pre;
+		target->pre->next = target->next;
+		auto ret = target->instruction;
+		delete target;
+		phi_alloca_size_--;
+		return ret;
+	}
+	auto target = end_node_->pre;
+	target->next->pre = target->pre;
+	target->pre->next = target->next;
+	auto ret = target->instruction;
+	if (common_inst_size_ == 1) common_inst_begin_ = end_node_;
+	common_inst_size_--;
+	delete target;
+	return ret;
+}
+
 void InstructionList::addAll(const InstructionList& instructions)
 {
 	if (instructions.phi_alloca_size_ > 0)
