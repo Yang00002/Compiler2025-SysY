@@ -1,9 +1,9 @@
 #include "../antlr/SysYLexer.h"
 #include "../antlr/SysYParser.h"
 #include "../include/ast/Antlr2Ast.hpp"
-#include "ast/Ast.hpp"
-#include "ir/AST2IR.hpp"
-#include "ir/Module.hpp"
+#include "Ast.hpp"
+#include "AST2IR.hpp"
+#include "Module.hpp"
 
 #include <CharStream.h>
 #include <ostream>

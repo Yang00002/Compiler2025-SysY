@@ -167,6 +167,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 	std::unordered_set<Instruction*> in_loop_instructions;
 	for (auto i : loop_instructions) in_loop_instructions.insert(i);
 	std::unordered_set<Instruction*> loop_invariant;
+	std::list<Instruction*> invariant_as_list;
 	std::unordered_set<Instruction*> loop_variant;
 
 	// - 如果指令已被标记为不变式则跳过
@@ -242,6 +243,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 			if (c == 1)
 			{
 				loop_invariant.insert(inst);
+				invariant_as_list.emplace_back(inst);
 				it.remove_pre();
 				changed = true;
 				LOG(color::green("Invariant"));
@@ -369,7 +371,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 	}
 	LOG(color::pink("Moving Invariants"));
 	PUSH;
-	for (auto ins : loop_invariant)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	for (auto ins : invariant_as_list)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
 		LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
 		ins->get_parent()->erase_instr(ins);
