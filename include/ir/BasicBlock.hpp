@@ -6,6 +6,9 @@
 #include <set>
 #include <string>
 
+#include "Function.hpp"
+#include "InstructionList.hpp"
+
 class Function;
 class Instruction;
 class Module;
@@ -53,19 +56,21 @@ public:
 	/****************api about Instruction****************/
 
 
-	// 在末尾添加指令, 如果已经终止了就报错
+	// 在末尾添加指令, 如果是 phi 或 alloca 就添加到开头段, 如果已经终止了就报错
 	void add_instruction(Instruction* instr);
-	// 在开头添加指令
-	void add_instr_begin(Instruction* instr) { instr_list_.push_front(instr); }
+	// 在开头添加指令, 理论上只需要 add_instruction 就可以完成功能
+	[[deprecated]] void add_instr_begin(Instruction* instr);
 	// 移除指令, 移除基本块中指令
 	void erase_instr(const Instruction* instr);
 	// 移除指令, 从尾部开始搜索  
 	void erase_instr_from_last(const Instruction* instr);
 
 	// 获取所有指令
-	std::list<Instruction*>& get_instructions() { return instr_list_; }
+	[[nodiscard]] InstructionList& get_instructions() { return instr_list_; }
 	// 是否为空
 	[[nodiscard]] bool empty() const { return instr_list_.empty(); }
+	//
+	[[nodiscard]] bool is_entry_block() const { return this == parent_->get_entry_block(); }
 	// 指令数
 	[[nodiscard]] int get_num_of_instr() const { return static_cast<int>(instr_list_.size()); }
 
@@ -85,7 +90,6 @@ public:
 private:
 	std::list<BasicBlock*> pre_bbs_;
 	std::list<BasicBlock*> succ_bbs_;
-	// *
-	std::list<Instruction*> instr_list_;
+	InstructionList instr_list_;
 	Function* parent_;
 };

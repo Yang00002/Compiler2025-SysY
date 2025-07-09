@@ -56,7 +56,7 @@ namespace
 #define LOGIF(a,b) debug::_0__log_if_func((a), (b))
 #define GAP debug::_0__gap_func()
 #define PUSH debug::_0__counts_push()
-#define RUN(a) (a)
+#define RUN(a) {a;}
 #define POP debug::_0__counts_pop()
 #endif
 #if DEBUG != 1
@@ -158,7 +158,7 @@ void Mem2Reg::generate_phi()
 		LOG(color::blue("Searching removable allocated ops in BasicBlock ") + bb->get_name());
 		PUSH;
 		std::set<Value*> var_is_killed;
-		for (const auto& instr : bb->get_instructions())
+		for (const auto instr : bb->get_instructions())
 		{
 			if (instr->is_store())
 			{
@@ -203,7 +203,7 @@ void Mem2Reg::generate_phi()
 						var->get_type()->toPointerType()->typeContained(),
 						bb_dominance_frontier_bb);
 					phi_lval.emplace(phi, var);
-					bb_dominance_frontier_bb->add_instr_begin(phi);
+					bb_dominance_frontier_bb->add_instruction(phi);
 					work_list.push_back(bb_dominance_frontier_bb);
 					bb_has_var_phi[{bb_dominance_frontier_bb, var}] = true;
 					LOG(color::pink("Add phi for ") + var->
@@ -306,16 +306,15 @@ public:
 		LOG(color::blue("Begin Rename ") + bb->get_name() + color::blue(" in ") + bb->get_parent()->get_name());
 		PUSH;
 		std::map<Value*, int> inner_count_map;
-		for (auto& ins : bb->get_instructions())
+		for (const auto ins : bb->get_instructions())
 		{
 			LOG(color::pink("Instruction ") + show_instruction(ins) + color::pink(" [ ") + ins->print() + color::pink(
 				" ] "));
 			PUSH;
 			if (ins->is_alloca())
 			{
-				auto ai = dynamic_cast<AllocaInst*>(ins);
-				if (!ai->get_alloca_type()->isArrayType() &&
-				    !ai->get_alloca_type()->isPointerType())
+				if (const auto ai = dynamic_cast<AllocaInst*>(ins); !ai->get_alloca_type()->isArrayType() &&
+				                                                    !ai->get_alloca_type()->isPointerType())
 				{
 					name_stack_map[ins] = {};
 					remove(ins);
@@ -410,7 +409,7 @@ public:
 		count_map.push(inner_count_map);
 		for (auto succ : bb->get_succ_basic_blocks())
 		{
-			for (auto& inst : succ->get_instructions())
+			for (auto inst : succ->get_instructions())
 			{
 				if (inst->is_phi())
 				{
@@ -431,7 +430,7 @@ public:
 
 	void clean() const
 	{
-		for (const auto instr : wait_delete) LOG(color::yellow("Remove " + instr->print()));
+		RUN(for (const auto instr : wait_delete) LOG(color::yellow("Remove " + instr->print())));
 		for (const auto instr : wait_delete)
 		{
 			instr->get_parent()->erase_instr(instr);

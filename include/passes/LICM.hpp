@@ -23,12 +23,12 @@ public:
 	void run() override;
 
 private:
-	std::unordered_map<std::shared_ptr<Loop>, bool> is_loop_done_;
+	std::unordered_map<Loop*, bool> is_loop_done_;
 	std::unique_ptr<LoopDetection> loop_detection_;
 	std::unique_ptr<FuncInfo> func_info_;
-	void traverse_loop(const std::shared_ptr<Loop>& loop);
-	void run_on_loop(const std::shared_ptr<Loop>& loop) const;
-	void collect_loop_info(const std::shared_ptr<Loop>& loop,
+	void traverse_loop(Loop* loop);
+	void run_on_loop(Loop* loop) const;
+	void collect_loop_info(Loop* loop,
 	                       std::set<Value*>& loop_instructions,
 	                       bool& contains_impure_call) const;
 };

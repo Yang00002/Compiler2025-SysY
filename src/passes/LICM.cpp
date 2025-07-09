@@ -107,7 +107,7 @@ void LoopInvariantCodeMotion::run()
  * @param loop 当前要处理的循环
  *
  */
-void LoopInvariantCodeMotion::traverse_loop(const std::shared_ptr<Loop>& loop)
+void LoopInvariantCodeMotion::traverse_loop(Loop* loop)
 {
 	if (is_loop_done_[loop])
 	{
@@ -127,11 +127,11 @@ void LoopInvariantCodeMotion::traverse_loop(const std::shared_ptr<Loop>& loop)
 // 3. 检查store指令是否修改了全局变量，如果是则添加到updated_global中
 // 4. 检查是否包含非纯函数调用，如果有则设置contains_impure_call为true
 void LoopInvariantCodeMotion::collect_loop_info(
-	const std::shared_ptr<Loop>& loop, std::set<Value*>& loop_instructions, bool& contains_impure_call) const
+	Loop* loop, std::set<Value*>& loop_instructions, bool& contains_impure_call) const
 {
 	for (auto bb : loop->get_blocks())
 	{
-		for (auto& ins : bb->get_instructions())
+		for (auto ins : bb->get_instructions())
 		{
 			loop_instructions.emplace(ins);
 		}
@@ -170,7 +170,7 @@ public:
  * @param loop 要优化的循环
  *
  */
-void LoopInvariantCodeMotion::run_on_loop(const std::shared_ptr<Loop>& loop) const
+void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 {
 	LOG(color::blue("Handling Loop Begin At ") + loop->get_header()->get_name());
 	PUSH;
@@ -286,7 +286,7 @@ void LoopInvariantCodeMotion::run_on_loop(const std::shared_ptr<Loop>& loop) con
 
 	auto preheader = loop->get_preheader();
 
-	for (auto& phi_inst_ : loop->get_header()->get_instructions())
+	for (auto phi_inst_ : loop->get_header()->get_instructions())
 	{
 		if (phi_inst_->get_instr_type() != Instruction::phi)
 			break;
@@ -364,8 +364,8 @@ void LoopInvariantCodeMotion::run_on_loop(const std::shared_ptr<Loop>& loop) con
 		pred->remove_succ_basic_block(loop->get_header());
 		pred->add_succ_basic_block(preheader);
 		preheader->add_pre_basic_block(pred);
-		auto& ins = pred->get_instructions().back();
-		int size = static_cast<int>(ins->get_operands().size());
+		const auto ins = pred->get_instructions().back();
+		const int size = static_cast<int>(ins->get_operands().size());
 		for (int i = 0; i < size; i++)
 		{
 			if (ins->get_operand(i) == loop->get_header())

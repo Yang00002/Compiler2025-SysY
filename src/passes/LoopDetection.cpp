@@ -6,6 +6,15 @@
 #include <ostream>
 #include <set>
 
+
+LoopDetection::~LoopDetection()
+{
+	for (const auto& loop : loops_)
+	{
+		delete loop;
+	} 
+}
+
 /**
  * @brief 循环检测Pass的主入口函数
  *
@@ -33,7 +42,7 @@ void LoopDetection::run()
  * @param loop 当前正在处理的循环对象
  */
 void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
-                                                const std::shared_ptr<Loop>& loop)
+                                                Loop* loop)
 {
 	// DONE List:
 	// 1. 初始化工作表，将所有latch块加入
@@ -94,18 +103,6 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
 					}
 				}
 			}
-			/* 在此添加代码：
-			 * 1. 获取bb当前所属的循环sub_loop
-			 * 2. 找到sub_loop的最顶层父循环
-			 * 3. 检查是否需要继续处理
-			 * 4. 建立循环嵌套关系：
-			 *    - 设置父循环
-			 *    - 添加子循环
-			 * 5. 将子循环的所有基本快加入到父循环中
-			 * 6. 将子循环header的前驱加入工作表
-			 */
-
-			// throw std::runtime_error("Lab4: 你有一个DONE需要完成！");
 		}
 	}
 }
@@ -144,7 +141,7 @@ void LoopDetection::run_on_func(Function* f)
 			continue;
 		}
 		// create loop
-		auto loop = std::make_shared<Loop>(bb);
+		auto loop = new Loop{ bb };
 		bb_to_loop_[bb] = loop;
 		// add latch nodes
 		for (auto& latch : latches)

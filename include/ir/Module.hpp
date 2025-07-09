@@ -1,7 +1,7 @@
 #pragma once
 
-#include <Function.hpp>
-#include <GlobalVariable.hpp>
+#include "Function.hpp"
+#include "GlobalVariable.hpp"
 
 #include <list>
 #include <map>

@@ -18,7 +18,7 @@ void BasicBlock::erase_from_parent() { this->get_parent()->remove(this); }
 
 BasicBlock::~BasicBlock()
 {
-	for (const auto& i : instr_list_)
+	for (const auto i : instr_list_)
 		delete i;
 }
 
@@ -28,7 +28,7 @@ bool BasicBlock::is_terminated() const
 	{
 		return false;
 	}
-	switch (instr_list_.back()->get_instr_type())
+	switch (instr_list_.back()->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 	{
 		case Instruction::ret:
 		case Instruction::br:
@@ -47,25 +47,22 @@ Instruction* BasicBlock::get_terminator() const
 
 void BasicBlock::add_instruction(Instruction* instr)
 {
-	assert(not is_terminated() && "Inserting instruction to terminated bb");
-	instr_list_.push_back(instr);
+	instr_list_.emplace_back(instr);
+}
+
+void BasicBlock::add_instr_begin(Instruction* instr)
+{
+	instr_list_.emplace_front(instr);
 }
 
 void BasicBlock::erase_instr(const Instruction* instr)
 {
-	instr_list_.erase(std::find(instr_list_.begin(), instr_list_.end(), instr));
+	instr_list_.remove_first(instr);
 }
 
 void BasicBlock::erase_instr_from_last(const Instruction* instr)
 {
-	for (auto it = instr_list_.end(); it != instr_list_.begin(); )
-	{
-		--it;
-		if (*it == instr)
-		{
-			instr_list_.erase(it);
-		}
-	}
+	instr_list_.remove_last(instr);
 }
 
 std::string BasicBlock::print()
@@ -94,7 +91,7 @@ std::string BasicBlock::print()
 		bb_ir += "; Error: Block without parent!";
 	}
 	bb_ir += "\n";
-	for (auto& instr : this->get_instructions())
+	for (const auto instr : this->get_instructions())
 	{
 		bb_ir += "  ";
 		bb_ir += instr->print();

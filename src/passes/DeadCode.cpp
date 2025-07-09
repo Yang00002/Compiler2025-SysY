@@ -48,7 +48,7 @@ void DeadCode::mark(Function* func)
 
 	for (auto& bb : func->get_basic_blocks())
 	{
-		for (auto& ins : bb->get_instructions())
+		for (auto ins : bb->get_instructions())
 		{
 			if (is_critical(ins))
 			{
@@ -85,27 +85,24 @@ void DeadCode::mark(const Instruction* ins)
 
 bool DeadCode::sweep(Function* func)
 {
-	std::unordered_set<Instruction*> wait_del{};
-	for (auto& bb : func->get_basic_blocks())
+	int count = 0;
+	for (const auto& bb : func->get_basic_blocks())
 	{
-		for (auto it = bb->get_instructions().begin();
-		     it != bb->get_instructions().end();)
+		auto& instructions = bb->get_instructions();
+		auto it = instructions.begin();
+		while (it != instructions.end())
 		{
-			if (marked[*it])
-			{
-				++it;
-				continue;
-			}
-			wait_del.insert(*it);
-			++it;
+			auto n = it.get_and_add();
+			if (marked[n]) continue;
+			n->remove_all_operands();
+			// ReSharper disable once CppNoDiscardExpression
+			it.remove_pre();
+			delete n;
+			count++;
 		}
 	}
-	for (const auto inst : wait_del)
-		inst->remove_all_operands();
-	for (auto inst : wait_del)
-		inst->get_parent()->get_instructions().remove(inst);
-	ins_count += static_cast<int>(wait_del.size());
-	return not wait_del.empty(); // changed
+	ins_count += count;
+	return count;
 }
 
 bool DeadCode::is_critical(Instruction* ins) const

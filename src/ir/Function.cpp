@@ -87,7 +87,7 @@ void Function::set_instr_name()
 				seq.insert({bb, seq_num});
 			}
 		}
-		for (auto& instr : bb->get_instructions())
+		for (auto instr : bb->get_instructions())
 		{
 			if (!instr->is_void() && seq.find(instr) == seq.end())
 			{

@@ -1,11 +1,11 @@
 #pragma once
 
-#include <BasicBlock.hpp>
-#include <Constant.hpp>
-#include <Function.hpp>
-#include <Instruction.hpp>
-#include <Value.hpp>
-#include <Type.hpp>
+#include "BasicBlock.hpp"
+#include "Constant.hpp"
+#include "Function.hpp"
+#include "Instruction.hpp"
+#include "Value.hpp"
+#include "Type.hpp"
 
 class IRBuilder
 {
@@ -170,7 +170,7 @@ public:
 	{
 		auto inst = AllocaInst::create_alloca(ty, nullptr);
 		auto entryBB = this->BB_->get_parent()->get_entry_block();
-		entryBB->add_instr_begin(inst);
+		entryBB->add_instruction(inst);
 		inst->set_parent(entryBB);
 		return inst;
 	}
