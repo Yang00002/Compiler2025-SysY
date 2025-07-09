@@ -19,7 +19,7 @@
 #include "PassManager.hpp"
 #include "Value.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 
 #if DEBUG == 1
 namespace
@@ -369,7 +369,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 	}
 	LOG(color::pink("Moving Invariants"));
 	PUSH;
-	for (auto ins : loop_invariant)
+	for (auto ins : loop_invariant)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
 		LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
 		ins->get_parent()->erase_instr(ins);

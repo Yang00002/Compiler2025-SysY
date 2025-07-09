@@ -246,6 +246,7 @@ void InstructionList::addAll(const InstructionList& instructions)
 			InstructionListNode* node = new InstructionListNode{b->instruction, nullptr, appendNode};
 			appendNode->next = node;
 			appendNode = node;
+			if (common_inst_begin_ == end_node_) common_inst_begin_ = node;
 			b = b->next;
 		}
 		appendNode->next = end_node_;
