@@ -9,6 +9,235 @@
 #include <set>
 #include <vector>
 
+
+namespace
+{
+	class LTDominatorTreeSolver
+	{
+		std::unordered_map<BasicBlock*, int> fromBlockPtrToBlockId_;
+		BasicBlock** fromBlockIdToBlockPtr1_;
+		int* edges0_;
+		int* idToEdgeIdxs2_;
+		int beginBlockId_, blockCount_;
+		int *blockIdRankByDFSEnteringOrder1_, *DFSEnteringOrderOfblockId1_, *DFSParent1_;
+		int *setParent1_, *mn1_;
+		int *idom1_, *sdom1_;
+		int edgeLinkingSize_;
+
+		struct EL
+		{
+			int v, x;
+		};
+
+		EL* edgeLinking1_;
+		int* edgeLinkingIdx1_;
+
+		void dfs(const int u, int& idx)
+		{
+			DFSEnteringOrderOfblockId1_[u] = ++idx;
+			blockIdRankByDFSEnteringOrder1_[idx] = u;
+			for (int i = idToEdgeIdxs2_[u << 1]; i < idToEdgeIdxs2_[(u << 1) + 1]; i++)
+			{
+				if (const int v = edges0_[i]; !DFSEnteringOrderOfblockId1_[v])
+				{
+					dfs(v, idx);
+					DFSParent1_[v] = u;
+				}
+			}
+		}
+
+		int findSetRootOf(int x)
+		{
+			if (setParent1_[x] == x)
+			{
+				return x;
+			}
+			int tmp = setParent1_[x];
+			setParent1_[x] = findSetRootOf(setParent1_[x]);
+			if (DFSEnteringOrderOfblockId1_[sdom1_[mn1_[tmp]]] < DFSEnteringOrderOfblockId1_[sdom1_[mn1_[x]]])
+			{
+				mn1_[x] = mn1_[tmp];
+			}
+			return setParent1_[x];
+		}
+
+		void add(int from, int to)
+		{
+			edgeLinking1_[++edgeLinkingSize_] = {to, edgeLinkingIdx1_[from]};
+			edgeLinkingIdx1_[from] = edgeLinkingSize_;
+		}
+
+	public:
+		LTDominatorTreeSolver(const LTDominatorTreeSolver&) = delete;
+		LTDominatorTreeSolver(LTDominatorTreeSolver&&) = delete;
+		LTDominatorTreeSolver& operator=(const LTDominatorTreeSolver&) = delete;
+		LTDominatorTreeSolver& operator=(LTDominatorTreeSolver&&) = delete;
+
+		LTDominatorTreeSolver(Function* function)
+		{
+			bool rm = false;
+			do
+			{
+				auto blocks = function->get_basic_blocks();
+				for (const auto& block : blocks)
+					if (!block->is_entry_block() && block->get_pre_basic_blocks().empty())
+					{
+						function->remove(block);
+						rm = true;
+					}
+			}
+			while (rm);
+			blockCount_ = static_cast<int>(function->get_basic_blocks().size());
+			fromBlockIdToBlockPtr1_ = new BasicBlock*[blockCount_ + 1];
+			int edgeCount = 0;
+			int allocateId = 0;
+			for (const auto& block : function->get_basic_blocks())
+			{
+				fromBlockIdToBlockPtr1_[++allocateId] = block;
+				fromBlockPtrToBlockId_.emplace(block, allocateId);
+				edgeCount += static_cast<int>(block->get_succ_basic_blocks().size());
+			}
+			edges0_ = new int[edgeCount << 1];
+			idToEdgeIdxs2_ = new int[(blockCount_ << 1) + 3];
+			allocateId = 0;
+			for (int i = 1; i <= blockCount_; i++)
+			{
+				auto& block = fromBlockIdToBlockPtr1_[i];
+				idToEdgeIdxs2_[i << 1] = allocateId;
+				for (auto& succ_basic_block : block->get_succ_basic_blocks())
+				{
+					edges0_[allocateId++] = fromBlockPtrToBlockId_[succ_basic_block];
+				}
+				idToEdgeIdxs2_[1 + (i << 1)] = allocateId;
+				for (auto& succ_basic_block : block->get_pre_basic_blocks())
+				{
+					edges0_[allocateId++] = fromBlockPtrToBlockId_[succ_basic_block];
+				}
+			}
+			idToEdgeIdxs2_[(blockCount_ << 1) + 2] = allocateId;
+			beginBlockId_ = fromBlockPtrToBlockId_[function->get_entry_block()];
+			blockIdRankByDFSEnteringOrder1_ = new int[blockCount_ + 1];
+			DFSEnteringOrderOfblockId1_ = new int[blockCount_ + 1]{};
+			DFSParent1_ = new int[blockCount_ + 1];
+			setParent1_ = new int[blockCount_ + 1];
+			edgeLinkingSize_ = 0;
+			edgeLinking1_ = new EL[blockCount_ + 1];
+			edgeLinkingIdx1_ = new int[blockCount_ + 1]{};
+			mn1_ = new int[blockCount_ + 1];
+			idom1_ = new int[blockCount_ + 1];
+			sdom1_ = new int[blockCount_ + 1];
+		}
+
+		~LTDominatorTreeSolver()
+		{
+			delete[] fromBlockIdToBlockPtr1_;
+			delete[] edges0_;
+			delete[] idToEdgeIdxs2_;
+			delete[] blockIdRankByDFSEnteringOrder1_;
+			delete[] DFSEnteringOrderOfblockId1_;
+			delete[] DFSParent1_;
+			delete[] setParent1_;
+			delete[] mn1_;
+			delete[] idom1_;
+			delete[] sdom1_;
+		}
+
+		void solve()
+		{
+			int idx = 0;
+			dfs(beginBlockId_, idx);
+			for (int i = 1; i <= blockCount_; ++i)
+			{
+				idom1_[i] = setParent1_[i] = sdom1_[i] = mn1_[i] = i;
+			}
+			for (int i = blockCount_; i >= 2; --i)
+			{
+				int u = blockIdRankByDFSEnteringOrder1_[i], res = INT_MAX;
+				for (int j = idToEdgeIdxs2_[(u << 1) + 1]; j < idToEdgeIdxs2_[(u << 1) + 2]; j++)
+				{
+					int v = edges0_[j];
+					if (!DFSEnteringOrderOfblockId1_[v])
+					{
+						continue;
+					}
+					findSetRootOf(v);
+					if (DFSEnteringOrderOfblockId1_[v] < DFSEnteringOrderOfblockId1_[u])
+					{
+						res = std::min(res, DFSEnteringOrderOfblockId1_[v]);
+					}
+					else
+					{
+						res = std::min(res, DFSEnteringOrderOfblockId1_[sdom1_[mn1_[v]]]);
+					}
+				}
+				sdom1_[u] = blockIdRankByDFSEnteringOrder1_[res];
+				setParent1_[u] = DFSParent1_[u];
+				add(sdom1_[u], u);
+				u = DFSParent1_[u];
+				for (int j = edgeLinkingIdx1_[u]; j; j = edgeLinking1_[j].x)
+				{
+					int v = edgeLinking1_[j].v;
+					findSetRootOf(v);
+					if (sdom1_[mn1_[v]] == u)
+					{
+						idom1_[v] = u;
+					}
+					else
+					{
+						idom1_[v] = mn1_[v];
+					}
+				}
+				edgeLinkingIdx1_[u] = 0;
+			}
+			for (int i = 2; i <= blockCount_; ++i)
+			{
+				int u = blockIdRankByDFSEnteringOrder1_[i];
+				if (idom1_[u] != sdom1_[u])
+				{
+					idom1_[u] = idom1_[idom1_[u]];
+				}
+			}
+		}
+
+		void dumpIdom(std::map<BasicBlock*, BasicBlock*>& ret) const
+		{
+			for (int i = 1; i <= blockCount_; i++)
+				ret.emplace(fromBlockIdToBlockPtr1_[i], fromBlockIdToBlockPtr1_[idom1_[i]]);
+		}
+
+		void dumpTreeSucc(std::map<BasicBlock*, std::set<BasicBlock*>>& ret) const
+		{
+			for (int i = 1; i <= blockCount_; i++)
+			{
+				if (idom1_[i] == i) continue;
+				ret[fromBlockIdToBlockPtr1_[idom1_[i]]].emplace(fromBlockIdToBlockPtr1_[i]);
+			}
+		}
+
+		void dumpFrontier(std::map<BasicBlock*, std::set<BasicBlock*>>& ret) const
+		{
+			for (int i = 1; i <= blockCount_; i++)
+			{
+				int id = idom1_[i];
+				int preBegin = idToEdgeIdxs2_[(i << 1) + 1];
+				int preEnd = idToEdgeIdxs2_[(i << 1) + 2];
+				if (preEnd - preBegin > 1)
+				{
+					for (; preBegin < preEnd; ++preBegin)
+					{
+						int p = edges0_[preBegin];
+						while (p != id)
+						{
+							ret[fromBlockIdToBlockPtr1_[p]].emplace(fromBlockIdToBlockPtr1_[i]);
+							p = idom1_[p];
+						}
+					}
+				}
+			}
+		}
+	};
+}
+
 /**
  * @brief 支配器分析的入口函数
  *
@@ -18,282 +247,32 @@ void Dominators::run()
 {
 	for (auto& f : m_->get_functions())
 	{
-		if (f->is_declaration())
-			continue;
 		run_on_func(f);
-		// print_idom(f);
-		// print_dominance_frontier(f);
 	}
 }
 
-/**
- * @brief 对单个函数执行支配关系分析
- * @param f 要分析的函数
- *
- * 该函数执行完整的支配关系分析流程：
- * 1. 初始化数据结构
- * 2. 创建反向后序遍历序列
- * 3. 计算直接支配者(idom)
- * 4. 计算支配边界
- * 5. 构建支配树的后继关系
- * 6. 创建支配树的DFS序
- */
 void Dominators::run_on_func(Function* f)
 {
-	dom_post_order_.clear();
-	dom_dfs_order_.clear();
-	for (auto& bb : f->get_basic_blocks())
-	{
-		idom_.insert({bb, nullptr});
-		dom_frontier_.insert({bb, {}});
-		dom_tree_succ_blocks_.insert({bb, {}});
-	}
-	create_reverse_post_order(f);
-	create_idom(f);
-	create_dominance_frontier(f);
-	create_dom_tree_succ(f);
+	if (f->is_lib_) return;
+	LTDominatorTreeSolver solver{ f };
+	solver.solve();
+	solver.dumpIdom(idom_);
+	solver.dumpTreeSucc(dom_tree_succ_blocks_);
+	solver.dumpFrontier(dom_frontier_);
 	create_dom_dfs_order(f);
 }
+
 
 BasicBlock* Dominators::get_idom(BasicBlock* bb) const { return idom_.at(bb); }
 
 const std::set<BasicBlock*>& Dominators::get_dominance_frontier(BasicBlock* bb)
 {
-	return dom_frontier_.at(bb);
+	return dom_frontier_[bb];
 }
 
 const std::set<BasicBlock*>& Dominators::get_dom_tree_succ_blocks(BasicBlock* bb)
 {
 	return dom_tree_succ_blocks_.at(bb);
-}
-
-/**
- * @brief 计算两个基本块的支配关系交集
- * @param b1 第一个基本块
- * @param b2 第二个基本块
- * @return 返回在支配树上最深的同时支配b1和b2的节点
- *
- * 该函数使用后序号来查找两个节点的最近公共支配者。
- * 通过在支配树上向上遍历直到找到交点。
- */
-BasicBlock* Dominators::intersect(BasicBlock* b1, BasicBlock* b2) const
-{
-	while (b1 != b2)
-	{
-		while (get_post_order(b1) < get_post_order(b2))
-		{
-			b1 = get_idom(b1);
-		}
-		while (get_post_order(b2) < get_post_order(b1))
-		{
-			b2 = get_idom(b2);
-		}
-	}
-	return b1;
-}
-
-/**
- * @brief 创建函数的反向后序遍历序列
- * @param f 要处理的函数
- *
- * 通过DFS遍历CFG来构建基本块的后序遍历序列。
- * 这个序列用于后续的支配关系分析。
- */
-void Dominators::create_reverse_post_order(const Function* f)
-{
-	std::set<BasicBlock*> visited;
-	dfs(f->get_entry_block(), visited);
-}
-
-void Dominators::set_idom(BasicBlock* bb, BasicBlock* idom)
-{
-	idom_[bb] = idom;
-}
-
-void Dominators::set_dominance_frontier(BasicBlock* bb, std::set<BasicBlock*>& df)
-{
-	dom_frontier_[bb].clear();
-	dom_frontier_[bb].insert(df.begin(), df.end());
-}
-
-void Dominators::add_dom_tree_succ_block(BasicBlock* bb, BasicBlock* dom_tree_succ_bb)
-{
-	dom_tree_succ_blocks_[bb].insert(dom_tree_succ_bb);
-}
-
-unsigned int Dominators::get_post_order(BasicBlock* bb) const
-{
-	return post_order_.at(bb);
-}
-
-/**
- * @brief 深度优先搜索辅助函数
- * @param bb 当前遍历的基本块
- * @param visited 已访问的基本块集合
- *
- * 执行DFS遍历，维护后序遍历序列和每个基本块的后序号。
- */
-void Dominators::dfs(BasicBlock* bb, std::set<BasicBlock*>& visited)
-{
-	visited.insert(bb);
-	for (auto& succ : bb->get_succ_basic_blocks())
-	{
-		if (visited.find(succ) == visited.end())
-		{
-			dfs(succ, visited);
-		}
-	}
-	post_order_vec_.push_back(bb);
-	post_order_.insert({bb, post_order_.size()});
-}
-
-/**
- * @brief 计算所有基本块的直接支配者(immediate dominator)
- * @param f 要分析的函数
- *
- * 使用迭代算法计算每个基本块的直接支配者：
- * 1. 将入口块的直接支配者设置为自身
- * 2. 重复遍历所有基本块，更新它们的直接支配者
- * 3. 当没有变化时算法终止
- */
-void Dominators::create_idom(Function* f)
-{
-	int blockCount = static_cast<int>(post_order_vec_.size());
-	auto entry = post_order_vec_[blockCount - 1];
-	idom_[entry] = entry;
-	bool changed = true;
-	while (changed)
-	{
-		changed = false;
-		for (int i = blockCount - 2; i > -1; i--)
-		{
-			auto b = post_order_vec_[i];
-			if (b->get_parent() != f)
-				break;
-			auto& pres = b->get_pre_basic_blocks();
-			auto itPre = pres.begin();
-			auto itEnd = pres.end();
-			auto new_idom = *itPre;
-			for (++itPre; itPre != itEnd; ++itPre)
-			{
-				auto p = *itPre;
-				if (idom_[p] != nullptr)
-				{
-					new_idom = intersect(p, new_idom);
-				}
-			}
-			if (idom_[b] != new_idom)
-			{
-				idom_[b] = new_idom;
-				changed = true;
-			}
-		}
-	}
-	for (auto& i : f->get_basic_blocks())
-	{
-		if (idom_[i] == nullptr)
-			idom_[i] = i;
-	}
-	// DONE 分析得到 f 中各个基本块的 idom
-}
-
-/**
- * @brief 计算所有基本块的支配边界(dominance frontier)
- * @param f 要分析的函数
- *
- * 对于每个有多个前驱的基本块B：
- * 从每个前驱P开始，沿着支配树向上遍历直到遇到B的直接支配者，
- * 将B加入路径上所有节点的支配边界中。
- */
-void Dominators::create_dominance_frontier(Function* f)
-{
-	for (auto& b : f->get_basic_blocks())
-	{
-		auto& pres = b->get_pre_basic_blocks();
-		if (pres.size() > 1)
-		{
-			for (auto p : pres)
-			{
-				while (p != idom_[b])
-				{
-					dom_frontier_[p].insert(b);
-					p = idom_[p];
-				}
-			}
-		}
-	}
-	// DONE 分析得到 f 中各个基本块的支配边界集合
-	// throw "Unimplemented create_dominance_frontier";
-}
-
-static std::list<BasicBlock*>
-create_dom_tree_succ_helper(std::map<BasicBlock*, std::list<BasicBlock*>>& m,
-                            std::map<BasicBlock*, std::set<BasicBlock*>>& to, BasicBlock* b)
-{
-	std::list<BasicBlock*> l;
-	for (auto next : m[b])
-	{
-		l.splice(l.end(), create_dom_tree_succ_helper(m, to, next));
-	}
-	for (auto p : l)
-	{
-		to[b].insert(p);
-	}
-	return l;
-}
-
-/**
- * @brief 构建支配树的后继关系
- * @param f 要处理的函数
- *
- * 基于已计算的直接支配者关系，构建支配树的子节点关系。
- * 如果A是B的直接支配者，则B是A在支配树上的后继。
- */
-void Dominators::create_dom_tree_succ(Function* f)
-{
-	// DONE 分析得到 f 中各个基本块的支配树后继
-	for (auto& i : f->get_basic_blocks())
-	{
-		auto j = idom_[i];
-		if (j != i)
-		{
-			dom_tree_succ_blocks_[j].insert(i);
-		}
-	}
-}
-
-/**
- * @brief 为支配树创建深度优先搜索序
- * @param f 要处理的函数
- *
- * 该函数通过深度优先搜索遍历支配树，为每个基本块分配两个序号：
- * 1. dom_tree_L_：记录DFS首次访问该节点的时间戳
- * 2. dom_tree_R_：记录DFS完成访问该节点子树的时间戳
- *
- * 同时维护：
- * - dom_dfs_order_：按DFS访问顺序记录基本块
- * - dom_post_order_：dom_dfs_order_的逆序
- *
- * 这些序号和顺序可用于快速判断支配关系：
- * 如果节点A支配节点B，则A的L值小于B的L值，且A的R值大于B的R值
- */
-void Dominators::create_dom_dfs_order(const Function* f)
-{
-	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
-	unsigned int order = 0;
-	std::function<void(BasicBlock*)> dfs = [&](BasicBlock* bb)
-	{
-		dom_tree_L_[bb] = ++order;
-		dom_dfs_order_.push_back(bb);
-		for (auto& succ : dom_tree_succ_blocks_[bb])
-		{
-			dfs(succ);
-		}
-		dom_tree_R_[bb] = order;
-	};
-	dfs(f->get_entry_block());
-	dom_post_order_ = std::vector<BasicBlock*>(dom_dfs_order_.rbegin(),
-	                                           dom_dfs_order_.rend());
 }
 
 /**
@@ -496,7 +475,7 @@ void Dominators::dump_dominator_tree(Function* f)
 bool Dominators::is_dominate(BasicBlock* bb1, BasicBlock* bb2) const
 {
 	return dom_tree_L_.at(bb1) <= dom_tree_L_.at(bb2) &&
-	       dom_tree_R_.at(bb1) >= dom_tree_L_.at(bb2);
+	       dom_tree_R_.at(bb1) >= dom_tree_R_.at(bb2);
 }
 
 const std::vector<BasicBlock*>& Dominators::get_dom_dfs_order()
@@ -507,4 +486,39 @@ const std::vector<BasicBlock*>& Dominators::get_dom_dfs_order()
 const std::vector<BasicBlock*>& Dominators::get_dom_post_order()
 {
 	return dom_post_order_;
+}
+
+
+/**
+ * @brief 为支配树创建深度优先搜索序
+ * @param f 要处理的函数
+ *
+ * 该函数通过深度优先搜索遍历支配树，为每个基本块分配两个序号：
+ * 1. dom_tree_L_：记录DFS首次访问该节点的时间戳
+ * 2. dom_tree_R_：记录DFS完成访问该节点子树的时间戳
+ *
+ * 同时维护：
+ * - dom_dfs_order_：按DFS访问顺序记录基本块
+ * - dom_post_order_：dom_dfs_order_的逆序
+ *
+ * 这些序号和顺序可用于快速判断支配关系：
+ * 如果节点A支配节点B，则A的L值小于B的L值，且A的R值大于B的R值
+ */
+void Dominators::create_dom_dfs_order(const Function* f)
+{
+	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
+	unsigned int order = 0;
+	std::function<void(BasicBlock*)> dfs = [&](BasicBlock* bb)
+	{
+		dom_tree_L_[bb] = ++order;
+		dom_dfs_order_.push_back(bb);
+		for (auto& succ : dom_tree_succ_blocks_[bb])
+		{
+			dfs(succ);
+		}
+		dom_tree_R_[bb] = order;
+	};
+	dfs(f->get_entry_block());
+	dom_post_order_ = std::vector<BasicBlock*>(dom_dfs_order_.rbegin(),
+	                                           dom_dfs_order_.rend());
 }

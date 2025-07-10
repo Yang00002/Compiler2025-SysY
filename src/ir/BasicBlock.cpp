@@ -158,7 +158,7 @@ std::string BasicBlock::print()
 	// print prebb
 	if (!this->get_pre_basic_blocks().empty())
 	{
-		bb_ir += "                                                ; preds = ";
+		bb_ir += "\t\t; preds = ";
 	}
 	for (auto bb : this->get_pre_basic_blocks())
 	{
@@ -168,7 +168,18 @@ std::string BasicBlock::print()
 		}
 		bb_ir += print_as_op(bb, false);
 	}
-
+	if (!this->get_succ_basic_blocks().empty())
+	{
+		bb_ir += "\t\t; succs = ";
+	}
+	for (auto bb : this->get_succ_basic_blocks())
+	{
+		if (bb != *this->get_succ_basic_blocks().begin())
+		{
+			bb_ir += ", ";
+		}
+		bb_ir += print_as_op(bb, false);
+	}
 	// print prebb
 	if (!this->get_parent())
 	{

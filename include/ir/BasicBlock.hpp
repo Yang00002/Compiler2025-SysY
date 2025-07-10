@@ -52,7 +52,7 @@ public:
 	// 不但替换 use, 还更新函数的基本块前后关系
 	bool replace_self_with_block(BasicBlock* bb);
 	/**
-	 * 将自己的终止指令替换为返回目标值, 并维护块关系. 如果未终止就报错.
+	 * 将自己的终止指令替换为返回目标值, 并维护块关系. 如果未终止就报错. 不会自动去掉 phi 的定值.
 	 * @param value 要返回的值, 如果为 nullptr 则返回 void
 	 */
 	void replace_terminate_with_return_value(Value* value);
