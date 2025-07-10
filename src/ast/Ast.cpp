@@ -86,21 +86,6 @@ std::string to_string(const TypeCastEnvironment e)
 	return "";
 }
 
-bool BlockScopeTableInAST::pushScope(ASTDecl* decl)
-{
-	if (const auto f = dynamic_cast<ASTFuncDecl*>(decl); f != nullptr)return false;
-	auto v = dynamic_cast<ASTVarDecl*>(decl);
-	if (_var_scopes.find(v->id()) != _var_scopes.end())return false;
-	_var_scopes.emplace(decl->id(), v);
-	return true;
-}
-
-ASTDecl* BlockScopeTableInAST::findScope(const std::string& id)
-{
-	if (const auto idx = _var_scopes.find(id); idx != _var_scopes.end()) return idx->second;
-	return nullptr;
-}
-
 bool InitializeValue::isExpression() const
 {
 	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x00);
@@ -537,6 +522,22 @@ bool ASTFuncDecl::isLibFunc() const
 Value* ASTFuncDecl::accept(AST2IRVisitor* visitor)
 {
 	return visitor->visit(this);
+}
+
+bool ASTFuncDecl::pushScope(ASTDecl* decl)
+{
+	if (const auto f = dynamic_cast<ASTFuncDecl*>(decl); f != nullptr)return false;
+	auto v = dynamic_cast<ASTVarDecl*>(decl);
+	if (_var_scopes.find(v->id()) != _var_scopes.end())return false;
+	_var_scopes.emplace(decl->id(), v);
+	return true;
+}
+
+ASTDecl* ASTFuncDecl::findScope(const std::string& id, bool isFunc)
+{
+	if (isFunc) return nullptr;
+	if (const auto idx = _var_scopes.find(id); idx != _var_scopes.end()) return idx->second;
+	return nullptr;
 }
 
 Type* ASTExpression::maxType(const ASTExpression* a, const ASTExpression* b, const
@@ -1027,46 +1028,30 @@ Value* ASTIf::accept(AST2IRVisitor* visitor)
 
 std::list<std::string> ASTWhile::toStringList()
 {
-	string str = "while(";
-	str += _cond->toString();
-	str += ')';
 	if (_stmt.empty())
-	{
-		str += ';';
-		return {str};
-	}
+		return {"do{}while(" + _cond->toString() + ");"};
+	string str = "do{";
 	list<string> ret;
 	ret.emplace_back(str);
-	if (_stmt.size() == 1 && dynamic_cast<ASTBlock*>(_stmt[0]) != nullptr)
+	for (auto& i : _stmt)
 	{
-		for (auto& i : _stmt[0]->toStringList())
+		if (dynamic_cast<ASTBlock*>(i) != nullptr || dynamic_cast<ASTIf*>(i) != nullptr || dynamic_cast<ASTWhile*>(
+			    i) !=
+		    nullptr)
 		{
-			ret.emplace_back(i);
-		}
-	}
-	else
-	{
-		ret.emplace_back("{");
-		for (auto& i : _stmt)
-		{
-			if (dynamic_cast<ASTBlock*>(i) != nullptr || dynamic_cast<ASTIf*>(i) != nullptr || dynamic_cast<ASTWhile*>(
-				    i) !=
-			    nullptr)
+			auto l = i->toStringList();
+			for (auto& j : l)
 			{
-				auto l = i->toStringList();
-				for (auto& j : l)
-				{
-					auto s = "    " + j;
-					ret.emplace_back(s);
-				}
-			}
-			else
-			{
-				ret.emplace_back("    " + i->toString() + ';');
+				auto s = "    " + j;
+				ret.emplace_back(s);
 			}
 		}
-		ret.emplace_back("}");
+		else
+		{
+			ret.emplace_back("    " + i->toString() + ';');
+		}
 	}
+	ret.emplace_back("}while(" + cond()->toString() + ");");
 	return ret;
 }
 

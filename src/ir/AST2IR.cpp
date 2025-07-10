@@ -313,7 +313,9 @@ Value* AST2IRVisitor::visit(ASTFuncDecl* func_decl)
 	{
 		args.push_back(&arg);
 	}
+	_var_scope.enter();
 	func_decl->block()->accept(this);
+	_var_scope.exit();
 	if (not _builder->get_insert_block()->is_terminated())
 	{
 		if (func->get_return_type() == Types::VOID)
@@ -793,13 +795,7 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 		auto bb_cond = BasicBlock::create(_module, "", _functionBelong);
 		auto bb_next = BasicBlock::create(_module, "", _functionBelong);
 		auto bb_while = BasicBlock::create(_module, "", _functionBelong);
-		_builder->create_br(bb_cond);
-		_builder->set_insert_point(bb_cond);
-		_true_targets.emplace_back(bb_while);
-		_false_targets.emplace_back(bb_next);
-		while_node->cond()->accept(this);
-		_true_targets.pop_back();
-		_false_targets.pop_back();
+		_builder->create_br(bb_while);
 		_builder->set_insert_point(bb_while);
 		_while_nexts.emplace_back(bb_next);
 		_while_conds.emplace_back(bb_cond);
@@ -808,6 +804,12 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 		_while_conds.pop_back();
 		if (!_builder->get_insert_block()->is_terminated())
 			_builder->create_br(bb_cond);
+		_builder->set_insert_point(bb_cond);
+		_true_targets.emplace_back(bb_while);
+		_false_targets.emplace_back(bb_next);
+		while_node->cond()->accept(this);
+		_true_targets.pop_back();
+		_false_targets.pop_back();
 		_builder->set_insert_point(bb_next);
 	}
 	return nullptr;

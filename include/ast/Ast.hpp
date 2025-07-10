@@ -80,18 +80,6 @@ enum class RelationOP : uint8_t
 	GE
 };
 
-
-// AST 块符号表, 管理局部变量
-class BlockScopeTableInAST
-{
-	// 变量声明
-	std::map<std::string, ASTVarDecl*> _var_scopes;
-
-public:
-	bool pushScope(ASTDecl* decl);
-	ASTDecl* findScope(const std::string& id);
-};
-
 // 对有符号表对象的抽象
 class HaveScope
 {
@@ -361,7 +349,7 @@ public:
 };
 
 // 函数声明, 有函数返回值, 参数声明
-class ASTFuncDecl final : public ASTDecl
+class ASTFuncDecl final : public ASTDecl, public HaveScope
 {
 public:
 	[[nodiscard]] ASTBlock* block() const
@@ -370,6 +358,8 @@ public:
 	}
 
 private:
+	// 符号表
+	std::map<std::string, ASTVarDecl*> _var_scopes;
 	std::list<std::string> toStringList() override;
 	~ASTFuncDecl() override;
 	friend class Antlr2AstVisitor;
@@ -405,6 +395,8 @@ public:
 	// 是否是库函数
 	[[nodiscard]] bool isLibFunc() const;
 	Value* accept(AST2IRVisitor* visitor) override;
+	bool pushScope(ASTDecl* decl) override;
+	ASTDecl* findScope(const std::string& id, bool isFunc) override;
 };
 
 // 语句. 该类型自身不会出现于树中.

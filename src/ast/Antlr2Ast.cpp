@@ -322,13 +322,15 @@ std::any Antlr2AstVisitor::visitFuncDef(SysYParser::FuncDefContext* context)
 	_currentFunction = decl;
 	if (!pushScope(decl))
 		throw runtime_error("duplicate function " + decl->id());
-	_structConstraint.emplace_back(decl->_block);
+	_structConstraint.emplace_back(decl);
 	vector<ASTVarDecl*> paras;
 	if (context->funcFParams() != nullptr)
 		paras = any_cast<vector<ASTVarDecl*>>(context->funcFParams()->accept(this));
 	for (auto& i : paras)
 		decl->_args.emplace_back(i);
+	_structConstraint.emplace_back(decl->_block);
 	context->block()->accept(this);
+	_structConstraint.pop_back();
 	_structConstraint.pop_back();
 	return {};
 }
@@ -537,7 +539,19 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 				}
 			}
 		}
-		return list<ASTStmt*>{loop};
+		if (loop->_stmt.empty())
+		{
+			if (!cond->_haveFuncCall)
+			{
+				delete loop;
+				return list<ASTStmt*>{};
+			}
+			return list<ASTStmt*>{loop};
+		}
+		auto cond2 = any_cast<ASTExpression*>(context->cond()->accept(this));
+		auto ifNode = new ASTIf{ cond2 };
+		ifNode->_if_stmt.emplace_back(loop);
+		return list<ASTStmt*>{ifNode};
 	}
 	if (context->BREAK() != nullptr)
 	{
