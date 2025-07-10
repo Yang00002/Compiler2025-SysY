@@ -212,12 +212,9 @@ std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 		t = dynamic_cast<ArrayType*>(t)->typeContained();
 	if (context->initVal() == nullptr)
 	{
-		if (decl->_is_global)
-		{
-			if (t == INT)
-				decl->_initList = new Tensor{dims, InitializeValue{0}};
-			else decl->_initList = new Tensor{dims, InitializeValue{0.0f}};
-		}
+		if (t == INT)
+			decl->_initList = new Tensor{dims, InitializeValue{0}};
+		else decl->_initList = new Tensor{dims, InitializeValue{0.0f}};
 		return decl;
 	}
 	if (t == INT)

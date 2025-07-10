@@ -8,6 +8,7 @@
 #include <ostream>
 #include <set>
 #include <vector>
+#include <climits>
 
 
 namespace
