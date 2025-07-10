@@ -82,7 +82,13 @@ void DeadCode::run()
 			changed |= clear_basic_blocks(func);
 			mark(func);
 			changed |= sweep(func);
+			GAP;
+			GAP;
+			LOG(m_->print());
 			changed |= removeEmptyBasicBlock(func);
+			LOG(m_->print());
+			GAP;
+			GAP;
 		}
 	}
 	while (changed);

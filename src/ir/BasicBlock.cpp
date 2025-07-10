@@ -25,26 +25,40 @@ BasicBlock::~BasicBlock()
 bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 {
 	if (bb == this) return false;
+	const auto& pb = get_pre_basic_blocks();
+	bool multiPre = pb.size() > 1;
+	BasicBlock* preBB = pb.empty() ? nullptr : pb.front();
 	// 收集使用该基本块定值的 phi 指令
 	std::list<std::pair<PhiInst*, unsigned>> phiInsts;
 	for (auto use : get_use_list())
 	{
 		auto phi = dynamic_cast<PhiInst*>(use.val_);
-		if (phi != nullptr) phiInsts.emplace_back(phi, use.arg_no_);
+		{
+			if (phi != nullptr)
+			{
+				// 理论上不该对这种基本块运行该指令
+				assert(preBB != nullptr);
+				// 替代会增加 phi 的长度
+				if (multiPre) return false;
+				auto& ops = phi->get_operands();
+				int s = static_cast<int>(ops.size());
+				for (int i = 1; i < s; i += 2)
+				{
+					// 依赖跳转进行定值
+					if (ops[i] == preBB) return false;
+				}
+				phiInsts.emplace_back(phi, use.arg_no_);
+			}
+		}
 	}
 	if (!phiInsts.empty())
 	{
-		// 替代会增加 phi 的长度
-		if (get_pre_basic_blocks().size() > 1) return false;
 		for (auto phi_inst : phiInsts)
 		{
 			auto phi = phi_inst.first;
 			auto id = phi_inst.second;
 			auto val = phi->get_operand(id - 1);
-			for (const auto block : get_pre_basic_blocks())
-			{
-				phi->add_phi_pair_operand(val, block);
-			}
+			phi->add_phi_pair_operand(val, preBB);
 		}
 	}
 	for (auto pre_basic_block : get_pre_basic_blocks())

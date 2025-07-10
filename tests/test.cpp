@@ -343,11 +343,11 @@ void showTime(vector<int> &get, string name, bool toExample) {
     ret += " [ best ";
     int cmp = timeCmp(get, *customBestTimeOp);
     if (cmp < 0)
-      ret += green(time2Str(get));
+      ret += green(time2Str(*customBestTimeOp));
     else if (cmp > 0)
-      ret += red(time2Str(get));
+      ret += red(time2Str(*customBestTimeOp));
     else
-      ret += yellow(time2Str(get));
+      ret += yellow(time2Str(*customBestTimeOp));
     ret += "]";
   }
   if (!customBestTimeOp || strictTimeCmp(get, *customBestTimeOp) < 0 || toExample) {

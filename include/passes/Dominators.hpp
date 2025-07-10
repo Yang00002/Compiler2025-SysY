@@ -16,10 +16,10 @@ class Dominators : public Pass
 	std::map<BasicBlock*, unsigned int> dom_tree_L_;
 	std::map<BasicBlock*, unsigned int> dom_tree_R_;
 
-	std::vector<BasicBlock*> dom_dfs_order_;
-	std::vector<BasicBlock*> dom_post_order_;
+	std::map<Function*, std::vector<BasicBlock*>> dom_dfs_order_;
+	std::map<Function*, std::vector<BasicBlock*>> dom_post_order_;
 
-	void create_dom_dfs_order(const Function* f);
+	void create_dom_dfs_order(Function* f);
 public:
 	Dominators(const Dominators&) = delete;
 	Dominators(Dominators&&) = delete;
@@ -48,9 +48,9 @@ public:
 	// functions for dominance tree
 	bool is_dominate(BasicBlock* bb1, BasicBlock* bb2) const;
 
-	const std::vector<BasicBlock*>& get_dom_dfs_order();
+	const std::vector<BasicBlock*>& get_dom_dfs_order(Function* function);
 
-	const std::vector<BasicBlock*>& get_dom_post_order();
+	const std::vector<BasicBlock*>& get_dom_post_order(Function* function);
 
 	// for debug
 	void print_idom(Function* f) const;

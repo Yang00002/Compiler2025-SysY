@@ -76,9 +76,10 @@ namespace
 
 		LTDominatorTreeSolver(Function* function)
 		{
-			bool rm = false;
+			bool rm;
 			do
 			{
+				rm = false;
 				auto blocks = function->get_basic_blocks();
 				for (const auto& block : blocks)
 					if (!block->is_entry_block() && block->get_pre_basic_blocks().empty())
@@ -255,7 +256,7 @@ void Dominators::run()
 void Dominators::run_on_func(Function* f)
 {
 	if (f->is_lib_) return;
-	LTDominatorTreeSolver solver{ f };
+	LTDominatorTreeSolver solver{f};
 	solver.solve();
 	solver.dumpIdom(idom_);
 	solver.dumpTreeSucc(dom_tree_succ_blocks_);
@@ -479,14 +480,14 @@ bool Dominators::is_dominate(BasicBlock* bb1, BasicBlock* bb2) const
 	       dom_tree_R_.at(bb1) >= dom_tree_R_.at(bb2);
 }
 
-const std::vector<BasicBlock*>& Dominators::get_dom_dfs_order()
+const std::vector<BasicBlock*>& Dominators::get_dom_dfs_order(Function* function)
 {
-	return dom_dfs_order_;
+	return dom_dfs_order_[function];
 }
 
-const std::vector<BasicBlock*>& Dominators::get_dom_post_order()
+const std::vector<BasicBlock*>& Dominators::get_dom_post_order(Function* function)
 {
-	return dom_post_order_;
+	return dom_post_order_[function];
 }
 
 
@@ -505,14 +506,15 @@ const std::vector<BasicBlock*>& Dominators::get_dom_post_order()
  * 这些序号和顺序可用于快速判断支配关系：
  * 如果节点A支配节点B，则A的L值小于B的L值，且A的R值大于B的R值
  */
-void Dominators::create_dom_dfs_order(const Function* f)
+void Dominators::create_dom_dfs_order(Function* f)
 {
 	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
 	unsigned int order = 0;
+	auto& od = dom_dfs_order_[f];
 	std::function<void(BasicBlock*)> dfs = [&](BasicBlock* bb)
 	{
 		dom_tree_L_[bb] = ++order;
-		dom_dfs_order_.push_back(bb);
+		od.emplace_back(bb);
 		for (auto& succ : dom_tree_succ_blocks_[bb])
 		{
 			dfs(succ);
@@ -520,6 +522,6 @@ void Dominators::create_dom_dfs_order(const Function* f)
 		dom_tree_R_[bb] = order;
 	};
 	dfs(f->get_entry_block());
-	dom_post_order_ = std::vector<BasicBlock*>(dom_dfs_order_.rbegin(),
-	                                           dom_dfs_order_.rend());
+	dom_post_order_[f] = std::vector(od.rbegin(),
+	                                 od.rend());
 }

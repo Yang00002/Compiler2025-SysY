@@ -1,7 +1,7 @@
 #include "../antlr/SysYLexer.h"
 #include "../antlr/SysYParser.h"
 #include "../include/ast/Antlr2Ast.hpp"
-#include "ast/Ast.hpp"
+#include "Ast.hpp"
 
 #include <CharStream.h>
 #include <ostream>

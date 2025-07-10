@@ -70,12 +70,6 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
 					work_list.push_back(pre);
 				}
 			}
-			/* 在此添加代码：
-			 * 1. 使用loop->add_block将bb加入当前循环
-			 * 2. 更新bb_to_loop_映射
-			 * 3. 将bb的所有前驱加入工作表
-			 */
-			// throw std::runtime_error("Lab4: 你有一个DONE需要完成！");
 		}
 		// DONE-2: 处理已属于其他循环的节点
 		else if (bb_to_loop_[subbb] != loop)
@@ -123,9 +117,8 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
 void LoopDetection::run_on_func(Function* f)
 {
 	dominators_->run_on_func(f);
-	for (auto& bb1 : dominators_->get_dom_post_order())
+	for (auto bb : dominators_->get_dom_post_order(f))
 	{
-		auto bb = bb1;
 		BBset latches;
 		for (auto& pred : bb->get_pre_basic_blocks())
 		{

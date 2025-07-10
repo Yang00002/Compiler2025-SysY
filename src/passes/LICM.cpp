@@ -99,6 +99,10 @@ void LoopInvariantCodeMotion::run()
 		traverse_loop(loop);
 	}
 	POP;
+	LOG(color::green("Getting:"));
+	GAP;
+	LOG(m_->print());
+	GAP;
 	LOG(color::cyan("LICM Done"));
 }
 
