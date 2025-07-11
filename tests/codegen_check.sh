@@ -5,10 +5,10 @@ COMPILER=../build/compiler
 tmp=../build/AArch64_CodegenTest
 
 TEST_DIRS=(
-    "functional" # "arm"
+    "functional" "arm"
 )
 
-CFLAGS=''
+CFLAGS='-O1'
 
 LIB_DIR=../build/lib
 

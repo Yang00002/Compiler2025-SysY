@@ -5,6 +5,10 @@
 #include <AST2IR.hpp>
 
 #include <ARM_codegen.hpp>
+#include "../include/passes/PassManager.hpp"
+#include "../include/passes/DeadCode.hpp"
+#include "../include/passes/LICM.hpp"
+#include "../include/passes/Mem2Reg.hpp"
 
 #include <CharStream.h>
 #include <cstdlib>
@@ -21,7 +25,7 @@ std::tuple<std::string, std::string, bool> parseArgs(int argc, char** argv)
 {
     // compiler -S -o <testcase.s> <testcase.sy> [-O1]
      if (argc < 5) {
-        std::cerr << "Usage: " << argv[0] << "-S -o <testcase.s> <testcase.sy> [-O1]\n";
+        std::cerr << "Usage: " << argv[0] << " -S -o <testcase.s> <testcase.sy> [-O1]\n";
         std::exit(EXIT_FAILURE);
     }
     int i = 1;
@@ -64,8 +68,14 @@ int main(int argc, char* argv[]) {
     MakeIR.visit(ast);
     auto m = MakeIR.getModule();
 
+    PassManager* pm = new PassManager{m};
     if(opt){
         // Optimization Pass
+        pm->add_pass<Mem2Reg>();
+        pm->add_pass<DeadCode>();
+        pm->add_pass<LoopInvariantCodeMotion>();
+        pm->add_pass<DeadCode>();
+        pm->run();
     }
     
     auto c = ARMCodeGen(m);
