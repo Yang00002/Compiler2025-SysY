@@ -549,7 +549,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			return list<ASTStmt*>{loop};
 		}
 		auto cond2 = any_cast<ASTExpression*>(context->cond()->accept(this));
-		auto ifNode = new ASTIf{ cond2 };
+		auto ifNode = new ASTIf{cond2};
 		ifNode->_if_stmt.emplace_back(loop);
 		return list<ASTStmt*>{ifNode};
 	}
@@ -692,7 +692,7 @@ std::any Antlr2AstVisitor::visitNumber(SysYParser::NumberContext* context)
 {
 	if (context->IntConst() != nullptr)
 	{
-		int c = 0;
+		int c;
 		auto str = context->IntConst()->toString();
 		if (str.size() >= 2)
 		{
@@ -718,13 +718,31 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 		return context->primaryExp()->accept(this);
 	if (context->ID() != nullptr)
 	{
-		const auto id = context->ID()->toString();
+		bool special = false;
+		auto id = context->ID()->toString();
+		if (id == "starttime")
+		{
+			id = "_sysy_starttime";
+			special = true;
+		}
+		else if (id == "stoptime")
+		{
+			id = "_sysy_stoptime";
+			special = true;
+		}
 		const auto f = findScope(id, true);
 		if (f == nullptr) throw runtime_error("Undeclared function " + id);
 		const auto func = dynamic_cast<ASTFuncDecl*>(f);
 		auto getArgs = context->funcRParams() != nullptr
 			               ? any_cast<vector<ASTExpression*>>(context->funcRParams()->accept(this))
 			               : vector<ASTExpression*>{};
+		if (special)
+		{
+			if (!getArgs.empty()) throw runtime_error("function call of " + id + " has incorrect args count. " + context->toString());
+			const int line = static_cast<int>(context->rParen()->getStart()->getLine());
+			auto arg = new ASTNumber{ line };
+			getArgs.emplace_back(arg);
+		}
 		const auto typeArgs = func->args();
 		if (typeArgs.size() != getArgs.size())
 			throw runtime_error("function call of " + id + " has incorrect args count. " + context->toString());
@@ -819,6 +837,11 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 	const auto n = new ASTNot(exp);
 	n->_haveFuncCall = exp->_haveFuncCall;
 	return static_cast<ASTExpression*>(n);
+}
+
+std::any Antlr2AstVisitor::visitRParen(SysYParser::RParenContext* context)
+{
+	return {};
 }
 
 std::any Antlr2AstVisitor::visitFuncRParams(SysYParser::FuncRParamsContext* context)

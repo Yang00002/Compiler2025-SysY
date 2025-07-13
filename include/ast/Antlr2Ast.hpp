@@ -87,6 +87,8 @@ class Antlr2AstVisitor final : SysYBaseVisitor
 
 	std::any visitUnaryExp(SysYParser::UnaryExpContext* context) override;
 
+	std::any visitRParen(SysYParser::RParenContext* context) override;
+
 	std::any visitFuncRParams(SysYParser::FuncRParamsContext* context) override;
 
 	std::any visitMulExp(SysYParser::MulExpContext* context) override;

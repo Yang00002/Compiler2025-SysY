@@ -317,8 +317,8 @@ ASTCompUnit::~ASTCompUnit()
 ASTCompUnit::ASTCompUnit()
 {
 	ASTFuncDecl* decls[] = {
-		new ASTFuncDecl("starttime", VOID, {}),
-		new ASTFuncDecl("stoptime", VOID, {}),
+		new ASTFuncDecl("_sysy_starttime", VOID, {INT}),
+		new ASTFuncDecl("_sysy_stoptime", VOID, {INT}),
 		new ASTFuncDecl("getint", INT, {}),
 		new ASTFuncDecl("getfloat", FLOAT, {}),
 		new ASTFuncDecl("getch", INT, {}),

@@ -108,6 +108,3 @@ void _sysy_stoptime(int lineno) {
   _sysy_m[_sysy_idx] %= 60;
   _sysy_idx++;
 }
-
-void starttime() { _sysy_starttime(__LINE__); }
-void stoptime() { _sysy_stoptime(__LINE__); }

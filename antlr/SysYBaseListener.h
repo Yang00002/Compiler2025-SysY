@@ -91,6 +91,9 @@ public:
   virtual void enterUnaryExp(SysYParser::UnaryExpContext * /*ctx*/) override { }
   virtual void exitUnaryExp(SysYParser::UnaryExpContext * /*ctx*/) override { }
 
+  virtual void enterRParen(SysYParser::RParenContext * /*ctx*/) override { }
+  virtual void exitRParen(SysYParser::RParenContext * /*ctx*/) override { }
+
   virtual void enterFuncRParams(SysYParser::FuncRParamsContext * /*ctx*/) override { }
   virtual void exitFuncRParams(SysYParser::FuncRParamsContext * /*ctx*/) override { }
 

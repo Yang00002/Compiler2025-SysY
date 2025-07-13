@@ -81,7 +81,10 @@ primaryExp : LPAREN exp RPAREN | lVal | number;
 number : IntConst | FloatConst;
 
 //一元表达式
-unaryExp : primaryExp | ID LPAREN (funcRParams)? RPAREN | (ADD | SUB | NOT) unaryExp;
+unaryExp : primaryExp | ID LPAREN (funcRParams)? rParen | (ADD | SUB | NOT) unaryExp;
+
+//函数参数的右括号
+rParen : RPAREN;
 
 //函数实参表
 funcRParams : exp ( COMMA exp )*;

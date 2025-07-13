@@ -18,8 +18,8 @@ void putf(char a[], ...);
 /* Timing function implementation */
 extern struct timeval _sysy_start,_sysy_end;
 
-void starttime();
-void stoptime();
+#define starttime() _sysy_starttime(__LINE__)
+#define stoptime()  _sysy_stoptime(__LINE__)
 #define _SYSY_N 1024
 extern int _sysy_l1[_SYSY_N],_sysy_l2[_SYSY_N];
 extern int _sysy_h[_SYSY_N], _sysy_m[_SYSY_N],_sysy_s[_SYSY_N],_sysy_us[_SYSY_N];

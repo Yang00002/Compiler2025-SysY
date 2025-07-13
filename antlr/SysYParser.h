@@ -28,8 +28,9 @@ public:
     RuleFuncDef = 12, RuleFuncType = 13, RuleFuncFParams = 14, RuleFuncFParam = 15, 
     RuleBlock = 16, RuleBlockItem = 17, RuleStmt = 18, RuleExp = 19, RuleCond = 20, 
     RuleLVal = 21, RulePrimaryExp = 22, RuleNumber = 23, RuleUnaryExp = 24, 
-    RuleFuncRParams = 25, RuleMulExp = 26, RuleAddExp = 27, RuleRelExp = 28, 
-    RuleEqExp = 29, RuleLAndExp = 30, RuleLOrExp = 31, RuleConstExp = 32
+    RuleRParen = 25, RuleFuncRParams = 26, RuleMulExp = 27, RuleAddExp = 28, 
+    RuleRelExp = 29, RuleEqExp = 30, RuleLAndExp = 31, RuleLOrExp = 32, 
+    RuleConstExp = 33
   };
 
   explicit SysYParser(antlr4::TokenStream *input);
@@ -74,6 +75,7 @@ public:
   class PrimaryExpContext;
   class NumberContext;
   class UnaryExpContext;
+  class RParenContext;
   class FuncRParamsContext;
   class MulExpContext;
   class AddExpContext;
@@ -553,7 +555,7 @@ public:
     PrimaryExpContext *primaryExp();
     antlr4::tree::TerminalNode *ID();
     antlr4::tree::TerminalNode *LPAREN();
-    antlr4::tree::TerminalNode *RPAREN();
+    RParenContext *rParen();
     FuncRParamsContext *funcRParams();
     UnaryExpContext *unaryExp();
     antlr4::tree::TerminalNode *ADD();
@@ -568,6 +570,21 @@ public:
   };
 
   UnaryExpContext* unaryExp();
+
+  class  RParenContext : public antlr4::ParserRuleContext {
+  public:
+    RParenContext(antlr4::ParserRuleContext *parent, size_t invokingState);
+    virtual size_t getRuleIndex() const override;
+    antlr4::tree::TerminalNode *RPAREN();
+
+    virtual void enterRule(antlr4::tree::ParseTreeListener *listener) override;
+    virtual void exitRule(antlr4::tree::ParseTreeListener *listener) override;
+
+    virtual std::any accept(antlr4::tree::ParseTreeVisitor *visitor) override;
+   
+  };
+
+  RParenContext* rParen();
 
   class  FuncRParamsContext : public antlr4::ParserRuleContext {
   public:

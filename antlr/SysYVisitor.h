@@ -69,6 +69,8 @@ public:
 
     virtual std::any visitUnaryExp(SysYParser::UnaryExpContext *context) = 0;
 
+    virtual std::any visitRParen(SysYParser::RParenContext *context) = 0;
+
     virtual std::any visitFuncRParams(SysYParser::FuncRParamsContext *context) = 0;
 
     virtual std::any visitMulExp(SysYParser::MulExpContext *context) = 0;

@@ -89,6 +89,9 @@ public:
   virtual void enterUnaryExp(SysYParser::UnaryExpContext *ctx) = 0;
   virtual void exitUnaryExp(SysYParser::UnaryExpContext *ctx) = 0;
 
+  virtual void enterRParen(SysYParser::RParenContext *ctx) = 0;
+  virtual void exitRParen(SysYParser::RParenContext *ctx) = 0;
+
   virtual void enterFuncRParams(SysYParser::FuncRParamsContext *ctx) = 0;
   virtual void exitFuncRParams(SysYParser::FuncRParamsContext *ctx) = 0;
 

@@ -115,6 +115,10 @@ public:
     return visitChildren(ctx);
   }
 
+  virtual std::any visitRParen(SysYParser::RParenContext *ctx) override {
+    return visitChildren(ctx);
+  }
+
   virtual std::any visitFuncRParams(SysYParser::FuncRParamsContext *ctx) override {
     return visitChildren(ctx);
   }
