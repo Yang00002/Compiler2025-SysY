@@ -24,13 +24,31 @@ void ARMCodeGen::run() {
         for (auto global : m->get_global_variable()) {
             append_inst(".globl", {global->get_name()},ASMInstruction::Attribute);
             append_inst(".type", {global->get_name(), "@object"},ASMInstruction::Attribute);
-            append_inst(global->get_name(), ASMInstruction::Label);
             auto var_ty = dynamic_cast<PointerType*>(global->get_type())->typeContained();
             if(var_ty->isBasicValueType()){
+                append_inst(".align", {"2"},ASMInstruction::Attribute);
+                append_inst(global->get_name(), ASMInstruction::Label);
                 auto size = NUMBYTES(var_ty->sizeInBitsInArm64());
-                // printInitValue()似乎输出双精度浮点数值，可能会有问题
-                append_inst(ConstInitLen.at(size).c_str(), {global->printInitValue()}, ASMInstruction::Attribute);
+                if(var_ty==Types::FLOAT){
+                    std::stringstream ss(global->printInitValue());
+                    uint64_t val;
+                    ss >> std::hex >> val;
+                    auto f = (float)(*(double*)&val);
+                    ss.str(""); ss.clear();
+                    ss << "0x" << std::hex << *(int*)&f;
+                    append_inst(
+                        ConstInitLen.at(size).c_str(), 
+                        {ss.str()}, 
+                        ASMInstruction::Attribute);
+                } else {
+                    append_inst(
+                        ConstInitLen.at(size).c_str(), 
+                        {global->printInitValue()}, 
+                        ASMInstruction::Attribute);
+                }
             }else{
+                append_inst(".align", {"7"},ASMInstruction::Attribute);
+                append_inst(global->get_name(), ASMInstruction::Label);
                 auto arr_init_val = global->get_init();
                 auto n_segs = arr_init_val->segmentCount();
                 for(int i=0;i<n_segs;++i){
@@ -60,17 +78,12 @@ void ARMCodeGen::run() {
                     }
                 }
             }
-            append_inst(".size", {global->get_name(), ". - " + global->get_name()},ASMInstruction::Attribute);
+            append_inst(".size", {global->get_name(), ".-" + global->get_name()},ASMInstruction::Attribute);
         }
     }
 
     output.emplace_back(".text", ASMInstruction::Attribute);
     for (auto func : m->get_functions()) {
-        if(func->is_lib_){
-            auto extfunc_name = func->get_name();
-            append_inst(".extern",{extfunc_name},ASMInstruction::Attribute);
-            continue;
-        }
         if (!func->is_declaration()) {
             context.clear();
             context.func = func;
@@ -822,37 +835,39 @@ void ARMCodeGen::gen_memop()
         Rload_to_GPreg(mcpyinst->get_from(), 1); // src
         Rload_imm_to_GPreg(mcpyinst->get_copy_bytes(),2); // size
         
-        append_inst("BL", {"memcpy"});
+        append_inst("BL", {"__memcpy__"});
     } else if (inst->get_instr_type() == Instruction::memclear_) {
         auto mclrinst = static_cast<MemClearInst*>(inst);
         Rload_to_GPreg(mclrinst->get_target(), 0); // dst
         Rload_imm_to_GPreg(mclrinst->get_clear_bytes(),1); // size
         
-        append_inst("BL", {"memclr"});
+        append_inst("BL", {"__memclr__"});
     }
 }
 
-// TODO: 指令选择: 单次清零的粒度
 void ARMCodeGen::gen_memclr_procedure()
 {
-    append_inst(".globl", {"memclr"}, ASMInstruction::Attribute);
-    append_inst(".type", {"memclr", "@function"},
+    append_inst(".globl", {"__memclr__"}, ASMInstruction::Attribute);
+    append_inst(".type", {"__memclr__", "@function"},
                 ASMInstruction::Attribute);
-    append_inst("memclr", ASMInstruction::Label);
+    append_inst("__memclr__", ASMInstruction::Label);
     append_inst("STP X29, X30, [SP, #-16]!");
     append_inst("MOV X29, SP");
 
-    // 额外需要的寄存器: X2, Q0
+    // 额外需要的寄存器: X2, Q0~Q3
+    append_inst("SUB",{"SP","SP","#64"});
+    append_inst("ST1 {V0.16B,V1.16B,V2.16B,V3.16B}, [SP]");
     append_inst("EOR",{"V0.16B","V0.16B","V0.16B"});
+    append_inst("EOR",{"V1.16B","V1.16B","V1.16B"});
+    append_inst("EOR",{"V2.16B","V2.16B","V2.16B"});
+    append_inst("EOR",{"V3.16B","V3.16B","V3.16B"});
     append_inst("LSR",{"X2","X1","#7"});
     
     // 每次 128 bytes
     append_inst("1",ASMInstruction::Label);
     append_inst("CBZ",{"X2","2f"});
-    append_inst("STP",{"Q0","Q0","[X0]","#32"});
-    append_inst("STP",{"Q0","Q0","[X0]","#32"});
-    append_inst("STP",{"Q0","Q0","[X0]","#32"});
-    append_inst("STP",{"Q0","Q0","[X0]","#32"});
+    append_inst("ST1",{"{V0.16B,V1.16B,V2.16B,V3.16B}","[X0]","#64"});
+    append_inst("ST1",{"{V0.16B,V1.16B,V2.16B,V3.16B}","[X0]","#64"});
     append_inst("SUBS",{"X2","X2","#1"});
     append_inst("B.NE",{"1b"});
 
@@ -860,51 +875,45 @@ void ARMCodeGen::gen_memclr_procedure()
     append_inst("2",ASMInstruction::Label);
     append_inst("AND",{"X1","X1","#0x7F"});
     append_inst("LSR",{"X2","X1","#4"}); 
-    append_inst("CBZ",{"X2","4f"});
     
-    // 每次 16 bytes
+    // 每次 16 bytes，总字节数一定是 16 的倍数
     append_inst("3",ASMInstruction::Label);
+    append_inst("CBZ",{"X2","4f"});
     append_inst("STR",{"Q0","[X0]","#16"});
     append_inst("SUBS",{"X2","X2","#1"});
     append_inst("B.NE",{"3b"});
     
-    // 剩余部分
-    append_inst("AND",{"X1","X1","#0xF"});
-    append_inst("CBZ",{"X1","4f"});
-    append_inst("SUB",{"X0","X0","#16"});
-    append_inst("ADD",{"X0","X0","X1"});
-    append_inst("STR",{"Q0","[X0]"});
-    
     // 返回
     append_inst("4",ASMInstruction::Label);
+    append_inst("LD1 {V0.16B,V1.16B,V2.16B,V3.16B}, [SP], #64");
+
     append_inst("MOV SP, X29");
     append_inst("LDP X29, X30, [SP], #16");
-    append_inst("RET",{});
+    append_inst("RET");
+    append_inst(".size", {"__memclr__", ".-__memclr__"},ASMInstruction::Attribute);
 }
 
 void ARMCodeGen::gen_memcpy_procedure()
 {
-    append_inst(".globl", {"memcpy"}, ASMInstruction::Attribute);
-    append_inst(".type", {"memcpy", "@function"},
+    append_inst(".globl", {"__memcpy__"}, ASMInstruction::Attribute);
+    append_inst(".type", {"__memcpy__", "@function"},
                 ASMInstruction::Attribute);
-    append_inst("memcpy", ASMInstruction::Label);
+    append_inst("__memcpy__", ASMInstruction::Label);
     append_inst("STP X29, X30, [SP, #-16]!");
     append_inst("MOV X29, SP");
-
+   
     // 额外需要的寄存器: X3, Q0~Q3
+    append_inst("SUB",{"SP","SP","#64"});
+    append_inst("ST1 {V0.16B,V1.16B,V2.16B,V3.16B}, [SP]");
     append_inst("LSR",{"X3","X2","#7"});
 
     // 每次 128 bytes
     append_inst("1",ASMInstruction::Label);
     append_inst("CBZ",{"X3","2f"});
-    append_inst("LDP",{"Q0","Q1","[X1]","#32"});
-    append_inst("LDP",{"Q2","Q3","[X1]","#32"});
-    append_inst("STP",{"Q0","Q1","[X0]","#32"});
-    append_inst("STP",{"Q2","Q3","[X0]","#32"});
-    append_inst("LDP",{"Q0","Q1","[X1]","#32"});
-    append_inst("LDP",{"Q2","Q3","[X1]","#32"});
-    append_inst("STP",{"Q0","Q1","[X0]","#32"});
-    append_inst("STP",{"Q2","Q3","[X0]","#32"});
+    append_inst("LD1",{"{V0.16B,V1.16B,V2.16B,V3.16B}","[X1]","#64"});
+    append_inst("ST1",{"{V0.16B,V1.16B,V2.16B,V3.16B}","[X0]","#64"});
+    append_inst("LD1",{"{V0.16B,V1.16B,V2.16B,V3.16B}","[X1]","#64"});
+    append_inst("ST1",{"{V0.16B,V1.16B,V2.16B,V3.16B}","[X0]","#64"});
     append_inst("SUBS",{"X3","X3","#1"});
     append_inst("B.NE",{"1b"});
     
@@ -912,30 +921,23 @@ void ARMCodeGen::gen_memcpy_procedure()
     append_inst("2",ASMInstruction::Label);
     append_inst("AND",{"X2","X2","#0x7F"});
     append_inst("LSR",{"X3","X2","#4"}); 
-    append_inst("CBZ",{"X3","4f"});
     
-    // 每次 16 bytes
+    // 每次 16 bytes，总字节数一定是 16 的倍数
     append_inst("3",ASMInstruction::Label);
+    append_inst("CBZ",{"X3","4f"});
     append_inst("LDR",{"Q0","[X1]","#16"});
     append_inst("STR",{"Q0","[X0]","#16"});
     append_inst("SUBS",{"X3","X3","#1"});
     append_inst("B.NE",{"3b"});
     
-    // 剩余部分
-    append_inst("AND",{"X2","X2","#0xF"});
-    append_inst("CBZ",{"X2","4f"});
-    append_inst("SUB",{"X1","X1","#16"});
-    append_inst("ADD",{"X1","X1","X2"});
-    append_inst("LDR",{"Q0","[X1]"});
-    append_inst("SUB",{"X0","X0","#16"});
-    append_inst("ADD",{"X0","X0","X2"});
-    append_inst("STR",{"Q0","[X0]"});
-    
     // 返回
     append_inst("4",ASMInstruction::Label);
+    append_inst("LD1 {V0.16B,V1.16B,V2.16B,V3.16B}, [SP], #64");
+  
     append_inst("MOV SP, X29");
     append_inst("LDP X29, X30, [SP], #16");
-    append_inst("RET",{});
+    append_inst("RET");
+    append_inst(".size", {"__memcpy__", ".-__memcpy__"},ASMInstruction::Attribute);
 }
 
 // bitcast指令: 只需给指针定值
