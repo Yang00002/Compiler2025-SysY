@@ -74,6 +74,7 @@ class ARMCodeGen{
         /* 在allocate()中设置 */
         unsigned frame_size {0};              // 当前函数的栈帧大小
         std::map<Value *, int> offset_map {}; // 指针相对 fp 的偏移
+        std::map<Value *, int> phi_offset_map {}; // 指针相对 fp 的偏移
         unsigned fcmp_cnt{0};                 // fcmp 的计数器, 用于创建 fcmp 需要的 label
         void clear() {
             func = nullptr;
@@ -82,6 +83,7 @@ class ARMCodeGen{
             frame_size = 0;
             fcmp_cnt = 0;
             offset_map.clear();
+            phi_offset_map.clear();
         }
     } context;
 
@@ -104,7 +106,7 @@ class ARMCodeGen{
     void gen_memcpy_procedure();
 
     void allocate();
-    void copy_stmt();
+    void copy_stmt(BasicBlock* succ);
     void gen_prologue();
     void gen_ret();
     void gen_br();

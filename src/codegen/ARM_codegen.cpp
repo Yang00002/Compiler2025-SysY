@@ -125,7 +125,6 @@ void ARMCodeGen::run() {
                         gen_ret();
                         break;
                     case Instruction::br:
-                        copy_stmt();
                         gen_br();
                         break;
                     case Instruction::add:
@@ -376,34 +375,64 @@ void ARMCodeGen::allocate()
         }
     }
 
+    // 对所有成为Phi来源的定值，保存其在前驱块出口时的值
+    for(auto bb:context.func->get_basic_blocks()){
+        for(auto succ:bb->get_succ_basic_blocks()){
+            for(auto inst:succ->get_instructions()){
+                if(inst->is_phi()){
+                    for(unsigned i=1;i<inst->get_num_operand();i+=2){
+                        if(inst->get_operand(i)==bb){
+                            auto lvalue = inst->get_operand(i-1);
+                            offset += 8;
+                            context.phi_offset_map[lvalue] = -offset;
+                        }
+                    }
+                } else break;
+            }
+        }
+    }
     context.frame_size = ALIGN(offset,PROLOGUE_ALIGN);
 }
 
-void ARMCodeGen::copy_stmt()
+void ARMCodeGen::copy_stmt(BasicBlock* succ)
 {
-    for (auto succ : context.bb->get_succ_basic_blocks()) {
-        for (auto inst : succ->get_instructions()) {
-            if (inst->is_phi()) {
-                // 遍历后继块中 phi 的定值 bb
-                for (unsigned i = 1; i < inst->get_operands().size(); i += 2) {
-                    // phi 的定值 bb 是当前翻译块
-                    if (inst->get_operand(i) == context.bb) {
-                        auto *lvalue = inst->get_operand(i - 1);
-                        if (lvalue->get_type()==Types::FLOAT) {
-                            auto tmp_freg_id = 9;
-                            Rload_to_FPreg(lvalue, tmp_freg_id);
-                            Rstore_from_FPreg(inst, tmp_freg_id);
-                        } else {
-                            auto tmp_reg_id = 9;
-                            Rload_to_GPreg(lvalue, tmp_reg_id);
-                            Rstore_from_GPreg(inst, tmp_reg_id);
-                        }
-                        break;
-                    }
-                    // 如果没有找到当前翻译块，说明未被定值，无事可做
+    for (auto inst : succ->get_instructions()) {
+        if (inst->is_phi()) { // 拷贝旧值到临时位置，防止被其他phi操作破坏
+            for (unsigned i = 1; i < inst->get_operands().size(); i += 2) {
+                if (inst->get_operand(i) == context.bb) {
+                    auto lvalue = inst->get_operand(i - 1);
+                    auto offset = context.phi_offset_map.at(lvalue);
+                    auto width = lvalue->get_type()->sizeInBitsInArm64();
+                    MemAccess m = { .base = "X29", .offset = "#"+std::to_string(offset) };
+                    
+                    auto tmp_reg_id = 9;
+                    Rload_to_GPreg(lvalue, tmp_reg_id);
+                    append_inst("STR", iWidthPrefix.at(width) 
+                    + std::to_string(tmp_reg_id), m);
+                    
+                    break;
                 }
-            } else break;
-        }
+            }
+        } else break;
+    }
+    for (auto inst : succ->get_instructions()) {
+        if (inst->is_phi()) { // 用旧值定值
+            for (unsigned i = 1; i < inst->get_operands().size(); i += 2) {
+                if (inst->get_operand(i) == context.bb) {
+                    auto lvalue = inst->get_operand(i - 1);
+                    auto offset = context.phi_offset_map.at(lvalue);
+                    auto width = lvalue->get_type()->sizeInBitsInArm64();
+                    MemAccess m = { .base = "X29", .offset = "#"+std::to_string(offset) };
+                    
+                    auto tmp_reg_id = 9;
+                    append_inst("LDR", iWidthPrefix.at(width) 
+                    + std::to_string(tmp_reg_id), m);
+                    Rstore_from_GPreg(inst, tmp_reg_id);
+
+                    break;
+                }
+            }
+        } else break;
     }
 }
 
@@ -432,14 +461,21 @@ void ARMCodeGen::gen_br()
         auto cond = br_inst->get_operand(0);
         auto true_bb = dynamic_cast<BasicBlock*>(br_inst->get_operand(1));
         auto false_bb = dynamic_cast<BasicBlock*>(br_inst->get_operand(2));
-        
+        // 分别为真假出口对应的phi节点定值
         Rload_to_GPreg(cond, cond_reg_id);
+        auto false_exit_name = "." + context.func->get_name() + "_" + context.bb->get_name() 
+        + "_" + false_bb->get_name();
         append_inst("CMP", {iWidthPrefix.at(cond->get_type()->sizeInBitsInArm64())
             +std::to_string(cond_reg_id), "#0"});
-        append_inst("B.NE", {label_name(true_bb)});
+        append_inst("B.EQ", {false_exit_name});
+        copy_stmt(true_bb);
+        append_inst("B",{label_name(true_bb)});
+        append_inst(false_exit_name, ASMInstruction::Label);
+        copy_stmt(false_bb);
         append_inst("B", {label_name(false_bb)});
     } else {
         auto bb = dynamic_cast<BasicBlock*>(br_inst->get_operand(0));
+        copy_stmt(bb);
         append_inst("B", {label_name(bb)});
     }
 }
