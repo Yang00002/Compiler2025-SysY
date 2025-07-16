@@ -38,6 +38,17 @@ bool Instruction::is_void() const
 	        (op_id_ == call && this->get_type() == Types::VOID));
 }
 
+void Instruction::replaceAllOperandMatchs(const Value* from, Value* to)
+{
+	int size = static_cast<int>(get_operands().size());
+	for (int i = 0; i < size; i++)
+	{
+		auto pre = get_operand(i);
+		if (pre == from)
+			set_operand(i, to);
+	}
+}
+
 IBinaryInst::IBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
 	: BaseInst<IBinaryInst>(INT, id, bb)
 {

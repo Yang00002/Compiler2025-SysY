@@ -15,59 +15,8 @@
 #include "Type.hpp"
 #include "Value.hpp"
 
-#define DEBUG 1
-
-#if DEBUG == 1
-namespace
-{
-	namespace debug
-	{
-		std::string tab_counts;
-
-		void _0__counts_pop()
-		{
-			if (!tab_counts.empty()) tab_counts.pop_back();
-		}
-
-		void _0__counts_push()
-		{
-			tab_counts += ' ';
-		}
-
-		void _0__log_if_func(const std::string& str, const bool cond)
-		{
-			if (cond)
-				std::cout << tab_counts << str << '\n';
-		}
-
-		void _0__log_func(const std::string& str)
-		{
-			std::cout << tab_counts << str << '\n';
-		}
-
-		void _0__gap_func()
-		{
-			std::cout << "==============================\n";
-		}
-	}
-}
-
-#define LOG(a) debug::_0__log_func(a)
-#define LOGIF(a,b) debug::_0__log_if_func((a), (b))
-#define GAP debug::_0__gap_func()
-#define PUSH debug::_0__counts_push()
-#define RUN(a) {a;}
-#define POP debug::_0__counts_pop()
-#endif
-#if DEBUG != 1
-#define LOG(a)
-#define LOGIF(a,b)
-#define GAP
-#define RUN(a)
-#define PUSH
-#define POP
-#endif
-
+#define DEBUG 0
+#include "Util.hpp"
 
 Mem2Reg::Mem2Reg(Module* m) : Pass(m)
 {
@@ -75,8 +24,6 @@ Mem2Reg::Mem2Reg(Module* m) : Pass(m)
 }
 
 /**
- * @brief Mem2Reg Pass的主入口函数
- *
  * 该函数执行内存到寄存器的提升过程，将栈上的局部变量提升到SSA格式。
  * 主要步骤：
  * 1. 创建并运行支配树分析
@@ -127,10 +74,7 @@ void Mem2Reg::run()
 		POP;
 		// 后续 DeadCode 将移除冗余的局部变量的分配空间
 	}
-	LOG(color::green("Getting:"));
-	GAP;
-	LOG(m_->print());
-	GAP;
+	PASS_SUFFIX;
 	LOG(color::cyan("Mem2Reg Done"));
 }
 

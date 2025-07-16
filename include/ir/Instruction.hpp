@@ -140,6 +140,8 @@ public:
 
 	[[nodiscard]] bool isTerminator() const { return is_br() || is_ret(); }
 
+	void replaceAllOperandMatchs(const Value* from, Value* to);
+
 private:
 	OpID op_id_;
 	BasicBlock* parent_;
@@ -216,6 +218,7 @@ class FCmpInst : public BaseInst<FCmpInst>
 	FCmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb);
 
 public:
+	bool needStore = false;
 	static FCmpInst* create_fge(Value* v1, Value* v2, BasicBlock* bb);
 	static FCmpInst* create_fgt(Value* v1, Value* v2, BasicBlock* bb);
 	static FCmpInst* create_fle(Value* v1, Value* v2, BasicBlock* bb);

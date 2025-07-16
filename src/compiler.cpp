@@ -2,6 +2,7 @@
 #include <SysYParser.h>
 
 #include <Antlr2Ast.hpp>
+#include "Ast.hpp"
 #include <AST2IR.hpp>
 
 #include <ARM_codegen.hpp>

@@ -7,3 +7,4 @@ lib/sylib.o
 test
 /tests/arm/
 /tests/functional/
+/tests/debug/

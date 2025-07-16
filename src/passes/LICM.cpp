@@ -10,73 +10,16 @@
 #include <vector>
 
 #include "BasicBlock.hpp"
-#include "Color.hpp"
 #include "Constant.hpp"
 #include "FuncInfo.hpp"
 #include "Function.hpp"
-#include "GlobalVariable.hpp"
 #include "Instruction.hpp"
 #include "PassManager.hpp"
 #include "Value.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
+#include "Util.hpp"
 
-#if DEBUG == 1
-namespace
-{
-	namespace debug
-	{
-		std::string tab_counts;
-
-		void _0__counts_pop()
-		{
-			if (!tab_counts.empty()) tab_counts.pop_back();
-		}
-
-		void _0__counts_push()
-		{
-			tab_counts += ' ';
-		}
-
-		void _0__log_if_func(const std::string& str, const bool cond)
-		{
-			if (cond)
-				std::cout << tab_counts << str << '\n';
-		}
-
-		void _0__log_func(const std::string& str)
-		{
-			std::cout << tab_counts << str << '\n';
-		}
-
-		void _0__gap_func()
-		{
-			std::cout << "==============================\n";
-		}
-	}
-}
-
-#define LOG(a) debug::_0__log_func(a)
-#define LOGIF(a,b) debug::_0__log_if_func((a), (b))
-#define GAP debug::_0__gap_func()
-#define PUSH debug::_0__counts_push()
-#define RUN(a) (a)
-#define POP debug::_0__counts_pop()
-#endif
-#if DEBUG != 1
-#define LOG(a)
-#define LOGIF(a,b)
-#define GAP
-#define RUN(a)
-#define PUSH
-#define POP
-#endif
-
-
-/**
- * @brief 循环不变式外提Pass的主入口函数
- *
- */
 void LoopInvariantCodeMotion::run()
 {
 	LOG(color::cyan("Run LICM Pass"));
@@ -99,10 +42,7 @@ void LoopInvariantCodeMotion::run()
 		traverse_loop(loop);
 	}
 	POP;
-	LOG(color::green("Getting:"));
-	GAP;
-	LOG(m_->print());
-	GAP;
+	PASS_SUFFIX;
 	LOG(color::cyan("LICM Done"));
 }
 

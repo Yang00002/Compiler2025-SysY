@@ -185,6 +185,7 @@ public:
 
 	[[nodiscard]] InstructionListView all_instructions() const;
 	[[nodiscard]] InstructionListView phi_and_allocas() const;
+	[[nodiscard]] InstructionListView common_instructions() const;
 
 	[[nodiscard]] bool empty() const;
 
@@ -240,6 +241,19 @@ public:
 	 * @return 是否去除了指令
 	 */
 	bool erase_last(const Instruction* instruction);
+	/**
+	 * 获取倒数索引为 idx 的指令
+	 */
+	[[nodiscard]] Instruction* get_common_instruction_from_end(int idx) const;
+	/**
+	 * 插入指令, 它成为倒数 idx 个 (从 0 开始) 索引不正确则返回 false
+	 */
+	bool emplace_common_inst_from_end(Instruction* instruction, int idx);
+	/**
+	 * 插入指令, 在某个指令后插入. iterator 必须指向一个明确的指令, 否则返回 false
+	 */
+	bool emplace_common_inst_after(Instruction* instruction, InstructionListIterator iterator);
+
 
 	void emplace_back(Instruction* instruction);
 

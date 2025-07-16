@@ -1,69 +1,14 @@
 #include "DeadCode.hpp"
 
-#include <iostream>
 #include <queue>
-
-#include "BasicBlock.hpp"
-#include "Instruction.hpp"
 #include <unordered_set>
 #include <vector>
 
-#include "Color.hpp"
+#include "BasicBlock.hpp"
+#include "Instruction.hpp"
 
-
-#define DEBUG 1
-
-#if DEBUG == 1
-namespace
-{
-	namespace debug
-	{
-		std::string tab_counts;
-
-		void _0__counts_pop()
-		{
-			if (!tab_counts.empty()) tab_counts.pop_back();
-		}
-
-		void _0__counts_push()
-		{
-			tab_counts += ' ';
-		}
-
-		void _0__log_if_func(const std::string& str, const bool cond)
-		{
-			if (cond)
-				std::cout << tab_counts << str << '\n';
-		}
-
-		void _0__log_func(const std::string& str)
-		{
-			std::cout << tab_counts << str << '\n';
-		}
-
-		void _0__gap_func()
-		{
-			std::cout << "==============================\n";
-		}
-	}
-}
-
-#define LOG(a) debug::_0__log_func(a)
-#define LOGIF(a,b) debug::_0__log_if_func((a), (b))
-#define GAP debug::_0__gap_func()
-#define PUSH debug::_0__counts_push()
-#define RUN(a) (a)
-#define POP debug::_0__counts_pop()
-#endif
-#if DEBUG != 1
-#define LOG(a)
-#define LOGIF(a,b)
-#define GAP
-#define RUN(a)
-#define PUSH
-#define POP
-#endif
-
+#define DEBUG 0
+#include "Util.hpp"
 
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run()
@@ -82,21 +27,12 @@ void DeadCode::run()
 			changed |= clear_basic_blocks(func);
 			mark(func);
 			changed |= sweep(func);
-			GAP;
-			GAP;
-			LOG(m_->print());
 			changed |= removeEmptyBasicBlock(func);
-			LOG(m_->print());
-			GAP;
-			GAP;
 		}
 	}
 	while (changed);
 	POP;
-	LOG(color::green("Getting:"));
-	GAP;
-	LOG(m_->print());
-	GAP;
+	PASS_SUFFIX;
 	LOG(color::cyan("DeadCode Done"));
 }
 

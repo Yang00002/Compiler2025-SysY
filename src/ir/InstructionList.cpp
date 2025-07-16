@@ -197,6 +197,11 @@ InstructionListView InstructionList::phi_and_allocas() const
 	return InstructionListView{end_node_, common_inst_begin_, const_cast<InstructionList*>(this)};
 }
 
+InstructionListView InstructionList::common_instructions() const
+{
+	return InstructionListView{common_inst_begin_->pre, end_node_, const_cast<InstructionList*>(this)};
+}
+
 bool InstructionList::empty() const
 {
 	return phi_alloca_size_ == 0 && common_inst_size_ == 0;
@@ -377,6 +382,49 @@ bool InstructionList::erase_first(const Instruction* instruction)
 bool InstructionList::erase_last(const Instruction* instruction)
 {
 	return remove_last(instruction);
+}
+
+Instruction* InstructionList::get_common_instruction_from_end(int idx) const
+{
+	if (common_inst_size_ <= idx) return nullptr;
+	auto it = end_node_->pre;
+	for (int i = 0; i < idx; i++)
+	{
+		it = it->pre;
+	}
+	return it->instruction;
+}
+
+bool InstructionList::emplace_common_inst_from_end(Instruction* instruction, int idx)
+{
+	if (instruction->is_phi() || instruction->is_alloca()) return false;
+	if (common_inst_size_ < idx) return false;
+	auto it = end_node_;
+	for (int i = 0; i < idx; i++)
+	{
+		it = it->pre;
+	}
+	auto inst = new InstructionListNode{instruction, it, it->pre};
+	it->pre->next = inst;
+	it->pre = inst;
+	if (inst->next == common_inst_begin_) common_inst_begin_ = inst;
+	common_inst_size_++;
+	return true;
+}
+
+bool InstructionList::emplace_common_inst_after(Instruction* instruction, InstructionListIterator iterator)
+{
+	if (instruction->is_phi() || instruction->is_alloca()) return false;
+	if (iterator.parent_ != this) return false;
+	if (iterator.current_ == end_node_) return false;
+	if (iterator.current_->instruction->is_phi() && iterator.current_->next != common_inst_begin_) return false;
+	auto node = new InstructionListNode{instruction, iterator.current_->next, iterator.current_};
+	node->pre->next = node;
+	node->next->pre = node;
+	if (node->next == common_inst_begin_)
+		common_inst_begin_ = node;
+	common_inst_size_++;
+	return true;
 }
 
 void InstructionList::emplace_back(Instruction* instruction)
