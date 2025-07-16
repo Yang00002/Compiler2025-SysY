@@ -12,6 +12,7 @@ void CriticalEdgeERemove::run()
 	PUSH;
 	for (auto& func : m_->get_functions())
 	{
+		if (func->is_lib_) continue;
 		auto bblist = func->get_basic_blocks();
 		for (auto& bb : bblist)
 		{
