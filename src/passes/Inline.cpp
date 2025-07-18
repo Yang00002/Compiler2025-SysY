@@ -7,7 +7,7 @@
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Util.hpp"
 
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令

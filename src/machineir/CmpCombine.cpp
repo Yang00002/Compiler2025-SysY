@@ -3,7 +3,7 @@
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Constant.hpp"
 #include "Util.hpp"
 
@@ -51,7 +51,7 @@ void CmpCombine::run()
 			while (it != insts.end())
 			{
 				auto inst = *it;
-				if (inst->is_cmp())
+				if (inst->is_cmp() || inst->is_fcmp())
 				{
 					bool useOnce = inst->get_use_list().size() <= 1;
 					bool inBB = backUse == inst;
@@ -68,8 +68,7 @@ void CmpCombine::run()
 			switch (type)
 			{
 				case USE_ONCE_IN_BB:
-					{/*
-
+					{
 						auto& l = inst->get_parent()->get_instructions();
 						if (l.get_common_instruction_from_end(1) != inst)
 						{
@@ -78,13 +77,10 @@ void CmpCombine::run()
 							l.emplace_common_inst_from_end(inst, 1);
 							LOG(color::yellow("Move to br in bb ") + inst->get_parent()->get_name());
 						}
-*/
 						break;
 					}
 				case USE_MORE_IN_BB:
 					{
-						/*
-						 
 						auto& l = inst->get_parent()->get_instructions();
 						if (l.get_common_instruction_from_end(1) != inst)
 						{
@@ -111,13 +107,11 @@ void CmpCombine::run()
 								LOG(color::yellow("Add load in bb ") + bb->get_name());
 							}
 						}
-						 */
 						break;
 					}
 				case USE_OUT_BB:
 					{
-						/*
-						 auto& l = inst->get_parent()->get_instructions();
+						auto& l = inst->get_parent()->get_instructions();
 						auto uses = inst->get_use_list();
 						auto store = ZextInst::create_zext_to_i32(inst, nullptr);
 						store->set_parent(inst->get_parent());
@@ -133,7 +127,6 @@ void CmpCombine::run()
 							usr->set_operand(0, load);
 							LOG(color::yellow("Add load in bb ") + bb->get_name());
 						}
-						 */
 						break;
 					}
 			}

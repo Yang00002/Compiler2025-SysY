@@ -932,7 +932,7 @@ void ARMCodeGen::gen_fptosi()
 
 	auto reg_id = 9;
 	auto freg_id = 9;
-
+	
 	Rload_to_FPreg(inst->get_operand(0), freg_id);
 	append_inst("FCVTZS", {"W" + std::to_string(reg_id), "S" + std::to_string(freg_id)});
 	Rstore_from_GPreg(inst, reg_id);

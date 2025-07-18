@@ -6,6 +6,8 @@
 #define DEBUG 1
 #include "Util.hpp"
 
+using namespace std;
+
 void CriticalEdgeERemove::run()
 {
 	LOG(color::cyan("Run CriticalEdgeERemove Pass"));
@@ -26,13 +28,17 @@ void CriticalEdgeERemove::run()
 				{
 					if (preBB->get_succ_basic_blocks().size() > 1)
 					{
-						LOG(color::pink("Remove Critical Edge ") + preBB->get_name() + color::pink(" -> ") + bb->get_name());
+						LOG(color::pink("Remove Critical Edge ") + preBB->get_name() + color::pink(" -> ") + bb->
+							get_name());
 						BasicBlock* newBB = new BasicBlock{m_, "", func};
 						BranchInst::create_br(bb, newBB);
 						auto br = preBB->get_instructions().back();
 						br->replaceAllOperandMatchs(bb, newBB);
 						bb->remove_pre_basic_block(preBB);
-						inst->replaceAllOperandMatchs(preBB, newBB);
+						preBB->remove_succ_basic_block(bb);
+						for (const auto inst2 : phis)
+							inst2->replaceAllOperandMatchs(preBB, newBB);
+						preBB->add_succ_basic_block(newBB);
 					}
 				}
 			}
