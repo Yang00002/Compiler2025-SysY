@@ -20,6 +20,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include/passes)
 include_directories(${PROJECT_SOURCE_DIR}/include/ast)
 include_directories(${PROJECT_SOURCE_DIR}/include/codegen)
 include_directories(${PROJECT_SOURCE_DIR}/include/ir)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir)
 include_directories(${PROJECT_SOURCE_DIR}/include/util)
 include_directories(${PROJECT_SOURCE_DIR}/antlr)
 
@@ -30,6 +31,7 @@ aux_source_directory(src/ast astSource)
 list(REMOVE_ITEM astSource "src/ast/main.cpp")
 # ir 源文件集 
 aux_source_directory(src/ir irSource)
+aux_source_directory(src/machineir mirSource)
 list(REMOVE_ITEM irSource "src/ir/main.cpp")
 # codegen 源文件集 
 aux_source_directory(src/codegen codegenSource)

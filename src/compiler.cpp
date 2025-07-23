@@ -10,6 +10,7 @@
 #include "../include/passes/DeadCode.hpp"
 #include "../include/passes/LICM.hpp"
 #include "../include/passes/Mem2Reg.hpp"
+#include "../include/passes/SCCP.hpp"
 
 #include <CharStream.h>
 #include <cstdlib>
@@ -73,6 +74,8 @@ int main(int argc, char* argv[]) {
     if(opt){
         // Optimization Pass
         pm->add_pass<Mem2Reg>();
+        pm->add_pass<DeadCode>();
+        pm->add_pass<SCCP>();
         pm->add_pass<DeadCode>();
         pm->add_pass<LoopInvariantCodeMotion>();
         pm->add_pass<DeadCode>();
