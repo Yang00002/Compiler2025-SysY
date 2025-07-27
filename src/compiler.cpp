@@ -11,6 +11,8 @@
 #include "../include/passes/LICM.hpp"
 #include "../include/passes/Mem2Reg.hpp"
 #include "../include/passes/SCCP.hpp"
+#include "../include/passes/GCM.hpp"
+#include "../include/passes/GVN.hpp"
 
 #include <CharStream.h>
 #include <cstdlib>
@@ -78,6 +80,9 @@ int main(int argc, char* argv[]) {
         pm->add_pass<SCCP>();
         pm->add_pass<DeadCode>();
         pm->add_pass<LoopInvariantCodeMotion>();
+        pm->add_pass<DeadCode>();
+        pm->add_pass<GVN>();
+        pm->add_pass<GlobalCodeMotion>();
         pm->add_pass<DeadCode>();
         pm->run();
     }
