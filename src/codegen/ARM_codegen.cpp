@@ -1,9 +1,11 @@
 #include "ARM_codegen.hpp"
 #include "Constant.hpp"
+#include <cmath>
 #include <cstdint>
 #include <ios>
 #include <string>
 #include <sstream>
+#include <utility>
 #include <vector>
 
 
@@ -603,45 +605,185 @@ void ARMCodeGen::gen_binary()
 	auto op2_reg_id = 10;
 	auto res_reg_id = 11;
 
-	Rload_to_GPreg(op1, op1_reg_id);
-	Rload_to_GPreg(op2, op2_reg_id);
-
 	switch (bin_inst->get_instr_type())
 	{
-		case Instruction::add:
+		case Instruction::add:{
+            Rload_to_GPreg(op1, op1_reg_id);
+            Rload_to_GPreg(op2, op2_reg_id);
 			append_inst("ADD", {
 				            p + std::to_string(res_reg_id),
 				            p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
 			            });
 			break;
-		case Instruction::sub:
+        }
+		case Instruction::sub:{
+            Rload_to_GPreg(op1, op1_reg_id);
+            Rload_to_GPreg(op2, op2_reg_id);
 			append_inst("SUB", {
 				            p + std::to_string(res_reg_id),
 				            p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
 			            });
 			break;
-		case Instruction::mul:
-			append_inst("MUL", {
-				            p + std::to_string(res_reg_id),
-				            p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
-			            });
+        }
+		case Instruction::mul:{
+            auto get_shifts = [](int c){
+                for (int i = 0; i <= 31; ++i) {
+                    unsigned m, n;
+                    unsigned shift_n = 1ULL << i;
+                    unsigned temp = c + shift_n;
+                    if (__builtin_popcount(temp)==1) {
+                        int current_m = __builtin_ctzll(temp);
+                        if (current_m > i) {
+                            m = current_m;
+                            n = i;
+                            return std::make_pair(m,n);
+                        }
+                    }
+                }
+                return std::make_pair(0u,0u);
+            };
+            if( auto const_op1 = dynamic_cast<Constant*>(op1) ){
+                Rload_to_GPreg(op2, op2_reg_id);
+                auto const_val = const_op1->getIntConstant();
+                auto ones = __builtin_popcount(const_val);
+                auto shifts = get_shifts(const_val);
+                if( ones <= 2 ){
+                    append_inst("MOV", {"X"+std::to_string(res_reg_id), "#0"});
+                    // ADD+LSL
+                    for(int j=0;j<ones;++j){
+                        auto shift = __builtin_ctz(const_val);
+                        append_inst("ADD", {p+std::to_string(res_reg_id), p+std::to_string(res_reg_id),
+                            p+std::to_string(op2_reg_id), "LSL #"+std::to_string(shift)});
+                        const_val &= (const_val-1);
+                    }
+                } else if(shifts!=std::make_pair(0u,0u)){
+                    // LSL+SUB
+                    append_inst("LSL", {
+                    p+std::to_string(res_reg_id), p+std::to_string(op2_reg_id), 
+                    "#"+std::to_string(shifts.first)} );
+                    append_inst("SUB", {
+                    p+std::to_string(res_reg_id), p+std::to_string(res_reg_id), 
+                    p+std::to_string(op2_reg_id), "LSL #"+std::to_string(shifts.second)} );
+                } else {
+                    Rload_to_GPreg(op1, op1_reg_id);
+                    append_inst("MUL", {
+                        p + std::to_string(res_reg_id),
+                        p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                    });
+                }
+            } else if ( auto const_op2 = dynamic_cast<Constant*>(op2) ){
+                Rload_to_GPreg(op1, op1_reg_id);
+                auto const_val = const_op2->getIntConstant();
+                auto ones = __builtin_popcount(const_val);
+                auto shifts = get_shifts(const_val);
+                if( ones <= 2 ){
+                    append_inst("MOV", {"X"+std::to_string(res_reg_id), "#0"});
+                    // ADD+LSL
+                    for(int j=0;j<ones;++j){
+                        auto shift = __builtin_ctz(const_val);
+                        append_inst("ADD", {p+std::to_string(res_reg_id), p+std::to_string(res_reg_id),
+                            p+std::to_string(op1_reg_id), "LSL #"+std::to_string(shift)});
+                        const_val &= (const_val-1);
+                    }
+                } else if(shifts!=std::make_pair(0u,0u)){
+                    // LSL+SUB
+                    append_inst("LSL", {
+                    p+std::to_string(res_reg_id), p+std::to_string(op1_reg_id), 
+                    "#"+std::to_string(shifts.first)} );
+                    append_inst("SUB", {
+                    p+std::to_string(res_reg_id), p+std::to_string(res_reg_id), 
+                    p+std::to_string(op1_reg_id), "LSL #"+std::to_string(shifts.second)} );
+                } else {
+                    Rload_to_GPreg(op2, op2_reg_id);
+                    append_inst("MUL", {
+                        p + std::to_string(res_reg_id),
+                        p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                    });
+                }
+            } else {
+                Rload_to_GPreg(op1, op1_reg_id);
+                Rload_to_GPreg(op2, op2_reg_id);
+                append_inst("MUL", {
+                    p + std::to_string(res_reg_id),
+                    p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                });
+            }
 			break;
-		case Instruction::sdiv:
-			append_inst("SDIV", {
-				            p + std::to_string(res_reg_id),
-				            p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
-			            });
+        }
+		case Instruction::sdiv:{
+            Rload_to_GPreg(op1, op1_reg_id);
+            if ( auto const_op2 = dynamic_cast<Constant*>(op2) ){
+                auto const_val = const_op2->getIntConstant();
+                if( __builtin_popcount(const_val)==1 ){ // ASR，调整负数以保证向零取整
+                    auto shift = const_val==0 ? 0 : __builtin_ctz(const_val);
+                    auto op2_imm = Constant::create(m,const_val-1);
+                    Rload_to_GPreg(op2_imm, op2_reg_id);
+                    append_inst("ADD", {p+std::to_string(op2_reg_id),
+                        p+std::to_string(op1_reg_id),p+std::to_string(op2_reg_id)});
+                    append_inst("CMP", {p+std::to_string(op1_reg_id),"#0"});
+                    append_inst("CSEL", {p+std::to_string(op1_reg_id),
+                        p+std::to_string(op1_reg_id),p+std::to_string(op2_reg_id),"GE"});
+                    append_inst("ASR", {p+std::to_string(res_reg_id), 
+                        p+std::to_string(op1_reg_id), "#"+std::to_string(shift)});
+                } else {
+                    Rload_to_GPreg(op2, op2_reg_id);
+                    append_inst("SDIV", {
+                        p + std::to_string(res_reg_id),
+                        p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                    });
+                }
+            } else {
+                Rload_to_GPreg(op2, op2_reg_id);
+                append_inst("SDIV", {
+                    p + std::to_string(res_reg_id),
+                    p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                });
+            }
 			break;
-		case Instruction::srem:
-			append_inst("SDIV", {
-				            p + std::to_string(res_reg_id),
-				            p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
-			            });
-			append_inst("MSUB", {
-				            p + std::to_string(res_reg_id), p + std::to_string(op2_reg_id),
-				            p + std::to_string(res_reg_id), p + std::to_string(op1_reg_id)
-			            });
-			break;
+        }
+		case Instruction::srem:{
+            Rload_to_GPreg(op1, op1_reg_id);
+            if( auto const_op2 = dynamic_cast<Constant*>(op2) ){
+                auto const_val = const_op2->getIntConstant();
+                if( __builtin_popcount(const_val)==1 ){
+                    auto op2_imm = Constant::create(m,const_val-1);
+                    Rload_to_GPreg(op2_imm, op2_reg_id);
+                    append_inst("AND", {p+std::to_string(res_reg_id),p+std::to_string(op1_reg_id),
+                        p+std::to_string(op2_reg_id)});
+                    append_inst("SUB", {p+std::to_string(op2_reg_id),
+                        p+std::to_string(res_reg_id),p+std::to_string(op2_reg_id)});
+                    append_inst("SUB", {p+std::to_string(op2_reg_id),
+                        p+std::to_string(op2_reg_id),"#1"});
+                    // 调整: 被除数为负且余数非0，余数减去op2旧值
+                    append_inst("CMP", {p+std::to_string(op1_reg_id),"#0"});
+                    // CCMP: 如果条件成立则继续比较，否则设置指定条件码 | 此处设置 Z=1，不满足NE
+                    append_inst("CCMP", {p+std::to_string(res_reg_id),"#0","#4","LT"});
+                    append_inst("CSEL", {p+std::to_string(res_reg_id), 
+                        p+std::to_string(op2_reg_id), p+std::to_string(res_reg_id), "NE"});
+                } else {
+                    Rload_to_GPreg(op2, op2_reg_id);
+                    append_inst("SDIV", {
+                        p + std::to_string(res_reg_id),
+                        p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                    });
+                    append_inst("MSUB", {
+                        p + std::to_string(res_reg_id), p + std::to_string(op2_reg_id),
+                        p + std::to_string(res_reg_id), p + std::to_string(op1_reg_id)
+                    });
+                }
+            } else {
+                Rload_to_GPreg(op2, op2_reg_id);
+                append_inst("SDIV", {
+                    p + std::to_string(res_reg_id),
+                    p + std::to_string(op1_reg_id), p + std::to_string(op2_reg_id)
+                });
+                append_inst("MSUB", {
+                    p + std::to_string(res_reg_id), p + std::to_string(op2_reg_id),
+                    p + std::to_string(res_reg_id), p + std::to_string(op1_reg_id)
+                });
+            }
+            break;
+        }
 		default: assert(false && "Unknown binary operator");
 	}
 	Rstore_from_GPreg(bin_inst, res_reg_id);
@@ -1089,10 +1231,10 @@ void ARMCodeGen::gen_memclr_procedure()
 	// 额外需要的寄存器: X2, Q0~Q3
 	append_inst("SUB", {"SP", "SP", "#64"});
 	append_inst("ST1 {V0.16B,V1.16B,V2.16B,V3.16B}, [SP]");
-	append_inst("EOR", {"V0.16B", "V0.16B", "V0.16B"});
-	append_inst("EOR", {"V1.16B", "V1.16B", "V1.16B"});
-	append_inst("EOR", {"V2.16B", "V2.16B", "V2.16B"});
-	append_inst("EOR", {"V3.16B", "V3.16B", "V3.16B"});
+	append_inst("MOVI", {"V0.2D", "#0"});
+	append_inst("MOVI", {"V1.2D", "#0"});
+	append_inst("MOVI", {"V2.2D", "#0"});
+	append_inst("MOVI", {"V3.2D", "#0"});
 	append_inst("LSR", {"X2", "X1", "#7"});
 
 	// 每次 128 bytes

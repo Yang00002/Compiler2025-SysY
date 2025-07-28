@@ -13,6 +13,7 @@
 #include "../include/passes/SCCP.hpp"
 #include "../include/passes/GCM.hpp"
 #include "../include/passes/GVN.hpp"
+#include "../include/passes/Arithmetic.hpp"
 
 #include <CharStream.h>
 #include <cstdlib>
@@ -77,11 +78,13 @@ int main(int argc, char* argv[]) {
         // Optimization Pass
         pm->add_pass<Mem2Reg>();
         pm->add_pass<DeadCode>();
+        pm->add_pass<Arithmetic>();
         pm->add_pass<SCCP>();
         pm->add_pass<DeadCode>();
         pm->add_pass<LoopInvariantCodeMotion>();
         pm->add_pass<DeadCode>();
         pm->add_pass<GVN>();
+        pm->add_pass<Arithmetic>();
         pm->add_pass<GlobalCodeMotion>();
         pm->add_pass<DeadCode>();
         pm->run();
@@ -96,6 +99,7 @@ int main(int argc, char* argv[]) {
 
     delete ast;
     delete m;
+    delete pm;
     
     return 0;
 }
