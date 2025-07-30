@@ -142,6 +142,8 @@ namespace
 			delete[] mn1_;
 			delete[] idom1_;
 			delete[] sdom1_;
+			delete[] edgeLinking1_;
+			delete[] edgeLinkingIdx1_;
 		}
 
 		void solve()

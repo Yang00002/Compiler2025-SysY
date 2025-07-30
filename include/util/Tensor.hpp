@@ -68,6 +68,7 @@ public:
 	// 段数
 	int segmentCount();
 	std::pair<std::vector<Element>*, int> segment(int index);
+	bool segmentIsDefault(int index);
 
 private:
 	Element _defaultValue;
@@ -325,6 +326,15 @@ std::pair<std::vector<Element>*, int> PlainTensor<Element>::segment(int index)
 	auto i = _segments[index];
 	if (i->isVector()) return {i->asVec(), 0};
 	return {nullptr, i->asLen()};
+}
+
+template <typename Element>
+bool PlainTensor<Element>::segmentIsDefault(int index)
+{
+	if (index < 0 || index >= segmentCount()) throw std::runtime_error("index out of bound");
+	auto i = _segments[index];
+	if (i->isVector()) return false;
+	return true;
 }
 
 template <typename Element>

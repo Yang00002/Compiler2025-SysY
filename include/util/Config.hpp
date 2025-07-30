@@ -1,0 +1,19 @@
+#pragma once
+
+extern int replaceGlobalAddressWithRegisterNeedUseCount;
+extern int replaceAllocaAddressWithRegisterNeedUseCount;
+extern int useMultiplierPerLoop;
+extern float globalRegisterSpillPriority;
+extern float bigAllocaRegisterSpillPriority;
+extern float smallAllocaRegisterSpillPriority;
+extern int bigAllocaVariableGate;
+extern bool mergeStackFrameSpilledWithGraphColoring;
+extern bool useCallerSaveRegsFirst;
+extern bool useLDRInsteadOfMovFMove2CreateFloat;
+extern int useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan;
+extern int useLDRInsteadOfMov2CreateFloatWhenMovCountBiggerThan;
+extern float fixFrameIndexParameterRegisterSpillPriority;
+extern int alignTo16NeedBytes;
+extern int maxCopyInstCountToInlineMemcpy;
+extern int maxCopyInstCountToInlineMemclr;
+extern bool use64BitsMathOperationInPointerOp;

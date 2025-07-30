@@ -3,7 +3,7 @@
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Util.hpp"
 
 using namespace std;
@@ -36,9 +36,10 @@ void CriticalEdgeERemove::run()
 						br->replaceAllOperandMatchs(bb, newBB);
 						bb->remove_pre_basic_block(preBB);
 						preBB->remove_succ_basic_block(bb);
+						preBB->add_succ_basic_block(newBB);
+						newBB->add_pre_basic_block(preBB);
 						for (const auto inst2 : phis)
 							inst2->replaceAllOperandMatchs(preBB, newBB);
-						preBB->add_succ_basic_block(newBB);
 					}
 				}
 			}

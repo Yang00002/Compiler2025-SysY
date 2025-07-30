@@ -43,7 +43,7 @@ struct ASMInstruction
 	{
 	}
 
-	std::string format() const
+	[[nodiscard]] std::string format() const
 	{
 		switch (type)
 		{
@@ -139,7 +139,7 @@ class ARMCodeGen
 		std::string base;
 		std::string offset = "#0";
 
-		std::string format(const std::string& ofstr = "") const
+		[[nodiscard]] std::string format(const std::string& ofstr = "") const
 		{
 			std::string result = "[" + base;
 			std::string of = ofstr.empty() ? offset : ofstr;
@@ -151,7 +151,7 @@ class ARMCodeGen
 			return result;
 		}
 
-		int get_offset() const { return std::stoi(offset.substr(1)); }
+		[[nodiscard]] int get_offset() const { return std::stoi(offset.substr(1)); }
 	};
 
 	// TODO: 寄存器分配
@@ -219,5 +219,5 @@ public:
 	}
 
 	void run();
-	std::string print() const;
+	[[nodiscard]] std::string print() const;
 };

@@ -1,8 +1,10 @@
 #include "MachineBasicBlock.hpp"
 
+#include <algorithm>
 #include <stdexcept>
 
 #include "BasicBlock.hpp"
+#include "Config.hpp"
 #include "Constant.hpp"
 #include "Instruction.hpp"
 #include "MachineIR.hpp"
@@ -31,6 +33,7 @@ namespace
 			case Instruction::ge: return Instruction::lt;
 			case Instruction::gt: return Instruction::le;
 			case Instruction::le: return Instruction::gt;
+			case Instruction::lt: return Instruction::ge;
 			case Instruction::eq: return Instruction::ne;
 			case Instruction::ne: return Instruction::eq;
 		}
@@ -43,6 +46,11 @@ MBasicBlock::MBasicBlock(std::string name, MFunction* function) : function_(func
 {
 }
 
+MBasicBlock::~MBasicBlock()
+{
+	for (auto i : instructions_) delete i;
+}
+
 MBasicBlock* MBasicBlock::createBasicBlock(const std::string& name, MFunction* function)
 {
 	return new MBasicBlock{name, function};
@@ -50,7 +58,7 @@ MBasicBlock* MBasicBlock::createBasicBlock(const std::string& name, MFunction* f
 
 void MBasicBlock::accept(BasicBlock* block,
                          map<Value*, MOperand*>& opMap, std::map<BasicBlock*, MBasicBlock*>& blockMap,
-                         const std::map<MBasicBlock*, list<MCopy*>>& phiMap, std::map<Function*, MFunction*>& funcMap)
+                         std::map<MBasicBlock*, list<MCopy*>>& phiMap, std::map<Function*, MFunction*>& funcMap)
 {
 	for (auto inst : block->get_instructions())
 	{
@@ -74,7 +82,6 @@ void MBasicBlock::accept(BasicBlock* block,
 				acceptMathInst(inst, opMap, this);
 				break;
 			case Instruction::alloca_:
-				acceptAllocaInst(inst, opMap, this);
 				break;
 			case Instruction::load:
 				acceptLoadInst(inst, opMap, this);
@@ -133,11 +140,15 @@ void MBasicBlock::acceptReturnInst(Instruction* instruction, std::map<Value*, MO
 	auto retu = dynamic_cast<ReturnInst*>(instruction);
 	if (!retu->is_void_ret())
 	{
-		auto reg = block->module()->getOperandFor(retu, opMap);
-		auto copy = new MCopy{block, reg, Register::getRegisterWithType(0, retu->get_type(), module()), 32};
+		auto reg = block->function()->getOperandFor(instruction->get_operand(0), opMap);
+		auto copy = new MCopy{
+			block, reg, Register::getParameterRegisterWithType(0, instruction->get_operand(0)->get_type(), module()), 32
+		};
 		instructions_.emplace_back(copy);
 	}
-	auto ret = new MRet{block};
+	auto lrc = new MCopy{block, function_->lr_guard(), Register::getLR(module()), 64};
+	instructions_.emplace_back(lrc);
+	auto ret = new MRet{block, instruction->get_parent()->get_parent()};
 	instructions_.emplace_back(ret);
 }
 
@@ -158,7 +169,7 @@ void MBasicBlock::acceptBranchInst(Instruction* instruction, std::map<BasicBlock
 		}
 		else if (t->block() == next_)
 		{
-			auto cmp = new MBcc{block, reverseOp(op), t};
+			auto cmp = new MBcc{block, reverseOp(op), f};
 			instructions_.emplace_back(cmp);
 		}
 		else
@@ -184,26 +195,63 @@ void MBasicBlock::acceptMathInst(Instruction* instruction, std::map<Value*, MOpe
 {
 	auto l0 = instruction->get_operand(0);
 	auto r0 = instruction->get_operand(1);
-	auto l = block->module()->getOperandFor(l0, opMap);
-	auto r = block->module()->getOperandFor(r0, opMap);
-	auto t = block->module()->getOperandFor(instruction, opMap);
+	auto l = block->function()->getOperandFor(l0, opMap);
+	auto r = block->function()->getOperandFor(r0, opMap);
+	auto t = block->function()->getOperandFor(instruction, opMap);
 	auto op = instruction->get_instr_type();
 	auto ret = new MMathInst{block, op, l, r, t, 32};
 	instructions_.emplace_back(ret);
 }
 
-// ReSharper disable once CppMemberFunctionMayBeStatic
-void MBasicBlock::acceptAllocaInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap,
-                                   const MBasicBlock* block)
+namespace
 {
-	auto fi = block->function()->allocaStack(instruction);
-	opMap.emplace(instruction, fi);
+	struct FrameCond
+	{
+		FrameIndex* frame_index_;
+		AllocaInst* inst_;
+		float weight_;
+		bool cache_;
+	};
+}
+
+// ReSharper disable once CppMemberFunctionMayBeStatic
+void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand*>& opMap,
+                                    std::map<BasicBlock*, MBasicBlock*>& bmap)
+{
+	vector<FrameCond> vec;
+	auto func = block->get_parent();
+	for (auto inst : block->get_instructions().phi_and_allocas())
+	{
+		auto alloc = dynamic_cast<AllocaInst*>(inst);
+		if (alloc != nullptr)
+		{
+			auto cost = func->opWeight(alloc, bmap);
+			auto fi = function()->allocaStack(alloc);
+			vec.emplace_back(FrameCond{fi, alloc, cost, false});
+		}
+	}
+	for (auto& i : vec)
+		if (i.weight_ >= static_cast<float>(replaceAllocaAddressWithRegisterNeedUseCount))
+			i.cache_ = true;
+	for (auto& i : vec)
+	{
+		if (i.cache_)
+		{
+			auto reg = VirtualRegister::createVirtualIRegister(function_, 64);
+			reg->replacePrefer_ = i.frame_index_;
+			auto inst = new MCopy{this, i.frame_index_, reg, 64};
+			instructions_.emplace_back(inst);
+			opMap[i.inst_] = reg;
+		}
+		else
+			opMap[i.inst_] = i.frame_index_;
+	}
 }
 
 void MBasicBlock::acceptLoadInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
-	auto regLike = block->module()->getOperandFor(instruction, opMap);
-	auto stackLike = block->module()->getOperandFor(instruction->get_operand(0), opMap);
+	auto regLike = block->function()->getOperandFor(instruction, opMap);
+	auto stackLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
 	auto ret = new MLDR{block, regLike, stackLike, 32};
 	instructions_.emplace_back(ret);
 }
@@ -211,24 +259,24 @@ void MBasicBlock::acceptLoadInst(Instruction* instruction, std::map<Value*, MOpe
 void MBasicBlock::acceptStoreInst(const Instruction* instruction, std::map<Value*, MOperand*>& opMap,
                                   MBasicBlock* block)
 {
-	auto regLike = block->module()->getOperandFor(instruction->get_operand(0), opMap);
-	auto stackLike = block->module()->getOperandFor(instruction->get_operand(1), opMap);
+	auto regLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
+	auto stackLike = block->function()->getOperandFor(instruction->get_operand(1), opMap);
 	auto ret = new MSTR{block, regLike, stackLike, 32};
 	instructions_.emplace_back(ret);
 }
 
 void MBasicBlock::acceptCmpInst(const Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
-	auto l = block->module()->getOperandFor(instruction->get_operand(0), opMap);
-	auto r = block->module()->getOperandFor(instruction->get_operand(1), opMap);
-	auto ret = new MCMP{block, l, r};
+	auto l = block->function()->getOperandFor(instruction->get_operand(0), opMap);
+	auto r = block->function()->getOperandFor(instruction->get_operand(1), opMap);
+	auto ret = new MCMP{block, l, r, instruction->get_operand(0)->get_type() != Types::FLOAT};
 	instructions_.emplace_back(ret);
 }
 
 // ReSharper disable once CppMemberFunctionMayBeStatic
 void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap,
                                 std::map<BasicBlock*, MBasicBlock*>& bmap,
-                                std::map<MBasicBlock*, std::list<MCopy*>> phiMap, const MBasicBlock* block)
+                                std::map<MBasicBlock*, std::list<MCopy*>>& phiMap, const MBasicBlock* block)
 {
 	auto phi = dynamic_cast<PhiInst*>(instruction);
 	auto pairs = phi->get_phi_pairs();
@@ -236,7 +284,7 @@ void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOper
 	{
 		auto mbb = bmap[bb];
 		auto cp = new MCopy{
-			mbb, block->module()->getOperandFor(val, opMap), block->module()->getOperandFor(phi, opMap),
+			mbb, block->function()->getOperandFor(val, opMap), block->function()->getOperandFor(phi, opMap),
 			val->get_type()->sizeInBitsInArm64()
 		};
 		phiMap[mbb].emplace_back(cp);
@@ -244,7 +292,7 @@ void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOper
 }
 
 
-void MBasicBlock::acceptCallInst(const Instruction* instruction, std::map<Value*, MOperand*>& opMap,
+void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap,
                                  std::map<Function*, MFunction*>& funcMap, MBasicBlock* block)
 {
 	auto func = dynamic_cast<Function*>(instruction->get_operand(0));
@@ -261,8 +309,8 @@ void MBasicBlock::acceptCallInst(const Instruction* instruction, std::map<Value*
 			if (fc < 8)
 			{
 				auto cp = new MCopy{
-					block, module()->getOperandFor(instruction->get_operand(idx), opMap),
-					Register::getFRegister(fc, module()), 32
+					block, function()->getOperandFor(instruction->get_operand(idx), opMap),
+					Register::getFParameterRegister(fc, module()), 32
 				};
 				instructions_.emplace_back(cp);
 				++fc;
@@ -274,8 +322,8 @@ void MBasicBlock::acceptCallInst(const Instruction* instruction, std::map<Value*
 			if (ic < 8)
 			{
 				auto cp = new MCopy{
-					block, module()->getOperandFor(instruction->get_operand(idx), opMap),
-					Register::getIRegister(ic, module()), arg.get_type()->sizeInBitsInArm64()
+					block, function()->getOperandFor(instruction->get_operand(idx), opMap),
+					Register::getIParameterRegister(ic, module()), arg.get_type()->sizeInBitsInArm64()
 				};
 				instructions_.emplace_back(cp);
 				++ic;
@@ -283,14 +331,19 @@ void MBasicBlock::acceptCallInst(const Instruction* instruction, std::map<Value*
 			}
 		}
 		auto st = new MSTR{
-			block, module()->getOperandFor(instruction->get_operand(idx), opMap),
+			block, function()->getOperandFor(instruction->get_operand(idx), opMap),
 			mfunc->getFix(nc), arg.get_type()->sizeInBitsInArm64()
 		};
 		instructions_.emplace_back(st);
 		++nc;
 	}
-	auto bl = new MBL{block, FuncAddress::get(mfunc)};
+	auto bl = new MBL{block, FuncAddress::get(mfunc), func};
 	instructions_.emplace_back(bl);
+	if (instruction->get_type() != Types::VOID)
+	{
+		opMap[instruction] = Register::getParameterRegisterWithType(0, instruction->get_type(), module());
+	}
+	block->function()->called().set(mfunc->id());
 }
 
 void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap,
@@ -311,15 +364,16 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		dimLen.emplace_back(1);
 	}
 	int dimCount = static_cast<int>(instruction->get_num_operand()) - 1;
-	auto frameIndex = this->module()->getOperandFor(gep->get_operand(0), opMap);
+	auto frameIndex = this->function()->getOperandFor(gep->get_operand(0), opMap);
 	auto immOperand = Immediate::getImmediate(0, module());
 	MOperand* operand = immOperand;
 	Immediate* immB = nullptr;
 	Immediate* immA = nullptr;
+	unsigned width = use64BitsMathOperationInPointerOp ? 64 : 32;
 	// A * op + B
 	for (int i = 0; i < dimCount; i++)
 	{
-		int len = static_cast<int>(dimLen[i]);
+		long long len = dimLen[i];
 		if (len == 0)
 		{
 			immOperand = Immediate::getImmediate(0, module());
@@ -328,18 +382,38 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 			immA = nullptr;
 			continue;
 		}
-		if (i == dimCount - 1) len <<= 2;
+		if (i == dimCount - 1)
+		{
+			len <<= 2;
+			int rs = static_cast<int>(dimLen.size()) - 1;
+			for (int j = i + 1; j < rs; j++)
+			{
+				len *= dimLen[j];
+			}
+		}
 		auto op = gep->get_operand(i + 1);
-		auto mop = module()->getOperandFor(op, opMap);
+		auto mop = function()->getOperandFor(op, opMap);
 		auto immMop = dynamic_cast<Immediate*>(mop);
+		if (use64BitsMathOperationInPointerOp && immMop == nullptr)
+		{
+			auto vr = dynamic_cast<VirtualRegister*>(mop);
+			assert(vr != nullptr);
+			if (vr->size() != 64)
+			{
+				auto r = VirtualRegister::createVirtualIRegister(function_, 64);
+				auto exp = new MSXTW{block, vr, r};
+				instructions_.emplace_back(exp);
+				mop = r;
+			}
+		}
 		if (immOperand != nullptr)
 		{
 			if (immMop != nullptr)
 			{
 				// C + D -> (C + D)
-				if (immMop->asInt() != 0)
+				if (immMop->as64BitsInt() != 0)
 				{
-					immOperand = Immediate::getImmediate((immOperand->asInt() + immMop->asInt()) * len, module());
+					immOperand = Immediate::getImmediate(immOperand->as64BitsInt() + immMop->as64BitsInt(), module());
 					operand = immOperand;
 				}
 			}
@@ -356,10 +430,10 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 			if (immMop != nullptr)
 			{
 				// Ax + B + C -> Ax + (B + C)
-				if (immMop->asInt() != 0)
+				if (immMop->as64BitsInt() != 0)
 				{
 					if (immB == nullptr) immB = immMop;
-					else immB = Immediate::getImmediate(immB->asInt() + immMop->asInt(), module());
+					else immB = Immediate::getImmediate(immB->as64BitsInt() + immMop->as64BitsInt(), module());
 				}
 			}
 			else
@@ -367,14 +441,14 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				// Ax + B + y -> (Ax + y) + B
 				if (immA != nullptr)
 				{
-					auto reg = VirtualRegister::createVirtualIRegister(module());
-					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, 32};
+					auto reg = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 					instructions_.emplace_back(inst);
 					operand = reg;
 					immA = nullptr;
 				}
-				auto reg2 = VirtualRegister::createVirtualIRegister(module());
-				auto inst = new MMathInst{block, Instruction::add, operand, immMop, reg2, 32};
+				auto reg2 = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+				auto inst = new MMathInst{block, Instruction::add, operand, immMop, reg2, width};
 				instructions_.emplace_back(inst);
 				operand = reg2;
 			}
@@ -382,22 +456,22 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		if (len == 1) continue;
 		if (immOperand != nullptr)
 		{
-			immOperand = Immediate::getImmediate(immOperand->asInt() * len, module());
+			immOperand = Immediate::getImmediate(immOperand->as64BitsInt() * len, module());
 		}
 		else
 		{
 			if (immA == nullptr) immA = Immediate::getImmediate(len, module());
-			else immA = Immediate::getImmediate(immA->asInt() * len, module());
-			if (immB != nullptr) immB = Immediate::getImmediate(immB->asInt() * len, module());
+			else immA = Immediate::getImmediate(immA->as64BitsInt() * len, module());
+			if (immB != nullptr) immB = Immediate::getImmediate(immB->as64BitsInt() * len, module());
 		}
 	}
-	auto targetReg = module()->getOperandFor(instruction, opMap);
+	auto targetReg = function()->getOperandFor(instruction, opMap);
 	if (immOperand != nullptr)
 	{
-		if (immOperand->asInt() == 0)
+		if (immOperand->as64BitsInt() == 0)
 		{
-			auto inst = new MCopy{block, frameIndex, targetReg, 64};
-			instructions_.emplace_back(inst);
+			function()->replaceAllOperands(targetReg, frameIndex);
+			opMap[instruction] = frameIndex;
 		}
 		else
 		{
@@ -409,16 +483,25 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 	{
 		if (immA != nullptr)
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(module());
-			auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, 32};
+			auto reg = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+			auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 			instructions_.emplace_back(inst);
 			operand = reg;
 		}
 		if (immB != nullptr)
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(module());
-			auto inst = new MMathInst{block, Instruction::add, immB, operand, reg, 32};
+			auto reg = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+			auto inst = new MMathInst{block, Instruction::add, immB, operand, reg, width};
 			instructions_.emplace_back(inst);
+			operand = reg;
+		}
+		auto vop = dynamic_cast<VirtualRegister*>(operand);
+		assert(vop != nullptr);
+		if (vop->size() < 64)
+		{
+			auto reg = VirtualRegister::createVirtualIRegister(function(), 64);
+			auto exp = new MSXTW{block, operand, reg};
+			instructions_.emplace_back(exp);
 			operand = reg;
 		}
 		auto inst = new MMathInst{block, Instruction::add, frameIndex, operand, targetReg, 64};
@@ -434,7 +517,7 @@ void MBasicBlock::mergePhiCopies(const std::list<MCopy*>& copies)
 			instructions_.emplace_back(cp);
 		return;
 	}
-	if (dynamic_cast<MBcc*>(instructions_.back()) != nullptr)
+	if (dynamic_cast<MBcc*>(instructions_.back()) != nullptr || dynamic_cast<MB*>(instructions_.back()) != nullptr)
 	{
 		auto bcc = instructions_.back();
 		instructions_.pop_back();
@@ -451,22 +534,22 @@ void MBasicBlock::acceptZextInst(Instruction* instruction, std::map<Value*, MOpe
 {
 	auto op0 = dynamic_cast<Instruction*>(instruction->get_operand(0));
 	auto op = asCmpGetOp(op0);
-	auto t = module()->getOperandFor(instruction, opMap);
+	auto t = function()->getOperandFor(instruction, opMap);
 	auto cmp = new MCSET{block, op, t};
 	instructions_.emplace_back(cmp);
 }
 
 void MBasicBlock::acceptFpToSiInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
-	auto fp = module()->getOperandFor(instruction->get_operand(0), opMap);
-	auto si = module()->getOperandFor(instruction, opMap);
+	auto fp = function()->getOperandFor(instruction->get_operand(0), opMap);
+	auto si = function()->getOperandFor(instruction, opMap);
 	instructions_.emplace_back(new MFCVTZS{block, fp, si});
 }
 
 void MBasicBlock::acceptSiToFpInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
-	auto si = module()->getOperandFor(instruction->get_operand(0), opMap);
-	auto fp = module()->getOperandFor(instruction, opMap);
+	auto si = function()->getOperandFor(instruction->get_operand(0), opMap);
+	auto fp = function()->getOperandFor(instruction, opMap);
 	instructions_.emplace_back(new MSCVTF{block, si, fp});
 }
 
@@ -474,45 +557,46 @@ void MBasicBlock::acceptMemCpyInst(Instruction* instruction, std::map<Value*, MO
 {
 	auto mcp = dynamic_cast<MemCpyInst*>(instruction);
 	auto count = mcp->get_copy_bytes() >> 4;
-	auto src = module()->getOperandFor(instruction->get_operand(0), opMap);
-	auto des = module()->getOperandFor(instruction->get_operand(1), opMap);
-	if (count <= 4)
+	auto srcF = function()->getOperandFor(instruction->get_operand(0), opMap);
+	auto desF = function()->getOperandFor(instruction->get_operand(1), opMap);
+	if (count <= maxCopyInstCountToInlineMemcpy)
 	{
+		auto src = Register::getIIP0(module());
+		auto des = Register::getIIP1(module());
+		auto cp0 = new MCopy{block, srcF, src, 64};
+		auto cp1 = new MCopy{block, desF, des, 64};
+		instructions_.emplace_back(cp0);
+		instructions_.emplace_back(cp1);
+		while (count >= 4)
 		{
-			auto reg = VirtualRegister::createVirtualFRegister(module());
-			auto load = new MLDR{block, reg, src, 128};
-			auto store = new MSTR{block, reg, des, 128};
+			auto load = new MLD1V16B{block, src, 4, 0, false};
+			auto store = new MST1V16B{block, des, 4, count > 4 ? 64 : 0, count > 4};
 			instructions_.emplace_back(load);
 			instructions_.emplace_back(store);
+			count -= 4;
 		}
-		for (int i = 1; i < count; i++)
+		if (count > 0)
 		{
-			auto reg = VirtualRegister::createVirtualFRegister(module());
-			auto pos = Immediate::getImmediate(i << 4, module());
-			auto src2 = VirtualRegister::createVirtualIRegister(module());
-			auto des2 = VirtualRegister::createVirtualIRegister(module());
-			auto off1 = new MMathInst{block, Instruction::add, src, pos, src2, 64};
-			auto off2 = new MMathInst{block, Instruction::add, des, pos, des2, 64};
-			auto load = new MLDR{block, reg, src2, 128};
-			auto store = new MSTR{block, reg, des2, 128};
-			instructions_.emplace_back(off1);
+			auto load = new MLD1V16B{block, src, count, 0, false};
+			auto store = new MST1V16B{block, des, count, 0, false};
 			instructions_.emplace_back(load);
-			instructions_.emplace_back(off2);
 			instructions_.emplace_back(store);
 		}
 	}
 	else
 	{
-		auto cr0 = new MCopy{block, des, Register::getIRegister(0, module()), 64};
-		auto cr1 = new MCopy{block, src, Register::getIRegister(1, module()), 64};
+		auto cr0 = new MCopy{block, desF, Register::getIParameterRegister(0, module()), 64};
+		auto cr1 = new MCopy{block, srcF, Register::getIParameterRegister(1, module()), 64};
 		auto cr2 = new MCopy{
-			block, Immediate::getImmediate(mcp->get_copy_bytes(), module()), Register::getIRegister(2, module()), 64
+			block, Immediate::getImmediate(count, module()),
+			Register::getIParameterRegister(2, module()), 64
 		};
-		auto bl = new MBL{block, FuncAddress::get(module()->memcpyFunc())};
+		auto bl = new MBL{block, FuncAddress::get(module()->memcpyFunc()), true};
 		instructions_.emplace_back(cr0);
 		instructions_.emplace_back(cr1);
 		instructions_.emplace_back(cr2);
 		instructions_.emplace_back(bl);
+		block->function()->called().set(module()->memcpyFunc()->id());
 	}
 }
 
@@ -520,41 +604,46 @@ void MBasicBlock::acceptMemClearInst(Instruction* instruction, std::map<Value*, 
 {
 	auto mcp = dynamic_cast<MemClearInst*>(instruction);
 	auto count = mcp->get_clear_bytes() >> 4;
-	auto des = module()->getOperandFor(instruction->get_operand(0), opMap);
-	if (count <= 8)
+	auto desF = function()->getOperandFor(instruction->get_operand(0), opMap);
+	if (count <= maxCopyInstCountToInlineMemclr)
 	{
+		instructions_.emplace_back(new MLD1RV16B{block, Register::getZERO(module()), count > 4 ? 4 : count});
+		auto des = Register::getIIP0(module());
+		auto cp0 = new MCopy{block, desF, des, 64};
+		instructions_.emplace_back(cp0);
+		while (count >= 4)
 		{
-			auto store = new MSTR{block, Immediate::getImmediate(0, module()), des, 128};
+			auto store = new MST1V16B{block, des, 4, count > 4 ? 64 : 0, count > 4};
 			instructions_.emplace_back(store);
+			count -= 4;
 		}
-		for (int i = 1; i < count; i++)
+		if (count > 0)
 		{
-			auto pos = Immediate::getImmediate(i << 4, module());
-			auto des2 = VirtualRegister::createVirtualIRegister(module());
-			auto off2 = new MMathInst{block, Instruction::add, des, pos, des2, 64};
-			auto store = new MSTR{block, Immediate::getImmediate(0, module()), des2, 128};
-			instructions_.emplace_back(off2);
+			auto store = new MST1V16B{block, des, count, 0, false};
 			instructions_.emplace_back(store);
 		}
 	}
 	else
 	{
-		auto cr0 = new MCopy{block, des, Register::getIRegister(0, module()), 64};
+		auto cr0 = new MCopy{block, desF, Register::getIParameterRegister(0, module()), 64};
 		auto cr1 = new MCopy{
-			block, Immediate::getImmediate(mcp->get_clear_bytes(), module()), Register::getIRegister(1, module()), 64
+			block, Immediate::getImmediate(count, module()),
+			Register::getIParameterRegister(1, module()), 64
 		};
-		auto bl = new MBL{block, FuncAddress::get(module()->memclrFunc())};
+		auto bl = new MBL{block, FuncAddress::get(module()->memclrFunc()), false};
 		instructions_.emplace_back(cr0);
 		instructions_.emplace_back(cr1);
 		instructions_.emplace_back(bl);
+		block->function()->called().set(module()->memclrFunc()->id());
 	}
 }
 
-void MBasicBlock::acceptCopyInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
+void MBasicBlock::acceptCopyInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block) const
 {
-	auto f = module()->getOperandFor(instruction->get_operand(0), opMap);
-	auto t = module()->getOperandFor(instruction, opMap);
-	instructions_.emplace_back(new MCopy{block, f, t, 64});
+	auto t = function()->getOperandFor(instruction->get_operand(0), opMap);
+	auto f = function()->getOperandFor(instruction, opMap);
+	function()->replaceAllOperands(f, t);
+	opMap[instruction] = t;
 }
 
 MModule* MBasicBlock::module() const
@@ -565,4 +654,31 @@ MModule* MBasicBlock::module() const
 MFunction* MBasicBlock::function() const
 {
 	return function_;
+}
+
+std::string MBasicBlock::print(unsigned& sid) const
+{
+	string ret = name_ + "[" + to_string(id_) + "]:\t\t\t";
+	if (!pre_bbs_.empty())
+	{
+		ret += "pre_bbs: ";
+		for (auto& i : pre_bbs_)
+		{
+			ret += i->name() + " ";
+		}
+	}
+	if (!suc_bbs_.empty())
+	{
+		ret += "suc_bbs: ";
+		for (auto& i : suc_bbs_)
+		{
+			ret += i->name() + " ";
+		}
+	}
+	ret += "\n";
+	for (auto& i : instructions_)
+	{
+		ret += to_string(sid++) + ":\t" + i->print() + "\n";
+	}
+	return ret;
 }
