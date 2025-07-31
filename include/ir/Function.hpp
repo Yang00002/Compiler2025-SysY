@@ -2,9 +2,12 @@
 
 #include <cassert>
 #include <list>
+#include <map>
 
 #include "Value.hpp"
 
+class AllocaInst;
+class MBasicBlock;
 class FuncType;
 class BasicBlock;
 class Module;
@@ -51,8 +54,10 @@ public:
 
 	Value* ret_alloca_;
 
-	// 是否是库函数, 以对函数参数进行不同的除了
+	// 是否是库函数, 以对函数参数进行不同的处理
 	bool is_lib_;
+
+	float opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap);
 
 private:
 	std::list<BasicBlock*> basic_blocks_;

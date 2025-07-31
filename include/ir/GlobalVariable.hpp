@@ -37,6 +37,12 @@ public:
 	~GlobalVariable() override;
 
 	[[nodiscard]] PlainTensor<ConstantValue>* get_init() const { return init_val_; }
+	[[nodiscard]] PlainTensor<ConstantValue>* move_init()
+	{
+		auto ret =  init_val_;
+		init_val_ = nullptr;
+		return ret;
+	}
 	[[nodiscard]] bool is_const() const { return is_const_; }
 	std::string print() override;
 	// 该全局变量因为初始化而导致的实际类型设置

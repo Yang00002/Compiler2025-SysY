@@ -55,13 +55,14 @@ public:
 class LoopDetection : public Pass
 {
 	Function* func_;
-	std::unique_ptr<Dominators> dominators_;
+	Dominators* dominators_ = nullptr;
 	std::vector<Loop*> loops_;
 	// map from header to loop
 	std::unordered_map<BasicBlock*, Loop*> bb_to_loop_;
 	void discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
 	                                 Loop* loop);
 
+	void run_on_func(Function* f);
 public:
 	LoopDetection(const LoopDetection&) = delete;
 	LoopDetection(LoopDetection&&) = delete;
@@ -75,7 +76,7 @@ public:
 	~LoopDetection() override;
 
 	void run() override;
-	void run_on_func(Function* f);
+	void only_run_on_func(Function* f);
 	void print() const;
 	std::vector<Loop*>& get_loops() { return loops_; }
 };

@@ -219,6 +219,44 @@ public:
 
 	void run(BasicBlock* bb)
 	{
+		std::stack<BasicBlock*> dfsWorkList;
+		std::stack<bool> dfsVisitList;
+		dfsVisitList.emplace(bb);
+		dfsVisitList.emplace(false);
+		while (!dfsWorkList.empty())
+		{
+			if (dfsVisitList.top())
+			{
+				dfsVisitList.pop();
+				dfsWorkList.pop();
+				auto ic = count_map.top();
+				count_map.pop();
+				for (auto& [v, j] : ic)
+				{
+					auto& focus = name_stack_map[v];
+					for (int k = 0; k < j; k++)
+					{
+						focus.pop();
+					}
+				}
+				continue;
+			}
+			dfsVisitList.top() = true;
+			auto bb2 = dfsWorkList.top();
+			run_inner(bb2);
+			visited.insert(bb2);
+			for (auto& i : bb2->get_succ_basic_blocks())
+			{
+				if (visited.count(i) == 0)
+				{
+					visited.insert(i);
+					dfsWorkList.emplace(i);
+					dfsVisitList.emplace(false);
+				}
+			}
+		}
+		/*
+		 
 		run_inner(bb);
 		visited.insert(bb);
 		for (auto& i : bb->get_succ_basic_blocks())
@@ -229,7 +267,6 @@ public:
 				run(i);
 				auto ic = count_map.top();
 				count_map.pop();
-				// cout << "clear stack of " + i->get_name() << "\n";
 				for (auto& [v, j] : ic)
 				{
 					auto& focus = name_stack_map[v];
@@ -237,16 +274,10 @@ public:
 					{
 						focus.pop();
 					}
-					//  if (j > 0) {
-					//  if (focus.empty())
-					//    cout << "return " << get_id(v) << " to empty\n";
-					// else
-					//  cout << "return " << get_id(v) << " to "
-					//     << get_id(focus.top()) << "\n";
-					//  }
 				}
 			}
 		}
+		 */
 	}
 
 	void run_inner(BasicBlock* bb)

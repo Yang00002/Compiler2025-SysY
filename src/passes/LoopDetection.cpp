@@ -9,6 +9,7 @@
 
 LoopDetection::~LoopDetection()
 {
+	delete dominators_;
 	for (const auto& loop : loops_)
 	{
 		delete loop;
@@ -25,7 +26,8 @@ LoopDetection::~LoopDetection()
  */
 void LoopDetection::run()
 {
-	dominators_ = std::make_unique<Dominators>(m_);
+	delete dominators_;
+	dominators_ = new Dominators{m_};
 	for (const auto& f : m_->get_functions())
 	{
 		if (f->is_declaration())
@@ -33,6 +35,13 @@ void LoopDetection::run()
 		func_ = f;
 		run_on_func(f);
 	}
+}
+
+void LoopDetection::only_run_on_func(Function* f)
+{
+	delete dominators_;
+	dominators_ = new Dominators{ m_ };
+	run_on_func(f);
 }
 
 /**

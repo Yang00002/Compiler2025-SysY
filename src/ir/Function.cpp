@@ -5,6 +5,8 @@
 #include <Type.hpp>
 #include <map>
 
+#include "MachineBasicBlock.hpp"
+
 Function::Function(FuncType* ty, const std::string& name, Module* parent, const bool is_lib)
 	: Value(ty, name), is_lib_(is_lib), parent_(parent), seq_cnt_(0)
 {
@@ -168,6 +170,20 @@ std::string Function::print()
 	}
 
 	return func_ir;
+}
+
+float Function::opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap)
+{
+	float r = 0;
+	for (auto& use : value->get_use_list())
+	{
+		auto user = dynamic_cast<Instruction*>(use.val_);
+		if (user != nullptr)
+		{
+			r += bmap[user->get_parent()]->weight();
+		}
+	}
+	return r;
 }
 
 std::string Argument::print()

@@ -213,6 +213,8 @@ public:
 	[[nodiscard]] std::string print() const;
 
 	[[nodiscard]] InitializeValue toInitializeValue() const;
+
+	[[nodiscard]] unsigned bits2Unsigned() const;
 };
 
 

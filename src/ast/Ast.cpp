@@ -290,6 +290,17 @@ InitializeValue ConstantValue::toInitializeValue() const
 	return InitializeValue{_field._bool_value[LOGICAL_RIGHT_END_8]};
 }
 
+unsigned ConstantValue::bits2Unsigned() const
+{
+	unsigned n;
+	if (isIntConstant())
+		memcpy(&n, &_field._int_value[LOGICAL_RIGHT_END_2], 4);
+	else if (isFloatConstant())
+		memcpy(&n, &_field._float_value[LOGICAL_RIGHT_END_2], 4);
+	else n = _field._bool_value[LOGICAL_RIGHT_END_8];
+	return n;
+}
+
 std::string ASTNode::toString()
 {
 	string str;
