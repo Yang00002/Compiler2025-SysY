@@ -226,15 +226,12 @@ void beforeRun() {
     exit(-1);
   if (sizeof(long long) != 8)
     exit(-3);
-/*
-
   if (sizeof(int *) != 8)
     exit(-4);
   if (m_countr_zero(2) != 1)
     exit(-5);
   if (!IS_SMALL_END)
     exit(-6);
-*/
   /*
     std::ifstream input_file(R"(//test add
   int main(){
