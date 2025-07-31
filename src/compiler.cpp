@@ -177,7 +177,7 @@ void compiler(std::string infile, std::string outfile) {
   auto m = MakeIR.getModule();
 
   PassManager *pm = new PassManager{m};
-  if (o1Optimization) {
+  if (o1Optimization && false) {
     // Optimization Pass
     pm->add_pass<Mem2Reg>();
     pm->add_pass<DeadCode>();
