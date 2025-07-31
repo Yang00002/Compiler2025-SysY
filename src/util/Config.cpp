@@ -31,9 +31,13 @@ int useLDRInsteadOfMov2CreateFloatWhenMovCountBiggerThan = 1;
 float fixFrameIndexParameterRegisterSpillPriority = 0.9f;
 // 大于多少字节的数组需要对齐到 16 字节(ABI 强制要求大于 8 字节全局数组对齐到 16 字节, 不受该选项控制)
 int alignTo16NeedBytes = 8;
-// 当 memcpy 的字节数小于等于这个选项 x 16 时, 使用内联实现而非调用函数(一般而言这个数字 -2, 指令减少 2 条, 12 的时候是 8 条)
+// 当 memcpy 的字节数小于等于这个选项 x 16 时, 使用内联实现而非调用函数(一般而言这个数字 -4, 指令减少 2 条, 12 的时候是 8 条)
 int maxCopyInstCountToInlineMemcpy = 12;
-// 当 memset 的字节数小于等于这个选项 x 16 时, 使用内联实现而非调用函数(一般而言这个数字 -2, 指令减少 1 条, 20 的时候是 8 条)
-int maxCopyInstCountToInlineMemclr = 20;
+// 当 memset 的字节数小于等于这个选项 x 16 时, 使用内联实现而非调用函数(一般而言这个数字 -4, 指令减少 1 条, 8 的时候是 8 条)
+int maxCopyInstCountToInlineMemclr = 8;
 // 当开启该选项时, 对指针偏移量的运算使用 64 位计算(例如 getelement), 否则使用 32 位 (由于没做上游支持, 大概率都达不到预期功能)
 bool use64BitsMathOperationInPointerOp = false;
+// 是否像普通寄存器一样使用零寄存器, 因此生成的一些指令 ADD W0, WZR, #2 在某些环境下会报错
+bool useZRRegisterAsCommonRegister = false;
+// 当开启时, 忽略图着色中的部分 assert 检查
+bool graphColoringWeakNodeCheck = false;

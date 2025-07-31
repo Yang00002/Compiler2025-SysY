@@ -5,6 +5,9 @@
 
 #include "Instruction.hpp"
 
+class MMSUB;
+class MMathInst;
+class MCMP;
 class FuncAddress;
 class Instruction;
 class FrameIndex;
@@ -37,7 +40,7 @@ class CodeGen
 	void append(const std::list<std::string>& txt);
 	static std::list<std::string> makeGlobal(const GlobalAddress* address);
 	std::list<std::string> makeFunction(MFunction* function);
-	std::list<std::string> functionPrefix(MFunction* function);
+	std::list<std::string> functionPrefix(const MFunction* function);
 	std::list<std::string> functionSuffix(const MFunction* function);
 	std::list<std::string> add(const Register* to, const Register* l, const Register* r, int len);
 	std::list<std::string> fadd(const Register* to, const Register* l, const Register* r);
@@ -53,14 +56,13 @@ class CodeGen
 	std::list<std::string> ldp(const Register* a, const Register* b, const Register* c, int offset, int len);
 	std::list<std::string> ldr(const Register* a, const Register* baseOffsetReg, int offset, int len);
 	std::list<std::string> ldr(const MOperand* a, const MOperand* stackLike, int len);
-	std::list<std::string> ld1(const Register* stackLike, int count, int offset, bool addBefore);
-	std::list<std::string> ld1(const MOperand* stackLike, int count, int offset, bool addBefore);
-	std::list<std::string> ld1r(const Register* stackLike, int count);
-	std::list<std::string> ld1r(const MOperand* stackLike, int count);
-	std::list<std::string> mathInst(const MOperand* t, const MOperand* l, const MOperand* r, Instruction::OpID op,
+	std::list<std::string> ld1(const Register* stackLike, int count, int offset);
+	std::list<std::string> ld1(const MOperand* stackLike, int count, int offset);
+	static std::list<std::string> clearV(int count);
+	std::list<std::string> mathInst(const MMathInst* inst,const MOperand* t, const MOperand* l, const MOperand* r, Instruction::OpID op,
 	                                int len);
-	std::list<std::string> st1(const Register* stackLike, int count, int offset, bool addBefore);
-	std::list<std::string> st1(const MOperand* stackLike, int count, int offset, bool addBefore);
+	std::list<std::string> st1(const Register* stackLike, int count, int offset);
+	std::list<std::string> st1(const MOperand* stackLike, int count, int offset);
 	std::list<std::string> add32(const Register* to, const Register* l, int imm);
 	std::list<std::string> add64(const Register* to, const Register* l, long long imm);
 	std::list<std::string> sub32(const Register* to, const Register* l, int imm);
@@ -73,10 +75,12 @@ class CodeGen
 	std::list<std::string> f2i(const MOperand* from, const MOperand* to);
 	std::list<std::string> i2f(const MOperand* from, const MOperand* to);
 	std::list<std::string> extend32To64(const MOperand* from, const MOperand* to);
-	std::list<std::string> compare(const MInstruction* inst, const MOperand* l, const MOperand* r, bool flt);
-	static MInstruction* nextInst(const MInstruction* current);
-	static void reverseCmpOp(const MInstruction* inst);
+	std::list<std::string> compare(const MCMP* inst, const MOperand* l, const MOperand* r, bool flt);
+	static MInstruction* preInst(const MInstruction* current);
+	static void reverseCmpOp(const MCMP* inst);
 	std::list<std::string> sub(const Register* to, const Register* l, const Register* r, int len);
+	std::list<std::string> msub(const MMSUB* inst, const MOperand* to, const MOperand* l, const MOperand* r,
+	                            const MOperand* s);
 	std::list<std::string> mathRRInst(const Register* to, const Register* l, const Register* r, Instruction::OpID op,
 	                                  int len);
 	std::list<std::string> fsub(const Register* to, const Register* l, const Register* r);
@@ -97,9 +101,11 @@ class CodeGen
 	static std::string immediate(long long i);
 	static std::string immediate(unsigned short i);
 	static std::string immediate(unsigned i);
+	static std::string fimmediate(unsigned i);
 	static std::string immediate(float i);
 	static std::string poolImmediate(int i);
 	[[nodiscard]] Register* floatRegister(int i) const;
+	static void decideCond(MInstruction* instruction, int cond);
 	static std::string poolImmediate(unsigned i);
 	static std::string poolImmediate(long long i);
 	[[nodiscard]] Register* zeroRegister() const;
@@ -119,16 +125,19 @@ class CodeGen
 	static bool canLSInOneSPMove(const std::vector<std::pair<Register*, int>>& offsets);
 	int frameOffset(const FrameIndex* index, bool isStore, std::list<std::string>& appendSlot);
 	[[nodiscard]] Register* sp() const;
+	const MOperand* opbuffer[2] = {};
 	bool ipcd_[2] = {};
 	bool fipcd_[2] = {};
 	Register* getIP();
 	Register* getIPOfType(bool flt);
 	Register* getFIP();
 	void releaseIP(const Register* r);
+	void setBuf(int id, const MOperand* op);
+	const MOperand* getBuf(int id) const;
+	void releaseBuf(int id);
 
 public:
 	CodeGen(MModule* m);
 	void run();
 	[[nodiscard]] std::string print() const;
 };
-

@@ -1,6 +1,7 @@
 #include "DynamicBitset.hpp"
 #include "Type.hpp"
 #include "CountLZ.hpp"
+#include <cstring>
 
 using namespace std;
 

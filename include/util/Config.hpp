@@ -17,3 +17,5 @@ extern int alignTo16NeedBytes;
 extern int maxCopyInstCountToInlineMemcpy;
 extern int maxCopyInstCountToInlineMemclr;
 extern bool use64BitsMathOperationInPointerOp;
+extern bool useZRRegisterAsCommonRegister;
+extern bool graphColoringWeakNodeCheck;

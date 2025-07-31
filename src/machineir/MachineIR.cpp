@@ -24,6 +24,8 @@ MFunction::~MFunction()
 	for (auto [i, j] : ba_cache_) delete j;
 	for (auto i : stack_) delete i;
 	for (auto i : fix_) delete i;
+	for (auto i : virtual_iregs_) delete i;
+	for (auto i : virtual_fregs_) delete i;
 }
 
 MFunction::MFunction(std::string name, MModule* module)
@@ -61,11 +63,12 @@ FrameIndex* MFunction::getFix(int idx) const
 	return fix_[idx];
 }
 
-FrameIndex* MFunction::allocaFix(Value* value)
+FrameIndex* MFunction::allocaFix(const Value* value)
 {
-	auto a = dynamic_cast<AllocaInst*>(value);
-	auto ty = a->get_alloca_type();
-	size_t size = ty->sizeInBitsInArm64();
+	auto arg = dynamic_cast<const Argument*>(value);
+	assert(arg);
+	assert(arg->get_parent()->get_name() == name());
+	size_t size = value->get_type()->sizeInBitsInArm64();
 	FrameIndex* index = new FrameIndex{this, static_cast<unsigned int>(fix_.size()), size, false};
 	fix_.emplace_back(index);
 	return index;
@@ -98,7 +101,8 @@ void MFunction::preprocess(Function* function)
 	}
 }
 
-void MFunction::accept(Function* function, std::map<Function*, MFunction*>& funcMap, std::map<GlobalVariable*, GlobalAddress*>& global_address)
+void MFunction::accept(Function* function, std::map<Function*, MFunction*>& funcMap,
+                       std::map<GlobalVariable*, GlobalAddress*>& global_address)
 {
 	const auto& bbs = function->get_basic_blocks();
 	std::map<BasicBlock*, MBasicBlock*> cache;
@@ -144,8 +148,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 			{
 				auto cp = new MCopy{
 					entryMBB, Register::getIParameterRegister(ic, module_),
-					VirtualRegister::createVirtualIRegister(
-						this, static_cast<short>(argC.get_type()->sizeInBitsInArm64())),
+					getOperandFor(argv, opMap),
 					argC.get_type()->sizeInBitsInArm64()
 				};
 				entryMBB->instructions_.emplace_back(cp);
@@ -159,8 +162,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 			{
 				auto cp = new MCopy{
 					entryMBB, Register::getFParameterRegister(fc, module_),
-					VirtualRegister::createVirtualFRegister(
-						this, static_cast<short>(argC.get_type()->sizeInBitsInArm64())),
+					getOperandFor(argv, opMap),
 					argC.get_type()->sizeInBitsInArm64()
 				};
 				entryMBB->instructions_.emplace_back(cp);
@@ -172,8 +174,9 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 		auto vr = dynamic_cast<VirtualRegister*>(val);
 		assert(vr != nullptr);
 		auto frameIdx = getFix(idx++);
+		assert(this == frameIdx->func());
 		vr->replacePrefer_ = frameIdx;
-		auto cp = new MCopy{entryMBB, frameIdx, val, argC.get_type()->sizeInBitsInArm64()};
+		auto cp = new MLDR{entryMBB, val, frameIdx, argC.get_type()->sizeInBitsInArm64()};
 		entryMBB->instructions_.emplace_back(cp);
 	}
 	LoopDetection detection{function->get_parent()};
@@ -276,7 +279,13 @@ MOperand* MFunction::getOperandFor(Value* value, std::map<Value*, MOperand*>& op
 void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 {
 	vreg->spilled = true;
+	FrameIndex* paraStack = nullptr;
 	if (vreg->replacePrefer_ != nullptr)
+	{
+		paraStack = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
+		if (paraStack != nullptr && !paraStack->isParameterFrame()) paraStack = nullptr;
+	}
+	if (vreg->replacePrefer_ != nullptr && paraStack == nullptr)
 	{
 		auto entry = blocks_[0];
 		auto& inst = entry->instructions();
@@ -295,8 +304,39 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 		replaceAllOperands(vreg, vreg->replacePrefer_);
 		return;
 	}
-	auto to = allocaStack(vreg->size());
-	to->spilledFrame_ = true;
+	if (paraStack)
+	{
+		MLDR* u = nullptr;
+		for (auto use : useList()[paraStack])
+		{
+			if (auto inst = dynamic_cast<MLDR*>(use))
+			{
+				u = inst;
+				break;
+			}
+		}
+		assert(u != nullptr);
+		auto& insts = u->block()->instructions();
+		for (int i = 0, size = static_cast<int>(insts.size()); i < size; i++)
+		{
+			if (insts[i] == u)
+			{
+				assert(u->operands()[0] == vreg && u->operands()[1] ==
+					paraStack);
+				insts.erase(insts.begin() + i);
+				removeUse(vreg, u);
+				removeUse(paraStack, u);
+				delete u;
+				break;
+			}
+		}
+	}
+	auto to = paraStack;
+	if (to == nullptr)
+	{
+		to = allocaStack(vreg->size());
+		to->spilledFrame_ = true;
+	}
 	VirtualRegister* nreg = vreg;
 	for (auto bb : blocks())
 	{
@@ -414,6 +454,14 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 					b.set(r->isIntegerRegister() ? r->id() : (r->id() + module_->IRegisterCount()));
 				}
 			}
+			if (inst->imp_def().empty() == false)
+			{
+				Register* r = inst->imp_def(0);
+				if (r->calleeSave_)
+				{
+					b.set(r->isIntegerRegister() ? r->id() : (r->id() + module_->IRegisterCount()));
+				}
+			}
 		}
 	}
 	int ic = static_cast<int>(module()->IRegisterCount());
@@ -430,6 +478,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	for (auto it = fix_.rbegin(), e = fix_.rend(); it != e; ++it)
 	{
 		auto i = *it;
+		assert((i->size() & 31) == 0);
 		int s = static_cast<int>(i->size()) >> 3;
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
@@ -560,7 +609,7 @@ MModule::MModule()
 	iregs_.emplace_back(r);
 	r = new Register{29, true, "XZR", "WZR"};
 	iregs_.emplace_back(r);
-	r = new Register{30, true, "SP", "SP"};
+	r = new Register{30, true, "SP", ""};
 	iregs_.emplace_back(r);
 	r = new Register{31, true, "NZCV", "NZCV"};
 	iregs_.emplace_back(r);
@@ -592,14 +641,13 @@ MModule::MModule()
 	}
 	memcpy_ = MFunction::createFunc("__memcpy__", this);
 	memcpy_->destroyRegs_ = DynamicBitset{RegisterCount()};
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 2; i++)
 		memcpy_->destroyRegs_.set(i);
 	for (int i = 0; i < 4; i++)
 		memcpy_->destroyRegs_.set(i + IRegisterCount());
 	memclr_ = MFunction::createFunc("__memclr__", this);
 	memclr_->destroyRegs_ = DynamicBitset{RegisterCount()};
-	for (int i = 0; i < 3; i++)
-		memclr_->destroyRegs_.set(i);
+	memclr_->destroyRegs_.set(0);
 	for (int i = 0; i < 4; i++)
 		memclr_->destroyRegs_.set(i + IRegisterCount());
 }
@@ -640,7 +688,7 @@ void MModule::accept(Module* module)
 	for (auto& [bb, mbb] : cache)
 	{
 		if (bb->is_lib_) continue;
-		mbb->accept(bb, cache,global_address);
+		mbb->accept(bb, cache, global_address);
 	}
 }
 
@@ -680,12 +728,12 @@ const std::vector<Register*>& MModule::FRegs() const
 	return fregs_;
 }
 
-const std::vector<VirtualRegister*>& MModule::IVRegs() const
+const std::vector<VirtualRegister*>& MFunction::IVRegs() const
 {
 	return virtual_iregs_;
 }
 
-const std::vector<VirtualRegister*>& MModule::FVRegs() const
+const std::vector<VirtualRegister*>& MFunction::FVRegs() const
 {
 	return virtual_fregs_;
 }
@@ -715,24 +763,24 @@ std::vector<GlobalAddress*> MModule::ncZeroGlobalAddresses() const
 	vector<GlobalAddress*> v;
 	for (auto i : globals_)
 	{
-		if (!i->const_ && i->data_->segmentCount() > 1 && i->data_->segmentIsDefault(0)) v.emplace_back(i);
+		if (!i->const_ && i->data_->segmentCount() == 1 && i->data_->segmentIsDefault(0)) v.emplace_back(i);
 	}
 	return v;
 }
 
 unsigned MFunction::virtualIRegisterCount() const
 {
-	return virtual_iregs_;
+	return static_cast<unsigned>(virtual_iregs_.size());
 }
 
 unsigned MFunction::virtualFRegisterCount() const
 {
-	return virtual_fregs_;
+	return static_cast<unsigned>(virtual_fregs_.size());
 }
 
 unsigned MFunction::virtualRegisterCount() const
 {
-	return virtual_iregs_ + virtual_fregs_;
+	return static_cast<unsigned>(virtual_iregs_.size()) + static_cast<unsigned>(virtual_fregs_.size());
 }
 
 MModule::~MModule()
@@ -741,8 +789,6 @@ MModule::~MModule()
 	for (auto i : allFuncs_) delete i;
 	for (auto [i,j] : func_address_) delete j;
 	for (auto [i, j] : imm_cache_) delete j;
-	for (auto i : virtual_iregs_) delete i;
-	for (auto i : virtual_fregs_) delete i;
 	for (auto i : iregs_) delete i;
 	for (auto i : fregs_) delete i;
 }

@@ -9,6 +9,7 @@
 #include <set>
 #include <vector>
 #include <climits>
+#include <stack>
 
 
 namespace
@@ -513,17 +514,33 @@ void Dominators::create_dom_dfs_order(Function* f)
 	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
 	unsigned int order = 0;
 	auto& od = dom_dfs_order_[f];
-	std::function<void(BasicBlock*)> dfs = [&](BasicBlock* bb)
+	std::stack<BasicBlock*> dfsWorkList;
+	std::stack<bool> dfsVisitList;
+	dfsWorkList.emplace(f->get_entry_block());
+	dfsVisitList.emplace(false);
+
+	dom_tree_L_.clear();
+	while (!dfsWorkList.empty())
 	{
+		if (dfsVisitList.top())
+		{
+			dfsVisitList.pop();
+			auto bb = dfsWorkList.top();
+			dfsWorkList.pop();
+			dom_tree_R_[bb] = order;
+			continue;
+		}
+		dfsVisitList.top() = true;
+		auto bb = dfsWorkList.top();
+		assert(!dom_tree_L_.count(bb));
 		dom_tree_L_[bb] = ++order;
 		od.emplace_back(bb);
-		for (auto& succ : dom_tree_succ_blocks_[bb])
+		for (auto i : dom_tree_succ_blocks_[bb])
 		{
-			dfs(succ);
+			dfsWorkList.emplace(i);
+			dfsVisitList.emplace(false);
 		}
-		dom_tree_R_[bb] = order;
-	};
-	dfs(f->get_entry_block());
+	}
 	dom_post_order_[f] = std::vector(od.rbegin(),
 	                                 od.rend());
 }

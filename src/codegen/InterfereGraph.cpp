@@ -2,6 +2,9 @@
 
 #include <cassert>
 #include <unordered_set>
+#include <climits>
+#include <cfloat>
+#include <string>
 
 #include "Config.hpp"
 #include "GraphColoring.hpp"
@@ -13,53 +16,11 @@
 #define DEBUG 0
 #include <algorithm>
 
+#include "Type.hpp"
 #include "Util.hpp"
 
 namespace
 {
-	// 不负责删除
-	void addNode(MoveInstNode* parent, MoveInstNode* target)
-	{
-		assert(target->parent_ == nullptr); // 不负责删除
-		target->parent_ = parent;
-		target->next_ = parent;
-		target->pre_ = parent->pre_;
-		target->pre_->next_ = target;
-		target->next_->pre_ = target;
-	}
-
-	// 不负责删除
-	void addNode(InterfereGraphNode* parent, InterfereGraphNode* target)
-	{
-		assert(target->parent_ == nullptr); // 不负责删除
-		target->parent_ = parent;
-		target->next_ = parent;
-		target->pre_ = parent->pre_;
-		target->pre_->next_ = target;
-		target->next_->pre_ = target;
-	}
-
-	void takeNode(const InterfereGraphNode* parent, InterfereGraphNode* target)
-	{
-		assert(target->parent_ == parent || (target->parent_ == nullptr && target->reg_->isPhysicalRegister()));
-		if (target->parent_ == nullptr)
-		{
-			LOG(color::red("empty remove of ") + target->reg_->print());
-			return;
-		}
-		target->parent_ = nullptr;
-		target->pre_->next_ = target->next_;
-		target->next_->pre_ = target->pre_;
-	}
-
-	void takeNode(const MoveInstNode* parent, MoveInstNode* target)
-	{
-		assert(target->parent_ == parent);
-		target->parent_ = nullptr;
-		target->pre_->next_ = target->next_;
-		target->next_->pre_ = target->pre_;
-	}
-
 	InterfereGraphNode* makeInterfereGraphNode()
 	{
 		auto n = new InterfereGraphNode{};
@@ -77,34 +38,133 @@ namespace
 		n->next_ = n;
 		return n;
 	}
-
-	void resetNode(InterfereGraphNode* node)
-	{
-		node->pre_ = node;
-		node->next_ = node;
-	}
-
-	void resetNode(MoveInstNode* node)
-	{
-		node->pre_ = node;
-		node->next_ = node;
-	}
 }
 
-InterfereGraph::InterfereGraph(GraphColorSolver* parent) : parent_(parent)
+InterfereGraph::InterfereGraph(GraphColorSolver* parent) : parent_(parent), worklistMoves_(), activeMoves_(),
+                                                           coalescedMoves_(),
+                                                           constrainedMoves_(),
+                                                           frozenMoves_(),
+                                                           initial_(),
+                                                           spillWorklist_(),
+                                                           freezeWorklist_(),
+                                                           simplifyWorklist_(),
+                                                           coalescedNodes_(),
+                                                           selectStack_(),
+                                                           spilledNode_()
 {
-	worklistMoves_ = makeMoveInstNode();
-	activeMoves_ = makeMoveInstNode();
-	coalescedMoves_ = makeMoveInstNode();
-	constrainedMoves_ = makeMoveInstNode();
-	frozenMoves_ = makeMoveInstNode();
-	initial_ = makeInterfereGraphNode();
-	spillWorklist_ = makeInterfereGraphNode();
-	freezeWorklist_ = makeInterfereGraphNode();
-	simplifyWorklist_ = makeInterfereGraphNode();
-	coalescedNodes_ = makeInterfereGraphNode();
-	selectStack_ = makeInterfereGraphNode();
-	spilledNode_ = makeInterfereGraphNode();
+}
+
+void InterfereGraphNode::add(InterfereGraphNode* target)
+{
+	if (graphColoringWeakNodeCheck && target->parent_ == this)
+	{
+		LOG(color::red("duplicate add of ") + target->reg_->print());
+		return;
+	}
+	assert(target->parent_ == nullptr); // 不负责删除
+	target->parent_ = this;
+	target->next_ = this;
+	target->pre_ = pre_;
+	target->pre_->next_ = target;
+	target->next_->pre_ = target;
+}
+
+void InterfereGraphNode::remove(InterfereGraphNode* target) const
+{
+	if (graphColoringWeakNodeCheck)
+	{
+		if (target->parent_ == this || (target->parent_ == nullptr && target->reg_->isPhysicalRegister()))
+		{
+			if (target->parent_ == nullptr)
+			{
+				LOG(color::red("empty remove of ") + target->reg_->print());
+				return;
+			}
+			target->parent_ = nullptr;
+			target->pre_->next_ = target->next_;
+			target->next_->pre_ = target->pre_;
+			return;
+		}
+	}
+	assert(target->parent_ == this);
+	target->parent_ = nullptr;
+	target->pre_->next_ = target->next_;
+	target->next_->pre_ = target->pre_;
+}
+
+void InterfereGraphNode::clear()
+{
+	pre_ = this;
+	next_ = this;
+}
+
+bool InterfereGraphNode::contain(const InterfereGraphNode* target) const
+{
+	return target->parent_ == this;
+}
+
+bool InterfereGraphNode::preColored() const
+{
+	return reg_->isPhysicalRegister();
+}
+
+bool InterfereGraphNode::empty() const
+{
+	return next_ == this;
+}
+
+InterfereGraphNode* InterfereGraphNode::top() const
+{
+	assert(next_ != this);
+	return pre_;
+}
+
+InterfereGraphNode* InterfereGraphNode::alias()
+{
+	if (alias_ == nullptr) return this;
+	auto a = alias_->alias();
+	alias_ = a;
+	return a;
+}
+
+void MoveInstNode::add(MoveInstNode* target)
+{
+	assert(target->parent_ == nullptr); // 不负责删除
+	target->parent_ = this;
+	target->next_ = this;
+	target->pre_ = pre_;
+	target->pre_->next_ = target;
+	target->next_->pre_ = target;
+}
+
+void MoveInstNode::remove(MoveInstNode* target) const
+{
+	assert(target->parent_ == this);
+	target->parent_ = nullptr;
+	target->pre_->next_ = target->next_;
+	target->next_->pre_ = target->pre_;
+}
+
+void MoveInstNode::clear()
+{
+	pre_ = this;
+	next_ = this;
+}
+
+bool MoveInstNode::contain(const MoveInstNode* target) const
+{
+	return target->parent_ == this;
+}
+
+bool MoveInstNode::empty() const
+{
+	return next_ == this;
+}
+
+MoveInstNode* MoveInstNode::top() const
+{
+	assert(next_ != this);
+	return pre_;
 }
 
 InterfereGraphNode* InterfereGraph::getOrCreateRegNode(RegisterLike* reg)
@@ -123,7 +183,10 @@ MoveInstNode* InterfereGraph::getOrCreateMoveNode(MCopy* reg)
 	auto g = moveNodes_[reg];
 	if (g == nullptr)
 	{
-		g = new MoveInstNode{nullptr, nullptr, nullptr, reg};
+		g = new MoveInstNode{
+			nullptr, nullptr, nullptr, getOrCreateRegNode(dynamic_cast<RegisterLike*>(reg->def(0))),
+			getOrCreateRegNode(dynamic_cast<RegisterLike*>(reg->use(0)))
+		};
 		moveNodes_[reg] = g;
 	}
 	return g;
@@ -137,7 +200,7 @@ void InterfereGraph::addEdge(unsigned i, unsigned j)
 		adjSet_.set(j, i);
 		auto ri = parent_->live_message()->getReg(static_cast<int>(i));
 		auto rj = parent_->live_message()->getReg(static_cast<int>(j));
-		LOG(color::green("addEdge + ") + ri->print() + " " + rj->print());
+		LOG(color::green("addEdge ") + ri->print() + " " + rj->print());
 		auto vri = getOrCreateRegNode(ri);
 		auto vrj = getOrCreateRegNode(rj);
 		if (ri->isVirtualRegister())
@@ -153,162 +216,192 @@ void InterfereGraph::addEdge(unsigned i, unsigned j)
 	}
 }
 
+void InterfereGraph::combineAddEdge(unsigned i, unsigned noAdd)
+{
+	if (i != noAdd && !adjSet_.test(i, noAdd))
+	{
+		adjSet_.set(i, noAdd);
+		adjSet_.set(noAdd, i);
+		auto ri = parent_->live_message()->getReg(static_cast<int>(i));
+		auto rj = parent_->live_message()->getReg(static_cast<int>(noAdd));
+		LOG(color::green("addEdge ") + ri->print() + " " + rj->print());
+		auto vri = getOrCreateRegNode(ri);
+		auto vrj = getOrCreateRegNode(rj);
+		if (ri->isVirtualRegister())
+		{
+			vri->adjList_.emplace_back(vrj);
+			vri->degree_++;
+		}
+		if (rj->isVirtualRegister())
+		{
+			vrj->adjList_.emplace_back(vri);
+		}
+	}
+}
+
 bool InterfereGraph::moveRelated(const InterfereGraphNode* node) const
 {
 	for (auto i : node->moveList_)
-		if (i->parent_ == worklistMoves_ || i->parent_ == activeMoves_) return true;
+		if (worklistMoves_.contain(i) || activeMoves_.contain(i)) return true;
 	return false;
 }
 
-void InterfereGraph::decrementDegree(InterfereGraphNode* node) const
+void InterfereGraph::decrementDegree(InterfereGraphNode* node)
 {
 	LOG(color::green("decrementDegree " ) + node->reg_->print());
 	PUSH;
 	auto d = node->degree_;
 	node->degree_--;
+	// 从高度数到低度数
 	if (d == K_)
 	{
 		enableMoves(node);
+		// 与其相邻的节点的传送指令都有可能会可合并, 需要重新计算
 		for (auto m : node->adjList_)
-		{
-			if (m->parent_ == selectStack_ || m->parent_ == coalescedNodes_) continue;
-			assert(m != node);
-			enableMoves(m);
-		}
+			if (inGraph(m)) enableMoves(m);
 		LOG(color::pink("spillWorklist_ - ") + node->reg_->print());
-		takeNode(spillWorklist_, node);
+		// 从高度数节点表移除节点
+		spillWorklist_.remove(node);
 		if (moveRelated(node))
 		{
 			LOG(color::pink("freezeWorklist_ + ") + node->reg_->print());
-			addNode(freezeWorklist_, node);
+			freezeWorklist_.add(node);
 		}
 		else
 		{
 			LOG(color::pink("simplifyWorklist_ + ") + node->reg_->print());
-			addNode(simplifyWorklist_, node);
+			simplifyWorklist_.add(node);
 		}
 	}
 	POP;
 }
 
-InterfereGraphNode* InterfereGraph::getAlias(InterfereGraphNode* node)
+void InterfereGraph::addWorkList(InterfereGraphNode* node)
 {
-	if (node->parent_ == coalescedNodes_)
-	{
-		auto ret = getAlias(node->alias_);
-		node->alias_ = ret;
-		return ret;
-	}
-	return node;
-}
-
-void InterfereGraph::addWorkList(InterfereGraphNode* node) const
-{
-	if (node->degree_ < K_ && !node->reg_->isPhysicalRegister() && !moveRelated(node))
+	if (node->degree_ < K_ && !node->preColored() && !moveRelated(node))
 	{
 		LOG(color::green("addWorkList ") + node->reg_->print());
 		PUSH;
 		LOG(color::pink("freezeWorklist_ - ") + node->reg_->print());
-		takeNode(freezeWorklist_, node);
+		freezeWorklist_.remove(node);
 		LOG(color::pink("simplifyWorklist_ + ") + node->reg_->print());
-		addNode(simplifyWorklist_, node);
+		simplifyWorklist_.add(node);
 		POP;
 	}
 }
 
-bool InterfereGraph::ok(const InterfereGraphNode* t, const InterfereGraphNode* u) const
-{
-	return t->degree_ < K_ || t->reg_->isPhysicalRegister() || adjSet_.test(
-		       parent_->live_message()->regIdOf(t->reg_), parent_->live_message()->regIdOf(u->reg_)
-	       );
-}
 
-bool InterfereGraph::allOk(const InterfereGraphNode* u, const InterfereGraphNode* v) const
+bool InterfereGraph::GeorgeTest(const InterfereGraphNode* virtualReg, const InterfereGraphNode* physicReg) const
 {
-	for (auto t : v->adjList_)
+	for (auto t : virtualReg->adjList_)
 	{
-		if (t->parent_ == selectStack_ || t->parent_ == coalescedNodes_) continue;
-		if (!ok(t, u)) return false;
+		if (inGraph(t) && t->degree_ >= K_ && !t->preColored() && !adj(t, physicReg))
+			return false;
 	}
 	return true;
 }
 
-bool InterfereGraph::conservative(const std::vector<InterfereGraphNode*>& nodes,
-                                  const std::vector<InterfereGraphNode*>& nodes2) const
+bool InterfereGraph::BriggsTest(const InterfereGraphNode* l,
+                                const InterfereGraphNode* r) const
 {
 	DynamicBitset bits{parent_->live_message()->regCount()};
-	unsigned k = 0;
-	for (auto n : nodes)
+	int k = 0;
+	for (auto n : l->adjList_)
 	{
-		if (n->parent_ == selectStack_ || n->parent_ == coalescedNodes_) continue;
-		auto id = parent_->live_message()->regIdOf(n->reg_);
-		if (bits.test(id)) continue;
-		bits.set(id);
-		if (n->degree_ >= K_) k++;
+		if (inGraph(n))
+		{
+			if (auto id = regIdOf(n); !bits.test(id))
+			{
+				bits.set(id);
+				if (n->degree_ >= K_ || n->preColored()) k++;
+			}
+		}
 	}
-	for (auto n : nodes2)
+	for (auto n : r->adjList_)
 	{
-		if (n->parent_ == selectStack_ || n->parent_ == coalescedNodes_) continue;
-		auto id = parent_->live_message()->regIdOf(n->reg_);
-		if (bits.test(id)) continue;
-		bits.set(id);
-		if (n->degree_ >= K_) k++;
+		if (inGraph(n))
+		{
+			if (auto id = regIdOf(n); !bits.test(id))
+			{
+				bits.set(id);
+				if (n->degree_ >= K_ || n->preColored()) k++;
+			}
+		}
 	}
 	return k < K_;
+}
+
+bool InterfereGraph::isCareCopy(MInstruction* inst) const
+{
+	auto cp = dynamic_cast<MCopy*>(inst);
+	if (cp == nullptr) return false;
+	auto l = cp->def(0);
+	auto r = cp->use(0);
+	auto msg = parent_->live_message();
+	if (!msg->care(l) || !msg->care(r)) return false;
+	auto regl = dynamic_cast<VirtualRegister*>(l);
+	auto regr = dynamic_cast<VirtualRegister*>(r);
+	return regl || regr;
 }
 
 void InterfereGraph::combine(InterfereGraphNode* u, InterfereGraphNode* v)
 {
 	LOG(color::green("combine ") + u->reg_->print() + " " + v->reg_->print());
 	PUSH;
-	if (v->parent_ == freezeWorklist_)
+	// 不可能是传送无关节点
+	if (freezeWorklist_.contain(v))
 	{
 		LOG(color::pink("freezeWorklist_ - ") + v->reg_->print());
-		takeNode(freezeWorklist_, v);
+		freezeWorklist_.remove(v);
 	}
 	else
 	{
 		LOG(color::pink("spillWorklist_ - ") + v->reg_->print());
-		takeNode(spillWorklist_, v);
+		spillWorklist_.remove(v);
 	}
 	LOG(color::pink("coalescedNodes_ + ") + v->reg_->print());
-	addNode(coalescedNodes_, v);
+	coalescedNodes_.add(v);
+	assert(v == v->alias());
 	v->alias_ = u;
+	// 合并传送指令关联
 	std::unordered_set<MoveInstNode*> g;
 	for (auto i : u->moveList_) g.emplace(i);
 	for (auto i : v->moveList_) if (g.count(i) == 0) u->moveList_.emplace_back(i);
 	enableMoves(v);
+	// 合并冲突关系
 	for (auto t : v->adjList_)
 	{
-		if (t->parent_ == selectStack_ || t->parent_ == coalescedNodes_) continue;
-		addEdge(idOf(t), idOf(u));
-		decrementDegree(t);
+		if (inGraph(t))
+		{
+			combineAddEdge(regIdOf(u), regIdOf(t));
+			// addEdge + decrementDegree(t);
+		}
 	}
-	if (u->degree_ >= K_ && u->parent_ == freezeWorklist_)
+	if (u->degree_ >= K_ && freezeWorklist_.contain(u))
 	{
 		LOG(color::pink("freezeWorklist_ - ") + u->reg_->print());
-		takeNode(freezeWorklist_, u);
+		freezeWorklist_.remove(u);
 		LOG(color::pink("spillWorklist_ + ") + u->reg_->print());
-		addNode(spillWorklist_, u);
+		spillWorklist_.add(u);
 	}
 	POP;
 }
 
-void InterfereGraph::enableMoves(const InterfereGraphNode* u) const
+int InterfereGraph::regIdOf(const InterfereGraphNode* n) const
+{
+	return parent_->live_message()->regIdOf(n->reg_);
+}
+
+void InterfereGraph::enableMoves(const InterfereGraphNode* u)
 {
 	for (auto n : u->moveList_)
 	{
-		if (n->parent_ == activeMoves_)
+		if (activeMoves_.contain(n))
 		{
-			takeNode(activeMoves_, n);
-			addNode(worklistMoves_, n);
+			activeMoves_.remove(n);
+			worklistMoves_.add(n);
 		}
 	}
-}
-
-int InterfereGraph::idOf(const InterfereGraphNode* n) const
-{
-	return parent_->live_message()->regIdOf(n->reg_);
 }
 
 void InterfereGraph::freezeMove(InterfereGraphNode* u)
@@ -317,134 +410,122 @@ void InterfereGraph::freezeMove(InterfereGraphNode* u)
 	PUSH;
 	for (auto m : u->moveList_)
 	{
-		if (!nodeMoveInMoveList(m))continue;
-		InterfereGraphNode* v;
-		auto y = yOf(m);
-		if (getAlias(y) == getAlias(u))
-			v = getAlias(xOf(m));
-		else v = getAlias(y);
-		takeNode(activeMoves_, m);
-		addNode(frozenMoves_, m);
-		if (v->degree_ < K_ && emptyNodeMove(v))
+		if (inGraph(m))
 		{
-			LOG(color::pink("freezeWorklist_ - ") + v->reg_->print());
-			takeNode(freezeWorklist_, v);
-			LOG(color::pink("simplifyWorklist_ + ") + v->reg_->print());
-			addNode(simplifyWorklist_, v);
+			// 传送指令的另一端的节点
+			InterfereGraphNode* v;
+			auto y = m->fromY_;
+			if (y->alias() == u->alias())
+				v = m->toX_->alias();
+			else v = y->alias();
+			activeMoves_.remove(m);
+			frozenMoves_.add(m);
+			if (v->degree_ < K_ && !moveRelated(v))
+			{
+				LOG(color::pink("freezeWorklist_ - ") + v->reg_->print());
+				freezeWorklist_.remove(v);
+				LOG(color::pink("simplifyWorklist_ + ") + v->reg_->print());
+				simplifyWorklist_.add(v);
+			}
 		}
 	}
 	POP;
 }
 
-bool InterfereGraph::nodeMoveInMoveList(const MoveInstNode* n) const
+bool InterfereGraph::inGraph(const MoveInstNode* n) const
 {
-	return n->parent_ == activeMoves_ || n->parent_ == worklistMoves_;
+	return activeMoves_.contain(n) || worklistMoves_.contain(n);
 }
 
-bool InterfereGraph::emptyNodeMove(const InterfereGraphNode* n) const
+bool InterfereGraph::inGraph(const InterfereGraphNode* n) const
 {
-	for (auto i : n->moveList_) if (nodeMoveInMoveList(i)) return false;
-	return true;
+	return !coalescedNodes_.contain(n) && !selectStack_.contain(n);
 }
 
-InterfereGraphNode* InterfereGraph::xOf(const MoveInstNode* m)
+bool InterfereGraph::adj(const InterfereGraphNode* l, const InterfereGraphNode* r) const
 {
-	auto inst = m->inst_;
-	return getOrCreateRegNode(dynamic_cast<RegisterLike*>(inst->def(0)));
-}
-
-InterfereGraphNode* InterfereGraph::yOf(const MoveInstNode* m)
-{
-	auto inst = m->inst_;
-	return getOrCreateRegNode(dynamic_cast<RegisterLike*>(inst->use(0)));
+	auto msg = parent_->live_message();
+	return adjSet_.test(msg->regIdOf(l->reg_), msg->regIdOf(r->reg_));
 }
 
 InterfereGraph::~InterfereGraph()
 {
 	for (auto& [i, j] : regNodes_) delete j;
 	for (auto& [i, j] : moveNodes_) delete j;
-	delete worklistMoves_;
-	delete activeMoves_;
-	delete coalescedMoves_;
-	delete constrainedMoves_;
-	delete frozenMoves_;
-	delete initial_;
-	delete spillWorklist_;
-	delete freezeWorklist_;
-	delete simplifyWorklist_;
-	delete coalescedNodes_;
-	delete selectStack_;
-	delete spilledNode_;
 }
 
 bool InterfereGraph::shouldRepeat() const
 {
-	return simplifyWorklist_->next_ != simplifyWorklist_ || worklistMoves_->next_ != worklistMoves_
-	       || freezeWorklist_->next_ != freezeWorklist_ || spillWorklist_->next_ != spillWorklist_;
+	return !simplifyWorklist_.empty() || !worklistMoves_.empty()
+	       || !freezeWorklist_.empty() || !spillWorklist_.empty();
 }
 
-bool InterfereGraph::simplify() const
+bool InterfereGraph::simplify()
 {
-	if (simplifyWorklist_->next_ == simplifyWorklist_) return false;
+	if (simplifyWorklist_.empty()) return false;
 	LOG(color::cyan("simplify"));
 	PUSH;
-	auto n = simplifyWorklist_->next_;
+	auto n = simplifyWorklist_.top();
+	assert(!moveRelated(n));
 	LOG(color::pink("simplifyWorklist_ - ") + n->reg_->print());
-	takeNode(simplifyWorklist_, n);
+	simplifyWorklist_.remove(n);
 	LOG(color::pink("selectStack_ + ") + n->reg_->print());
-	addNode(selectStack_, n);
+	// 简化, 入栈
+	selectStack_.add(n);
+	// 减少相邻节点的边数量
 	for (auto adj : n->adjList_)
-		if (adj->parent_ != selectStack_ && adj->parent_ != coalescedNodes_)
-			decrementDegree(adj);
+		if (inGraph(adj) && !adj->preColored()) decrementDegree(adj);
+	//  if (inGraph(adj)) decrementDegree(adj);
 	POP;
 	return true;
 }
 
 bool InterfereGraph::coalesce()
 {
-	if (worklistMoves_->next_ == worklistMoves_)
-		return false;
+	if (worklistMoves_.empty()) return false;
 	LOG(color::cyan("coalesce"));
 	PUSH;
-	auto m = worklistMoves_->next_;
-	auto x = xOf(m);
-	auto y = yOf(m);
-	x = getAlias(x);
-	y = getAlias(y);
-	if (y->reg_->isPhysicalRegister())
+	auto m = worklistMoves_.top();
+	// 如果源属于物理寄存器, 则是源, 否则是目标
+	auto x = m->toX_->alias();
+	// 如果源属于物理寄存器, 则是目标, 否则是源
+	auto y = m->fromY_->alias();
+	if (y->preColored())
 	{
 		auto y2 = y;
 		y = x;
 		x = y2;
 	}
-	auto rx = x->reg_;
-	auto ry = y->reg_;
-	takeNode(worklistMoves_, m);
+	worklistMoves_.remove(m);
 	if (x == y)
 	{
-		addNode(coalescedMoves_, m);
+		// 传送指令有相同操作数, 直接合并
+		coalescedMoves_.add(m);
+		// 尝试转移到简化
 		addWorkList(x);
 	}
 	else
 	{
-		auto idx = parent_->live_message()->regIdOf(rx);
-		auto idy = parent_->live_message()->regIdOf(ry);
-		if (ry->isPhysicalRegister() || adjSet_.test(idx, idy))
+		// 二者都是物理寄存器或者二者冲突
+		if (y->preColored() || adj(x, y))
 		{
-			addNode(constrainedMoves_, m);
+			// 冲突, 无法合并
+			constrainedMoves_.add(m);
 			addWorkList(x);
 			addWorkList(y);
 		}
-		else if ((rx->isPhysicalRegister() && allOk(x, y)) || (
-			         rx->isVirtualRegister() && conservative(x->adjList_, y->adjList_)))
+		else if ((x->preColored() && GeorgeTest(x, y)) || (
+			         !x->preColored() && BriggsTest(x, y)))
 		{
-			addNode(coalescedMoves_, m);
+			// 进行合并
+			coalescedMoves_.add(m);
 			combine(x, y);
 			addWorkList(x);
 		}
 		else
 		{
-			addNode(activeMoves_, m);
+			// 不满足合并要求
+			activeMoves_.add(m);
 		}
 	}
 	POP;
@@ -453,14 +534,14 @@ bool InterfereGraph::coalesce()
 
 bool InterfereGraph::freeze()
 {
-	if (freezeWorklist_->next_ == freezeWorklist_) return false;
+	if (freezeWorklist_.empty()) return false;
 	LOG(color::cyan("freeze"));
 	PUSH;
-	auto u = freezeWorklist_->next_;
+	auto u = freezeWorklist_.top();
 	LOG(color::pink("freezeWorklist_ - ") + u->reg_->print());
-	takeNode(freezeWorklist_, u);
+	freezeWorklist_.remove(u);
 	LOG(color::pink("simplifyWorklist_ + ") + u->reg_->print());
-	addNode(simplifyWorklist_, u);
+	simplifyWorklist_.add(u);
 	freezeMove(u);
 	POP;
 	return true;
@@ -468,17 +549,18 @@ bool InterfereGraph::freeze()
 
 bool InterfereGraph::selectSpill()
 {
-	if (spillWorklist_->next_ == spillWorklist_) return false;
+	if (spillWorklist_.empty()) return false;
 	LOG(color::cyan("selectSpill"));
 	PUSH;
 	float mw = FLT_MAX;
 	InterfereGraphNode* m = nullptr;
-	for (auto node = spillWorklist_->next_; node != spillWorklist_; node = node->next_)
+	for (auto node = spillWorklist_.next_; node != &spillWorklist_; node = node->next_)
 	{
 		float f;
 		auto vreg = dynamic_cast<VirtualRegister*>(node->reg_);
-		if (node->degree_ == 0 || node->reg_->isPhysicalRegister() || vreg->
-		    spilled || vreg->size() == 128)
+		assert(!node->preColored());
+		// 不能溢出无冲突/因为 spill 分配/ 128 位的虚拟寄存器
+		if (node->degree_ == 0 || vreg->spilled || vreg->size() == 128)
 			f = FLT_MAX;
 		else
 		{
@@ -504,9 +586,9 @@ bool InterfereGraph::selectSpill()
 		}
 	}
 	LOG(color::pink("spillWorklist_ - ") + m->reg_->print());
-	takeNode(spillWorklist_, m);
+	spillWorklist_.remove(m);
 	LOG(color::pink("simplifyWorklist_ + ") + m->reg_->print());
-	addNode(simplifyWorklist_, m);
+	simplifyWorklist_.add(m);
 	freezeMove(m);
 	POP;
 	return true;
@@ -527,41 +609,41 @@ void InterfereGraph::assignColors()
 			g->second->color_ = dynamic_cast<Register*>(r);
 		}
 	}
-	while (selectStack_->next_ != selectStack_)
+	while (!selectStack_.empty())
 	{
-		auto n = selectStack_->pre_;
+		auto n = selectStack_.pre_;
 		LOG(color::pink("selectStack_ - ") + n->reg_->print());
-		takeNode(selectStack_, n);
+		selectStack_.remove(n);
 		DynamicBitset oks = mask;
 		for (auto w : n->adjList_)
 		{
-			auto c = getAlias(w)->color_;
+			auto c = w->alias()->color_;
 			if (c != nullptr) oks.reset(message->regIdOf(c));
 		}
 		if (oks.allZeros())
 		{
 			LOG(color::pink("spilledNode_ + ") + n->reg_->print());
-			addNode(spilledNode_, n);
+			spilledNode_.add(n);
 		}
 		else
 			n->color_ = dynamic_cast<Register*>(message->getReg(static_cast<int>(*oks.begin())));
 	}
-	for (auto it = coalescedNodes_->next_; it != coalescedNodes_; it = it->next_)
+	for (auto it = coalescedNodes_.next_; it != &coalescedNodes_; it = it->next_)
 	{
-		it->color_ = getAlias(it)->color_;
+		it->color_ = it->alias()->color_;
 	}
 	POP;
 }
 
 bool InterfereGraph::needRewrite() const
 {
-	return spilledNode_->next_ != spilledNode_;
+	return !spilledNode_.empty();
 }
 
 void InterfereGraph::rewriteProgram() const
 {
 	auto func = parent_->currentFunc();
-	for (auto it = spilledNode_->next_; it != spilledNode_; it = it->next_)
+	for (auto it = spilledNode_.next_; it != &spilledNode_; it = it->next_)
 	{
 		auto reg = dynamic_cast<VirtualRegister*>(it->reg_);
 		func->spill(reg, parent_->live_message());
@@ -605,48 +687,57 @@ void InterfereGraph::build()
 	auto& message = *parent_->live_message();
 	for (auto bb : parent_->currentFunc()->blocks())
 	{
+		// 当前活跃(需要保存)的变量
 		DynamicBitset live = message.live_out()[bb->id()];
 		auto& insts = bb->instructions();
+		// 逆序扫描
 		for (auto iit = insts.rbegin(); iit != insts.rend(); ++iit)
 		{
 			auto inst = *iit;
+			// 计算指令重要性
 			for (auto i : inst->use_)
 			{
-				auto vr = dynamic_cast<VirtualRegister*>(inst->operands_[i]);
-				if (vr != nullptr && message.care(vr))
+				if (message.careVirtual(inst->operand(i)))
 				{
-					getOrCreateRegNode(vr)->weight_ += bb->weight_;
+					getOrCreateRegNode(dynamic_cast<RegisterLike*>(inst->operand(i)))->weight_ += bb->weight_;
 				}
 			}
 			for (auto i : inst->def())
 			{
-				auto vr = dynamic_cast<VirtualRegister*>(inst->operands_[i]);
-				if (vr != nullptr && message.care(vr))
+				if (message.care(inst->operand(i)))
 				{
-					getOrCreateRegNode(vr)->weight_ += bb->weight_;
+					getOrCreateRegNode(dynamic_cast<RegisterLike*>(inst->operand(i)))->weight_ += bb->weight_;
 				}
 			}
+			// 指令所有用到的寄存器
 			auto use = message.translate(inst->operands_, inst->use_) | message.translate(inst->imp_use());
+			// 指令所有定义的寄存器
 			auto def = message.translate(inst->operands_, inst->def_) | message.translate(inst->imp_def());
-			if (auto cp = dynamic_cast<MCopy*>(inst);
-				cp != nullptr && cp->def(0)->isCanAllocateRegister() && cp->use(0)->isCanAllocateRegister())
+			if (isCareCopy(inst))
 			{
-				LOGIF(color::red("Copy Regs"),
-				      ((dynamic_cast<VirtualRegister*> (cp->def(0)) != nullptr) || (dynamic_cast<VirtualRegister*>(cp->
-					      use
-					      (0)) != nullptr)));
-				live -= use;
-				auto ud = use | def;
-				for (auto i : ud)
-					getOrCreateRegNode(message.getReg(static_cast<int>(i)))->moveList_.
-					                                                         emplace_back(getOrCreateMoveNode(cp));
-				addNode(worklistMoves_, getOrCreateMoveNode(cp));
+				auto cp = dynamic_cast<MCopy*>(inst);
+				auto l = dynamic_cast<RegisterLike*>(inst->def(0));
+				auto r = dynamic_cast<RegisterLike*>(inst->use(0));
+				auto cpn = getOrCreateMoveNode(cp);
+				// 传送指令不会制造 def/use 冲突(因为值 def = use)
+				live.reset(message.regIdOf(r));
+				// 构建传送指令
+				getOrCreateRegNode(l)->moveList_.emplace_back(cpn);
+				if (r != l) getOrCreateRegNode(r)->moveList_.emplace_back(cpn);
+				worklistMoves_.add(cpn);
 			}
-			live |= def;
 			for (auto i : def)
+			{
+				// 指令后活跃的节点不能被定义所破坏
 				for (auto j : live)
 					addEdge(static_cast<unsigned>(j), static_cast<unsigned>(i));
+				// 定义的节点必须同时存在, 不能分配到同一寄存器
+				for (auto j : def)
+					addEdge(static_cast<unsigned>(j), static_cast<unsigned>(i));
+			}
+			// 定值在指令前不活跃
 			live -= def;
+			// 使用在指令前活跃
 			live |= use;
 		}
 	}
@@ -661,27 +752,28 @@ void InterfereGraph::flush()
 	for (auto& [i, j] : moveNodes_) delete j;
 	regNodes_.clear();
 	moveNodes_.clear();
-	resetNode(worklistMoves_);
-	resetNode(activeMoves_);
-	resetNode(coalescedMoves_);
-	resetNode(constrainedMoves_);
-	resetNode(frozenMoves_);
-	resetNode(initial_);
-	resetNode(spillWorklist_);
-	resetNode(freezeWorklist_);
-	resetNode(simplifyWorklist_);
-	resetNode(coalescedNodes_);
-	resetNode(selectStack_);
-	resetNode(spilledNode_);
+	worklistMoves_.clear();
+	activeMoves_.clear();
+	coalescedMoves_.clear();
+	constrainedMoves_.clear();
+	frozenMoves_.clear();
+	initial_.clear();
+	spillWorklist_.clear();
+	freezeWorklist_.clear();
+	simplifyWorklist_.clear();
+	coalescedNodes_.clear();
+	selectStack_.clear();
+	spilledNode_.clear();
 	int rc = parent_->live_message()->regCount();
 	K_ = 0;
+	// 初始化
 	for (int i = 0; i < rc; i++)
 	{
 		auto r = parent_->live_message()->getReg(i);
 		if (r->isVirtualRegister())
 		{
 			LOG(color::pink("initial_ + ") + r->print());
-			addNode(initial_, getOrCreateRegNode(r));
+			initial_.add(getOrCreateRegNode(r));
 		}
 		else K_++;
 	}
@@ -689,28 +781,28 @@ void InterfereGraph::flush()
 	POP;
 }
 
-void InterfereGraph::makeWorklist() const
+void InterfereGraph::makeWorklist()
 {
 	LOG(color::cyan("makeWorklist"));
 	PUSH;
-	for (auto it = initial_->next_, itp = it->next_; it != initial_; it = itp, itp = itp->next_)
+	for (auto it = initial_.next_, itp = it->next_; it != &initial_; it = itp, itp = itp->next_)
 	{
 		LOG(color::pink("initial_ - ") + it->reg_->print());
-		takeNode(initial_, it);
+		initial_.remove(it);
 		if (it->degree_ >= K_)
 		{
 			LOG(color::pink("spillWorklist_ + ") + it->reg_->print());
-			addNode(spillWorklist_, it);
+			spillWorklist_.add(it);
 		}
-		else if (moveRelated(it))
+		else if (!it->moveList_.empty()) // 传送指令均未分类
 		{
 			LOG(color::pink("freezeWorklist_ + ") + it->reg_->print());
-			addNode(freezeWorklist_, it);
+			freezeWorklist_.add(it);
 		}
 		else
 		{
 			LOG(color::pink("simplifyWorklist_ + ") + it->reg_->print());
-			addNode(simplifyWorklist_, it);
+			simplifyWorklist_.add(it);
 		}
 	}
 	POP;
@@ -800,10 +892,12 @@ void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiv
 		for (int i = beg; i <= frameCount_; i++)
 		{
 			if (colors1_[indexes1_[i]] != 0)
-			{
 				beg++;
-				continue;
-			}
+			else break;
+		}
+		for (int i = beg; i <= frameCount_; i++)
+		{
+			if (colors1_[indexes1_[i]] != 0) continue;
 			bool ok = true;
 			for (int j = pb; j < i; j++)
 			{
@@ -814,7 +908,9 @@ void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiv
 				}
 			}
 			if (ok)
+			{
 				colors1_[indexes1_[i]] = color;
+			}
 		}
 		color++;
 	}
@@ -832,7 +928,7 @@ void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiv
 		{
 			auto l = frames[frameIds1_[i]];
 			auto r = frames[begin + colors1_[i] - 1];
-			if (l->size() < r->size()) l->set_size(r->size());
+			if (l->size() > r->size()) r->set_size(l->size());
 			replaceMap[l] = r;
 		}
 

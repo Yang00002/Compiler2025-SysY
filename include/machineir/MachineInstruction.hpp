@@ -4,6 +4,7 @@
 #include "Instruction.hpp"
 
 
+class MMSUB;
 class MFunction;
 class VirtualRegister;
 class FuncAddress;
@@ -41,6 +42,10 @@ public:
 	{
 		return operands_;
 	}
+	[[nodiscard]] MOperand* operand(int i) const
+	{
+		return operands_[i];
+	}
 
 	[[nodiscard]] const std::vector<int>& def() const
 	{
@@ -65,6 +70,10 @@ public:
 	[[nodiscard]] std::vector<Register*>& imp_def()
 	{
 		return imp_def_;
+	}
+	[[nodiscard]] Register* imp_def(int i) const
+	{
+		return imp_def_[i];
 	}
 
 	[[nodiscard]] const std::vector<Register*>& imp_use() const
@@ -105,9 +114,9 @@ public:
 
 class MBcc final : public MInstruction
 {
-
 public:
 	Instruction::OpID op_;
+
 	[[nodiscard]] Instruction::OpID op() const
 	{
 		return op_;
@@ -130,6 +139,7 @@ class MMathInst final : public MInstruction
 	unsigned int width_;
 
 public:
+	MMSUB* tiedWith_ = nullptr;
 	[[nodiscard]] Instruction::OpID op() const
 	{
 		return op_;
@@ -147,7 +157,6 @@ public:
 	std::string print() override;
 };
 
-
 class MLDR final : public MInstruction
 {
 	unsigned int width_;
@@ -157,6 +166,7 @@ public:
 	{
 		return width_;
 	}
+
 	explicit MLDR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, unsigned int width);
 	std::string print() override;
 };
@@ -181,6 +191,7 @@ public:
 class MCMP final : public MInstruction
 {
 public:
+	MInstruction* tiedWith_ = nullptr;
 	bool itff_;
 	explicit MCMP(MBasicBlock* block, MOperand* l, MOperand* r, bool itff);
 	std::string print() override;
@@ -199,7 +210,6 @@ public:
 
 class MCSET final : public MInstruction
 {
-
 public:
 	Instruction::OpID op_;
 	explicit MCSET(MBasicBlock* block, Instruction::OpID op, MOperand* t);
@@ -225,16 +235,15 @@ class MLD1V16B final : public MInstruction
 public:
 	int loadCount_;
 	int offset_;
-	bool moveBeforeLd_;
-	explicit MLD1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset, bool moveBefore);
+	explicit MLD1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset);
 	std::string print() override;
 };
 
-class MLD1RV16B final : public MInstruction
+class MST1ZTV16B final : public MInstruction
 {
 public:
 	int loadCount_;
-	explicit MLD1RV16B(MBasicBlock* block, MOperand* stackLike, int count);
+	explicit MST1ZTV16B(MBasicBlock* block, int count);
 	std::string print() override;
 };
 
@@ -243,8 +252,7 @@ class MST1V16B final : public MInstruction
 public:
 	int storeCount_;
 	int offset_;
-	bool moveBeforeSt_;
-	explicit MST1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset, bool moveBefore);
+	explicit MST1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset);
 	std::string print() override;
 };
 
@@ -253,4 +261,15 @@ class MSXTW final : public MInstruction
 public:
 	explicit MSXTW(MBasicBlock* block, MOperand* from, MOperand* to);
 	std::string print() override;
+};
+
+class MMSUB final : public MInstruction
+{
+public:
+	MMathInst* tiedWith_ = nullptr;
+	explicit MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s);
+	std::string print() override;
+	void replace(MOperand* from, MOperand* to, MFunction* parent) override;
+	void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;
+	void stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;
 };

@@ -161,6 +161,12 @@ bool LiveMessage::care(MOperand* op) const
 	return reg != nullptr && reg->canAllocate() && reg->isIntegerRegister() == int_ && regIdOf(reg) != -1;
 }
 
+bool LiveMessage::careVirtual(MOperand* op) const
+{
+	auto reg = dynamic_cast<VirtualRegister*>(op);
+	return reg != nullptr && reg->canAllocate() && reg->isIntegerRegister() == int_ && regIdOf(reg) != -1;
+}
+
 DynamicBitset LiveMessage::translate(const std::vector<MOperand*>& vec, const std::vector<int>& idx) const
 {
 	DynamicBitset ret{static_cast<unsigned>(register_.size())};

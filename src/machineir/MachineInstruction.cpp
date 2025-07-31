@@ -127,6 +127,9 @@ MB::MB(MBasicBlock* block, BlockAddress* t) : MInstruction(block)
 MMathInst::MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r,
                      MOperand* t, unsigned width) : MInstruction(block), op_(op), width_(width)
 {
+	assert(l != nullptr);
+	assert(r != nullptr);
+	assert(t != nullptr);
 	operands_.resize(3);
 	operands_[0] = t;
 	operands_[1] = l;
@@ -319,7 +322,7 @@ MBL::MBL(MBasicBlock* block, FuncAddress* addr, bool cptclf) : MInstruction(bloc
 	operands_.resize(1);
 	operands_[0] = addr;
 	imp_def_.emplace_back(Register::getNZCV(block->module()));
-
+	imp_def_.emplace_back(Register::getLR(block->module()));
 	if (cptclf)
 	{
 		for (int i = 0; i < 3; i++) imp_use_.emplace_back(Register::getIParameterRegister(i, block->module()));
@@ -389,17 +392,16 @@ std::string MSCVTF::print()
 	return operands_[0]->print() + " = SCVTF " + operands_[1]->print();
 }
 
-MLD1V16B::MLD1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset, bool moveBefore): MInstruction(block)
+MLD1V16B::MLD1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset): MInstruction(block)
 {
 	operands_.resize(1 + count);
 	operands_[0] = stackLike;
 	for (int i = 0; i < count; i++) operands_[i + 1] = Register::getFParameterRegister(i, block->module());
 	def_.resize(count);
 	for (int i = 0; i < count; i++) def_[i] = i + 1;
-	if (moveBefore && offset > 0)
+	if (offset > 0)
 	{
 		def_.emplace_back(0);
-		moveBeforeLd_ = moveBefore;
 	}
 	use_.resize(1);
 	use_[0] = 0;
@@ -415,43 +417,39 @@ std::string MLD1V16B::print()
 	if (loadCount_ > 0) ret.pop_back();
 	ret += "}, ";
 	ret += operands_[0]->print() + " #" + to_string(offset_);
-	if (moveBeforeLd_) ret += "!";
 	return ret;
 }
 
-MLD1RV16B::MLD1RV16B(MBasicBlock* block, MOperand* stackLike, int count) : MInstruction(block)
+MST1ZTV16B::MST1ZTV16B(MBasicBlock* block, int count) : MInstruction(block)
 {
-	operands_.resize(1 + count);
-	operands_[0] = stackLike;
-	for (int i = 0; i < count; i++) operands_[i + 1] = Register::getFParameterRegister(i, block->module());
+	operands_.resize(count);
+	for (int i = 0; i < count; i++) operands_[i] = Register::getFParameterRegister(i, block->module());
 	def_.resize(count);
-	for (int i = 0; i < count; i++) def_[i] = i + 1;
-	use_.resize(1);
-	use_[0] = 0;
+	for (int i = 0; i < count; i++) def_[i] = i;
 	loadCount_ = count;
 }
 
-std::string MLD1RV16B::print()
+std::string MST1ZTV16B::print()
 {
-	string ret = "LD1R {";
+	string ret = "EORCLR";
 	for (int i = 0; i < loadCount_; i++)
-		ret += "V" + to_string(i) + ".16B,";
-	if (loadCount_ > 0) ret.pop_back();
-	ret += "}, ";
-	return ret + operands_[0]->print();
+	{
+		ret += " V" + to_string(i) + ".16B,";
+	}
+	ret.pop_back();
+	return ret;
 }
 
-MST1V16B::MST1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset, bool moveBefore) : MInstruction(block)
+MST1V16B::MST1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offset) : MInstruction(block)
 {
 	operands_.resize(1 + count);
 	operands_[0] = stackLike;
 	for (int i = 0; i < count; i++) operands_[i + 1] = Register::getFParameterRegister(i, block->module());
 	use_.resize(count + 1);
 	for (int i = 0; i < count + 1; i++) use_[i] = i;
-	if (moveBefore && offset > 0)
+	if (offset > 0)
 	{
 		def_.emplace_back(0);
-		moveBeforeSt_ = moveBefore;
 	}
 	storeCount_ = count;
 	offset_ = offset;
@@ -465,7 +463,6 @@ std::string MST1V16B::print()
 	if (storeCount_ > 0) ret.pop_back();
 	ret += "}, ";
 	ret += operands_[0]->print() + " #" + to_string(offset_);
-	if (moveBeforeSt_) ret += "!";
 	return ret;
 }
 
@@ -483,4 +480,95 @@ MSXTW::MSXTW(MBasicBlock* block, MOperand* from, MOperand* to) : MInstruction(bl
 std::string MSXTW::print()
 {
 	return operands_[1]->print() + " = SXTW " + operands_[0]->print();
+}
+
+MMSUB::MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s) : MInstruction(block)
+{
+	operands_.resize(4);
+	operands_[0] = t;
+	operands_[1] = l;
+	operands_[2] = r;
+	operands_[3] = s;
+	def_.resize(1);
+	def_[0] = 0;
+	use_.emplace_back(1);
+	if (r != l) use_.emplace_back(2);
+	if (s != r && s != l) use_.emplace_back(3);
+	auto func = block->function();
+	func->addUse(t, this);
+	func->addUse(l, this);
+	func->addUse(r, this);
+	func->addUse(s, this);
+}
+
+std::string MMSUB::print()
+{
+	return operands_[0]->print() + " = MSUB " + operands_[1]->print() + " " + operands_[2]->print() + " " + operands_[3]
+	       ->print();
+}
+
+void MMSUB::replace(MOperand* from, MOperand* to, MFunction* parent)
+{
+	MInstruction::replace(from, to, parent);
+	if (use_.size() == 1) return;
+	if (use_.size() == 2)
+	{
+		if (operands_[0] == operands_[1])
+			use_.pop_back();
+		return;
+	}
+	if (operands_[0] == operands_[1])
+	{
+		use_[1] = use_[2];
+		use_.pop_back();
+		return;
+	}
+	if (operands_[0] == operands_[2] || operands_[1] == operands_[2])
+	{
+		use_.pop_back();
+	}
+}
+
+void MMSUB::onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
+{
+	MInstruction::onlyAddUseReplace(from, to, parent);
+	if (use_.size() == 1) return;
+	if (use_.size() == 2)
+	{
+		if (operands_[0] == operands_[1])
+			use_.pop_back();
+		return;
+	}
+	if (operands_[0] == operands_[1])
+	{
+		use_[1] = use_[2];
+		use_.pop_back();
+		return;
+	}
+	if (operands_[0] == operands_[2] || operands_[1] == operands_[2])
+	{
+		use_.pop_back();
+	}
+}
+
+void MMSUB::stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
+{
+	MInstruction::stayUseReplace(from, to, parent);
+	if (use_.size() == 1) return;
+	if (use_.size() == 2)
+	{
+		if (operands_[0] == operands_[1])
+			use_.pop_back();
+		return;
+	}
+	if (operands_[0] == operands_[1])
+	{
+		use_[1] = use_[2];
+		use_.pop_back();
+		return;
+	}
+	if (operands_[0] == operands_[2] || operands_[1] == operands_[2])
+	{
+		use_.pop_back();
+	}
 }

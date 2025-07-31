@@ -35,7 +35,7 @@ void GraphColorSolver::runOn(MFunction* function)
 				if (reg->canAllocate() && reg->callerSave_)
 					liveMessage.addRegister(reg);
 		}
-		for (auto reg : module_->IVRegs())
+		for (auto reg : function->IVRegs())
 			if (reg->id() < c)
 				liveMessage.addRegister(reg);
 			else break;
@@ -86,7 +86,7 @@ void GraphColorSolver::runOn(MFunction* function)
 				if (reg->canAllocate() && reg->callerSave_)
 					liveMessage.addRegister(reg);
 		}
-		for (auto reg : module_->FVRegs())
+		for (auto reg : function->FVRegs())
 			if (reg->id() < c)
 				liveMessage.addRegister(reg);
 			else break;

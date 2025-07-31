@@ -51,6 +51,7 @@ public:
 	void calculateLiveMessage();
 	void flush(bool isInt);
 	bool care(MOperand* op) const;
+	bool careVirtual(MOperand* op) const;
 	[[nodiscard]] DynamicBitset translate(const std::vector<MOperand*>& vec, const std::vector<int>& idx) const;
 	[[nodiscard]] DynamicBitset translate(const std::vector<Register*>& vec) const;
 	[[nodiscard]] int regCount() const;

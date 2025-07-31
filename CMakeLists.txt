@@ -21,6 +21,7 @@ include_directories(${PROJECT_SOURCE_DIR}/include/ast)
 include_directories(${PROJECT_SOURCE_DIR}/include/codegen)
 include_directories(${PROJECT_SOURCE_DIR}/include/ir)
 include_directories(${PROJECT_SOURCE_DIR}/include/util)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir)
 include_directories(${PROJECT_SOURCE_DIR}/antlr)
 
 # util 源文件集 
@@ -36,10 +37,12 @@ aux_source_directory(src/codegen codegenSource)
 # passes 源文件集
 aux_source_directory(src/passes passesSource)
 list(REMOVE_ITEM passesSource "src/passes/main.cpp")
+# machineir 源文件集
+aux_source_directory(src/machineir machineirSource)
 
 
 # 添加源文件
-add_executable(compiler src/compiler.cpp ${utilSource} ${astSource} ${irSource} ${codegenSource} ${passesSource})
+add_executable(compiler src/compiler.cpp ${utilSource} ${astSource} ${irSource} ${codegenSource} ${passesSource} ${machineirSource})
 add_executable(astTest src/ast/main.cpp ${utilSource} ${astSource}  ${irSource})
 add_executable(irTest src/ir/main.cpp ${utilSource} ${astSource} ${irSource})
 add_executable(passesTest src/passes/main.cpp ${utilSource} ${astSource} ${irSource} ${passesSource})

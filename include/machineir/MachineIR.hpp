@@ -20,6 +20,10 @@ class Function;
 class MBasicBlock;
 class MFunction;
 class MModule;
+class BlockAddress;
+class FrameIndex;
+class VirtualRegister;
+class Immediate;
 
 class MFunction
 {
@@ -48,14 +52,14 @@ private:
 	std::map<MBasicBlock*, BlockAddress*> ba_cache_;
 	std::vector<FrameIndex*> stack_;
 	std::vector<FrameIndex*> fix_;
-	unsigned virtual_iregs_ = 0;
-	unsigned virtual_fregs_ = 0;
 	VirtualRegister* lrGuard_ = nullptr;
 	std::unordered_map<MOperand*, std::unordered_set<MInstruction*>> useList_;
 	DynamicBitset called_;
 	DynamicBitset destroyRegs_;
 	std::vector<MBL*> calls_;
 	std::vector<std::pair<Register*, int>> calleeSaved;
+	std::vector<VirtualRegister*> virtual_iregs_;
+	std::vector<VirtualRegister*> virtual_fregs_;
 	int id_;
 	int stackMoveOffset_;
 	int fixMoveOffset_;
@@ -104,7 +108,7 @@ public:
 private:
 	MFunction(std::string name, MModule* module);
 
-	FrameIndex* allocaFix(Value* value);
+	FrameIndex* allocaFix(const Value* value);
 
 public:
 	[[nodiscard]] DynamicBitset& destroy_regs()
@@ -136,6 +140,8 @@ public:
 	void rewriteDestroyRegs() const;
 	std::unordered_map<MOperand*, std::unordered_set<MInstruction*>>& useList();
 
+	[[nodiscard]] const std::vector<VirtualRegister*>& IVRegs() const;
+	[[nodiscard]] const std::vector<VirtualRegister*>& FVRegs() const;
 	[[nodiscard]] unsigned virtualIRegisterCount() const;
 	[[nodiscard]] unsigned virtualFRegisterCount() const;
 	[[nodiscard]] unsigned virtualRegisterCount() const;
@@ -169,8 +175,6 @@ private:
 	std::vector<MFunction*> allFuncs_;
 	std::map<MFunction*, FuncAddress*> func_address_;
 	std::map<unsigned long long, Immediate*> imm_cache_;
-	std::vector<VirtualRegister*> virtual_iregs_;
-	std::vector<VirtualRegister*> virtual_fregs_;
 	std::vector<Register*> iregs_;
 	std::vector<Register*> fregs_;
 	MFunction* memcpy_;
@@ -201,8 +205,6 @@ public:
 	[[nodiscard]] unsigned RegisterCount() const;
 	[[nodiscard]] const std::vector<Register*>& IRegs() const;
 	[[nodiscard]] const std::vector<Register*>& FRegs() const;
-	[[nodiscard]] const std::vector<VirtualRegister*>& IVRegs() const;
-	[[nodiscard]] const std::vector<VirtualRegister*>& FVRegs() const;
 	[[nodiscard]] std::vector<GlobalAddress*> constGlobalAddresses() const;
 	[[nodiscard]] std::vector<GlobalAddress*> ncnzGlobalAddresses() const;
 	[[nodiscard]] std::vector<GlobalAddress*> ncZeroGlobalAddresses() const;

@@ -1,5 +1,6 @@
 #include "MachineOperand.hpp"
 
+#include <cstring>
 #include <iomanip>
 #include <sstream>
 
@@ -132,23 +133,17 @@ bool VirtualRegister::isVirtualRegister() const
 
 VirtualRegister* VirtualRegister::createVirtualIRegister(MFunction* f, short size)
 {
-	auto m = f->module();
-	unsigned int id = static_cast<unsigned int>(m->virtual_iregs_.size());
-	if (f->virtual_iregs_ < id) return m->virtual_iregs_[f->virtual_iregs_++];
+	unsigned int id = static_cast<unsigned int>(f->virtual_iregs_.size());
 	auto reg = new VirtualRegister{id, true, size};
-	m->virtual_iregs_.emplace_back(reg);
-	f->virtual_iregs_++;
+	f->virtual_iregs_.emplace_back(reg);
 	return reg;
 }
 
 VirtualRegister* VirtualRegister::createVirtualFRegister(MFunction* f, short size)
 {
-	auto m = f->module();
-	unsigned int id = static_cast<unsigned int>(m->virtual_fregs_.size());
-	if (f->virtual_fregs_ < id) return m->virtual_fregs_[f->virtual_fregs_++];
+	unsigned int id = static_cast<unsigned int>(f->virtual_fregs_.size());
 	auto reg = new VirtualRegister{id, false, size};
-	m->virtual_fregs_.emplace_back(reg);
-	f->virtual_fregs_++;
+	f->virtual_fregs_.emplace_back(reg);
 	return reg;
 }
 
@@ -156,26 +151,14 @@ VirtualRegister* VirtualRegister::copy(MFunction* f, VirtualRegister* v)
 {
 	if (v->ireg_t_freg_f_)
 	{
-		auto m = f->module();
-		unsigned int id = static_cast<unsigned int>(m->virtual_iregs_.size());
-		if (f->virtual_iregs_ < id) return m->virtual_iregs_[f->virtual_iregs_++];
-		auto reg = new VirtualRegister{id, true, v->size_};
-		m->virtual_iregs_.emplace_back(reg);
-		f->virtual_iregs_++;
-		return reg;
+		return createVirtualIRegister(f, v->size());
 	}
-	auto m = f->module();
-	unsigned int id = static_cast<unsigned int>(m->virtual_fregs_.size());
-	if (f->virtual_fregs_ < id) return m->virtual_fregs_[f->virtual_fregs_++];
-	auto reg = new VirtualRegister{id, false, v->size_};
-	m->virtual_fregs_.emplace_back(reg);
-	f->virtual_fregs_++;
-	return reg;
+	return createVirtualFRegister(f, v->size());
 }
 
 std::string VirtualRegister::print()
 {
-	return (ireg_t_freg_f_ ? "%vireg" : "%vfreg") + to_string(id_);
+	return (ireg_t_freg_f_ ? "%vireg" : "%vfreg") + to_string(id_) + "<" + to_string(size_) + ">";;
 }
 
 bool Register::isPhysicalRegister() const
@@ -347,5 +330,5 @@ FrameIndex::FrameIndex(MFunction* func, unsigned int idx, size_t size, bool stac
 
 std::string FrameIndex::print()
 {
-	return (stack_t_fix_f_ ? "%stackFrame" : "%fixFrame") + to_string(index_);
+	return (stack_t_fix_f_ ? "%stackFrame" : "%fixFrame") + to_string(index_) + "<" + to_string(size_) + ">";
 }

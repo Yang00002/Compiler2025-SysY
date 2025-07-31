@@ -2,13 +2,6 @@
 #include <string>
 #include <functional>
 
-inline unsigned countr_zero(uint64_t x) noexcept
-{
-	unsigned long index;
-	_BitScanForward64(&index, x); // 返回 1 表示成功
-	return static_cast<unsigned>(index);
-}
-
 class DynamicBitset
 {
 	friend class Iterator;
