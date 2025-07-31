@@ -175,8 +175,9 @@ void compiler(std::string infile, std::string outfile) {
     antlr4::CommonTokenStream tokens(&lexer);
     SysYParser parser(&tokens);
     Antlr2AstVisitor MakeAst;
+	auto unit = parser.compUnit();
 	exit(-1);
-    ast = MakeAst.astTree(parser.compUnit());
+    ast = MakeAst.astTree(unit);
     input_file.close();
     AST2IRVisitor MakeIR;
     MakeIR.visit(ast);
