@@ -23,3 +23,4 @@ bool emitAST = false;
 bool emitIR = false;
 bool useStack = false;
 bool o1Optimization = false;
+bool testArchi = true;

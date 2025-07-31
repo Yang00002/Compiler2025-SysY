@@ -46,3 +46,5 @@ extern bool emitIR;
 extern bool useStack;
 // 使用 O1 优化
 extern bool o1Optimization;
+// 进行运行前检查, 检测目标架构的某些功能是否符合预期
+extern bool testArchi;
