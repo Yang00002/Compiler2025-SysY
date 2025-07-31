@@ -222,27 +222,41 @@ void compiler(std::string infile, std::string outfile) {
 }
 
 void beforeRun() {
-  antlr4::ANTLRInputStream inputStream(R"(//test add
-int main(){
-    int a, b;
-    a = 10;
-    b = -1;
-    return a + b;
-})");
-  SysYLexer lexer{&inputStream};
-  antlr4::CommonTokenStream tokens(&lexer);
-  SysYParser parser(&tokens);
-  antlr4::tree::ParseTree *ptree = parser.compUnit();
-  Antlr2AstVisitor MakeAst;
-  auto ast = MakeAst.astTree(ptree);
-  delete ast;
+  if (sizeof(int) != 4)
+    exit(-1);
+  if (sizeof(long) != 4)
+    exit(-2);
+  if (sizeof(long long) != 8)
+    exit(-3);
+  if (sizeof(int *) != 8)
+    exit(-4);
+  if (m_countr_zero(2) != 1)
+    exit(-5);
+  if (!IS_SMALL_END)
+    exit(-6);
+  /*
+    std::ifstream input_file(R"(//test add
+  int main(){
+      int a, b;
+      a = 10;
+      b = -1;
+      return a + b;
+  })");
+    antlr4::ANTLRInputStream inputStream(input_file);
+    SysYLexer lexer{&inputStream};
+    antlr4::CommonTokenStream tokens(&lexer);
+    input_file.close();
+    SysYParser parser(&tokens);
+    antlr4::tree::ParseTree *ptree = parser.compUnit();
+    Antlr2AstVisitor MakeAst;
+    auto ast = MakeAst.astTree(ptree);
+    delete ast;
+  */
 }
 
 int main(int argc, char *argv[]) {
-  if (testArchi) {
+  if (testArchi)
     beforeRun();
-    exit(-1);
-  }
   std::string infile, outfile;
   std::tie(infile, outfile) = parseArgs(argc, argv);
   if (emitAST)
