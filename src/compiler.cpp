@@ -177,8 +177,8 @@ void compiler(std::string infile, std::string outfile) {
     SysYParser parser(&tokens);
     Antlr2AstVisitor MakeAst;
     ast = MakeAst.astTree(parser.compUnit());
-	ast->toString();
 	exit(-1);
+	ast->toString();
     AST2IRVisitor MakeIR;
     MakeIR.visit(ast);
     delete ast;
