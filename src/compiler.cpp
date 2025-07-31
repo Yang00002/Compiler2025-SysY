@@ -224,8 +224,6 @@ void compiler(std::string infile, std::string outfile) {
 void beforeRun() {
   if (sizeof(int) != 4)
     exit(-1);
-  if (sizeof(long) != 4)
-    exit(-2);
   if (sizeof(long long) != 8)
     exit(-3);
 /*
