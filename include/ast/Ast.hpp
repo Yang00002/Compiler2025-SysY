@@ -27,9 +27,6 @@ class ASTFuncDecl;
 class ConstantValue;
 class AST2IRVisitor;
 
-// 机器是小端架构
-extern bool IS_SMALL_END;
-
 // 定义不同的表达式等级, 不同的等级导致不同的表达式转换规则
 // INITIALIZE_LIST: 初始化列表, 只允许从 INT 向 FLOAT 转换, 不允许 FLOAT 向 INT 转换, 不允许任何 BOOL 转换
 // MATH_EXPRESSION: 数学表达式, 允许 INT FLOAT 间转换, 不允许任何 BOOL 转换

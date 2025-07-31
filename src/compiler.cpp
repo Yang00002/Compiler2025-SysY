@@ -22,7 +22,9 @@
 #include "SCCP.hpp"
 #include <ARM_codegen.hpp>
 
+#include "Ast.hpp"
 #include "GraphColoring.hpp"
+#include "System.hpp"
 #include <CharStream.h>
 #include <cstdlib>
 #include <tree/ParseTree.h>
@@ -230,8 +232,11 @@ void beforeRun() {
     exit(-4);
   if (m_countr_zero(2) != 1)
     exit(-5);
-  if (!IS_SMALL_END)
+  if (!system_about::SMALL_END)
     exit(-6);
+#if CZ_MSVC
+  exit(-7);
+#endif
   /*
     std::ifstream input_file(R"(//test add
   int main(){
