@@ -29,27 +29,18 @@ include_directories(${PROJECT_SOURCE_DIR}/antlr)
 aux_source_directory(src/util utilSource)
 # ast 源文件集 
 aux_source_directory(src/ast astSource)
-list(REMOVE_ITEM astSource "src/ast/main.cpp")
 # ir 源文件集 
 aux_source_directory(src/ir irSource)
 aux_source_directory(src/machineir mirSource)
-list(REMOVE_ITEM irSource "src/ir/main.cpp")
 # codegen 源文件集 
 aux_source_directory(src/codegen codegenSource)
 # passes 源文件集
 aux_source_directory(src/passes passesSource)
-list(REMOVE_ITEM passesSource "src/passes/main.cpp")
 # machineir 源文件集
 aux_source_directory(src/machineir machineirSource)
 
 
 # 添加源文件
 add_executable(compiler src/compiler.cpp ${utilSource} ${astSource} ${irSource} ${codegenSource} ${passesSource} ${machineirSource})
-add_executable(astTest src/ast/main.cpp ${utilSource} ${astSource}  ${irSource})
-add_executable(irTest src/ir/main.cpp ${utilSource} ${astSource} ${irSource})
-add_executable(passesTest src/passes/main.cpp ${utilSource} ${astSource} ${irSource} ${passesSource})
 
 target_link_libraries(compiler PRIVATE antlr_lib)
-target_link_libraries(astTest PRIVATE antlr_lib)
-target_link_libraries(irTest PRIVATE antlr_lib)
-target_link_libraries(passesTest PRIVATE antlr_lib)
