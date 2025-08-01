@@ -3,6 +3,9 @@
 #include "Type.hpp"
 #include "Tensor.hpp"
 
+#define DEBUG 0
+#include "Util.hpp"
+
 
 using namespace Types;
 using namespace std;
@@ -31,6 +34,8 @@ ASTDecl* Antlr2AstVisitor::findScope(const std::string& id, bool isFunc)
 // 主要节点 CompUnit
 std::any Antlr2AstVisitor::visitCompUnit(SysYParser::CompUnitContext* context)
 {
+	LOG(color::cyan("visitCompUnit"));
+	PUSH;
 	auto comp_unit = new ASTCompUnit();
 	_structConstraint.emplace_back(comp_unit);
 	for (const auto& decl : context->compDecl())
@@ -48,27 +53,43 @@ std::any Antlr2AstVisitor::visitCompUnit(SysYParser::CompUnitContext* context)
 	if (!main_->args().empty()) throw runtime_error("Expected main function don't have args");
 	if (main_->returnType() != INT) throw runtime_error("Expected main function return int");
 	_structConstraint.pop_back();
+	POP;
 	return comp_unit;
 }
 
 std::any Antlr2AstVisitor::visitCompDecl(SysYParser::CompDeclContext* context)
 {
+	LOG(color::cyan("visitCompDecl"));
 	if (const auto decl = context->decl(); decl != nullptr)
 	{
-		return decl->accept(this);
+		auto ret = decl->accept(this);
+		POP;
+		return ret;
 	}
-	return context->funcDef()->accept(this);
+	auto ret = context->funcDef()->accept(this);
+	POP;
+	return ret;
 }
 
 std::any Antlr2AstVisitor::visitDecl(SysYParser::DeclContext* context)
 {
+	LOG(color::cyan("visitDecl"));
+	PUSH;
 	if (const auto const_dec = context->constDecl(); const_dec != nullptr)
-		return const_dec->accept(this);
-	return context->varDecl()->accept(this);
+	{
+		auto ret = const_dec->accept(this);
+		POP;
+		return ret;
+	}
+	auto ret = context->varDecl()->accept(this);
+	POP;
+	return ret;
 }
 
 std::any Antlr2AstVisitor::visitConstDecl(SysYParser::ConstDeclContext* context)
 {
+	LOG(color::cyan("visitConstDecl"));
+	PUSH;
 	list<ASTVarDecl*> defList;
 	const auto block = _structConstraint.back();
 	_declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
@@ -80,17 +101,21 @@ std::any Antlr2AstVisitor::visitConstDecl(SysYParser::ConstDeclContext* context)
 			throw runtime_error("duplicate var declaration of id " + decl->id());
 	}
 	_declarationTypeConstraint.pop();
+	POP;
 	return defList;
 }
 
 std::any Antlr2AstVisitor::visitBType(SysYParser::BTypeContext* context)
 {
+	LOG(color::green("visitBType ") + (context->INT() != nullptr ? "INT" : "FLOAT"));
 	if (context->INT() != nullptr) return INT;
 	return FLOAT;
 }
 
 std::any Antlr2AstVisitor::visitConstDef(SysYParser::ConstDefContext* context)
 {
+	LOG(color::cyan("visitConstDef ") + context->ID()->toString());
+	PUSH;
 	vector<int> dims;
 	for (const auto const_exp : context->constExp())
 	{
@@ -115,11 +140,14 @@ std::any Antlr2AstVisitor::visitConstDef(SysYParser::ConstDefContext* context)
 	_initTensorConstraint.push(decl->_initList->getData());
 	context->constInitVal()->accept(this);
 	_initTensorConstraint.pop();
+	POP;
 	return decl;
 }
 
 std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* context)
 {
+	LOG(color::cyan("visitConstInitVal"));
+	PUSH;
 	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->constExp() != nullptr)
@@ -133,6 +161,7 @@ std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* co
 			throw runtime_error(
 				"fail to append value to initialize list. context " + context->constExp()->toString());
 		delete exp;
+		POP;
 		return {};
 	}
 	if (t->tensorBelong()->getShape().empty())
@@ -142,11 +171,14 @@ std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* co
 	{
 		i->accept(this);
 	}
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitConstArrayInitVal(SysYParser::ConstArrayInitValContext* ctx)
 {
+	LOG(color::cyan("visitConstArrayInitVal"));
+	PUSH;
 	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (ctx->constExp() != nullptr)
@@ -159,6 +191,7 @@ std::any Antlr2AstVisitor::visitConstArrayInitVal(SysYParser::ConstArrayInitValC
 			throw runtime_error(
 				"fail to append value to initialize list. context " + ctx->constExp()->toString());
 		delete exp;
+		POP;
 		return {};
 	}
 	const auto tensor = t->makeSubTensor();
@@ -171,11 +204,14 @@ std::any Antlr2AstVisitor::visitConstArrayInitVal(SysYParser::ConstArrayInitValC
 		i->accept(this);
 	}
 	_initTensorConstraint.pop();
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitVarDecl(SysYParser::VarDeclContext* context)
 {
+	LOG(color::cyan("visitVarDecl"));
+	PUSH;
 	list<ASTVarDecl*> defList;
 	const auto block = _structConstraint.back();
 	auto ty = std::any_cast<Type*>(context->bType()->accept(this));
@@ -188,11 +224,14 @@ std::any Antlr2AstVisitor::visitVarDecl(SysYParser::VarDeclContext* context)
 			throw runtime_error("duplicate var declaration of id " + decl->id());
 	}
 	_declarationTypeConstraint.pop();
+	POP;
 	return defList;
 }
 
 std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 {
+	LOG(color::cyan("visitVarDef ") + context->ID()->toString());
+	PUSH;
 	vector<int> dims;
 	for (const auto const_exp : context->constExp())
 	{
@@ -216,6 +255,7 @@ std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 		if (t == INT)
 			decl->_initList = new Tensor{dims, InitializeValue{0}};
 		else decl->_initList = new Tensor{dims, InitializeValue{0.0f}};
+		POP;
 		return decl;
 	}
 	if (t == INT)
@@ -226,11 +266,14 @@ std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 	context->initVal()->accept(this);
 	_initVarNodeConstraint.pop();
 	_initTensorConstraint.pop();
+	POP;
 	return decl;
 }
 
 std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 {
+	LOG(color::cyan("visitInitVal"));
+	PUSH;
 	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->exp() != nullptr)
@@ -258,6 +301,7 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 					"fail to append value to initialize list. context " + context->exp()->toString());
 			_initVarNodeConstraint.top()->_expressions.emplace_back(exp2);
 		}
+		POP;
 		return {};
 	}
 	if (t->tensorBelong()->getShape().empty())
@@ -267,11 +311,14 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 	{
 		i->accept(this);
 	}
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ctx)
 {
+	LOG(color::cyan("visitArrayInitVal"));
+	PUSH;
 	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (ctx->exp() != nullptr)
@@ -300,6 +347,7 @@ std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ct
 					"fail to append value to initialize list. context " + ctx->exp()->toString());
 			_initVarNodeConstraint.top()->_expressions.emplace_back(exp2);
 		}
+		POP;
 		return {};
 	}
 	const auto tensor = t->makeSubTensor();
@@ -312,11 +360,14 @@ std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ct
 		i->accept(this);
 	}
 	_initTensorConstraint.pop();
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitFuncDef(SysYParser::FuncDefContext* context)
 {
+	LOG(color::cyan("visitFuncDef ") + context->ID()->toString());
+	PUSH;
 	const auto decl = new ASTFuncDecl(context->ID()->toString(), any_cast<Type*>(context->funcType()->accept(this)));
 	const auto top = dynamic_cast<ASTCompUnit*>(_structConstraint.front());
 	top->_func_declarations.push_back(decl);
@@ -333,11 +384,13 @@ std::any Antlr2AstVisitor::visitFuncDef(SysYParser::FuncDefContext* context)
 	context->block()->accept(this);
 	_structConstraint.pop_back();
 	_structConstraint.pop_back();
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitFuncType(SysYParser::FuncTypeContext* context)
 {
+	LOG(color::green("visitFuncType ") + (context->INT() ? "INT" : (context->FLOAT() ? "FLOAT" : "VOID")));
 	if (context->FLOAT()) return FLOAT;
 	if (context->INT()) return INT;
 	return VOID;
@@ -345,13 +398,18 @@ std::any Antlr2AstVisitor::visitFuncType(SysYParser::FuncTypeContext* context)
 
 std::any Antlr2AstVisitor::visitFuncFParams(SysYParser::FuncFParamsContext* context)
 {
+	LOG(color::cyan("visitFuncFParams"));
+	PUSH;
 	vector<ASTVarDecl*> decls;
 	for (const auto& i : context->funcFParam()) decls.emplace_back(any_cast<ASTVarDecl*>(i->accept(this)));
+	POP;
 	return decls;
 }
 
 std::any Antlr2AstVisitor::visitFuncFParam(SysYParser::FuncFParamContext* context)
 {
+	LOG(color::cyan("visitFuncFParam ") + context->ID()->toString());
+	PUSH;
 	const auto id = context->ID()->toString();
 	const auto btype = any_cast<Type*>(context->bType()->accept(this));
 	vector<int> dims;
@@ -376,20 +434,26 @@ std::any Antlr2AstVisitor::visitFuncFParam(SysYParser::FuncFParamContext* contex
 		decl->_type = arrayType(btype, true, dims);
 	if (!_structConstraint.back()->pushScope(decl))
 		throw runtime_error("duplicate scope " + decl->id());
+	POP;
 	return decl;
 }
 
 std::any Antlr2AstVisitor::visitBlock(SysYParser::BlockContext* context)
 {
+	LOG(color::yellow("visitBlock"));
+	PUSH;
 	for (const auto& i : context->blockItem())
 	{
 		i->accept(this);
 	}
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitBlockItem(SysYParser::BlockItemContext* context)
 {
+	LOG(color::yellow("visitBlockItem"));
+	PUSH;
 	const auto block = dynamic_cast<ASTBlock*>(_structConstraint.back());
 	if (context->decl() != nullptr)
 	{
@@ -402,11 +466,14 @@ std::any Antlr2AstVisitor::visitBlockItem(SysYParser::BlockItemContext* context)
 		for (auto& stmt : any_cast<list<ASTStmt*>>(context->stmt()->accept(this)))
 			block->_stmts.emplace_back(stmt);
 	}
+	POP;
 	return {};
 }
 
 std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 {
+	LOG(color::cyan("visitStmt"));
+	PUSH;
 	if (context->lVal() != nullptr)
 	{
 		const auto exp = any_cast<ASTExpression*>(context->lVal()->accept(this));
@@ -421,6 +488,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		rv->_index.clear();
 		delete rv;
 		const auto stmt = new ASTAssign(lv, v);
+		POP;
 		return list<ASTStmt*>{stmt};
 	}
 	if (context->block() != nullptr)
@@ -432,8 +500,10 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		if (block->isEmpty())
 		{
 			delete block;
+			POP;
 			return list<ASTStmt*>{};
 		}
+		POP;
 		return list<ASTStmt*>{block};
 	}
 	if (context->IF() != nullptr)
@@ -450,10 +520,12 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			{
 				delete cond;
 				for (auto& i : else_st)delete i;
+				POP;
 				return if_st;
 			}
 			for (auto& i : if_st)delete i;
 			delete cond;
+			POP;
 			return else_st;
 		}
 		auto condLogic = dynamic_cast<ASTLogicExp*>(cond);
@@ -465,10 +537,12 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 				{
 					for (auto& i : else_st) delete i;
 					if_st.push_front(cond);
+					POP;
 					return if_st;
 				}
 				for (auto& i : if_st) delete i;
 				else_st.push_front(cond);
+				POP;
 				return else_st;
 			}
 		}
@@ -479,6 +553,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 				auto l = AST::cutExpressionToOnlyLeaveFuncCall(cond);
 				list<ASTStmt*> ret;
 				for (auto& i : l) ret.emplace_back(i);
+				POP;
 				return ret;
 			}
 			if (dynamic_cast<ASTNot*>(cond) != nullptr)
@@ -494,6 +569,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			auto if_node = new ASTIf{cond};
 			for (auto& i : else_st)
 				if_node->_if_stmt.emplace_back(i);
+			POP;
 			return list<ASTStmt*>{if_node};
 		}
 		if (else_st.empty())
@@ -501,6 +577,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			auto if_node = new ASTIf{cond};
 			for (auto& i : if_st)
 				if_node->_if_stmt.emplace_back(i);
+			POP;
 			return list<ASTStmt*>{if_node};
 		}
 		auto if_node = new ASTIf{cond};
@@ -508,6 +585,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			if_node->_if_stmt.emplace_back(i);
 		for (auto& i : else_st)
 			if_node->_else_stmt.emplace_back(i);
+		POP;
 		return list<ASTStmt*>{if_node};
 	}
 	if (context->WHILE() != nullptr)
@@ -524,6 +602,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			if (condNum->toBoolean() == false)
 			{
 				delete loop;
+				POP;
 				return list<ASTStmt*>{};
 			}
 		}
@@ -536,6 +615,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 				{
 					loop->_cond = nullptr;
 					delete loop;
+					POP;
 					return list<ASTStmt*>{condLogic};
 				}
 			}
@@ -545,25 +625,30 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			if (!cond->_haveFuncCall)
 			{
 				delete loop;
+				POP;
 				return list<ASTStmt*>{};
 			}
+			POP;
 			return list<ASTStmt*>{loop};
 		}
 		auto cond2 = any_cast<ASTExpression*>(context->cond()->accept(this));
 		auto ifNode = new ASTIf{cond2};
 		ifNode->_if_stmt.emplace_back(loop);
+		POP;
 		return list<ASTStmt*>{ifNode};
 	}
 	if (context->BREAK() != nullptr)
 	{
 		auto get = _whileConstraint.top();
 		auto ret = new ASTBreak{get};
+		POP;
 		return list<ASTStmt*>{ret};
 	}
 	if (context->CONTINUE() != nullptr)
 	{
 		auto get = _whileConstraint.top();
 		auto ret = new ASTContinue{get};
+		POP;
 		return list<ASTStmt*>{ret};
 	}
 	if (context->RETURN() != nullptr)
@@ -576,6 +661,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 					"function with return type " + _currentFunction->returnType()->toString() + " must return a value");
 			}
 			auto r = new ASTReturn{nullptr, _currentFunction};
+			POP;
 			return list<ASTStmt*>{r};
 		}
 		if (_currentFunction->returnType() == VOID)
@@ -586,6 +672,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		auto ret = any_cast<ASTExpression*>(context->exp()->accept(this));
 		ret = ret->castTypeTo(_currentFunction->returnType());
 		auto r = new ASTReturn{ret, _currentFunction};
+		POP;
 		return list<ASTStmt*>{r};
 	}
 	if (context->exp() != nullptr)
@@ -595,27 +682,38 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		auto r = list<ASTStmt*>{};
 		for (auto& i : ret)
 			r.emplace_back(i);
+		POP;
 		return r;
 	}
+	POP;
 	return list<ASTStmt*>{};
 }
 
 std::any Antlr2AstVisitor::visitExp(SysYParser::ExpContext* context)
 {
-	return context->addExp()->accept(this);
+	LOG(color::cyan("visitExp"));
+	PUSH;
+	auto ret = context->addExp()->accept(this);
+	POP;
+	return ret;
 }
 
 std::any Antlr2AstVisitor::visitCond(SysYParser::CondContext* context)
 {
+	LOG(color::cyan("visitCond"));
+	PUSH;
 	_allowLogic = true;
 	auto cond = any_cast<ASTExpression*>(context->lOrExp()->accept(this));
 	_allowLogic = false;
 	cond = cond->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
+	POP;
 	return cond;
 }
 
 std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 {
+	LOG(color::cyan("visitLVal ") + context->ID()->toString());
+	PUSH;
 	const auto d = findScope(context->ID()->toString(), false);
 	if (d == nullptr)
 		throw runtime_error("undefined scope " + context->ID()->toString() + " . context " + context->toString());
@@ -667,30 +765,52 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 				delete i;
 			}
 			const auto l = decl->getInitList();
+			POP;
 			return static_cast<ASTExpression*>(new ASTNumber(l->visitData()->getElement(constIndexes)));
 		}
 		auto ret = static_cast<ASTExpression*>(new ASTRVal(decl, indexes));
 		for (auto& i : indexes)
 			ret->_haveFuncCall = ret->_haveFuncCall || i->_haveFuncCall;
+		POP;
 		return ret;
 	}
 	if (indexCount > 0) throw runtime_error("Scalar " + context->ID()->toString() + " has no index");
-	if (decl->isConst()) return static_cast<ASTExpression*>(new ASTNumber{decl->_initList->getData()->getElement({})});
+	if (decl->isConst())
+	{
+		POP;
+		return static_cast<ASTExpression*>(new ASTNumber{decl->_initList->getData()->getElement({})});
+	}
 	const auto exp = new ASTRVal(decl, {});
+	POP;
 	return static_cast<ASTExpression*>(exp);
 }
 
 std::any Antlr2AstVisitor::visitPrimaryExp(SysYParser::PrimaryExpContext* context)
 {
+	LOG(color::cyan("visitPrimaryExp"));
+	PUSH;
 	if (context->exp() != nullptr)
-		return context->exp()->accept(this);
+	{
+		auto ret = context->exp()->accept(this);
+		POP;
+		return ret;
+	}
 	if (context->lVal() != nullptr)
-		return context->lVal()->accept(this);
-	return context->number()->accept(this);
+	{
+		auto ret = context->lVal()->accept(this);
+		POP;
+		return ret;
+	}
+	auto ret = context->number()->accept(this);
+	POP;
+	return ret;
 }
 
 std::any Antlr2AstVisitor::visitNumber(SysYParser::NumberContext* context)
 {
+	LOG(color::green("visitNumber ") + (context->IntConst() != nullptr ? context->IntConst()->toString() : context->
+		FloatConst()->toString()));
+	PUSH;
 	if (context->IntConst() != nullptr)
 	{
 		int c;
@@ -708,15 +828,23 @@ std::any Antlr2AstVisitor::visitNumber(SysYParser::NumberContext* context)
 			else c = std::stoi(str);
 		}
 		else c = std::stoi(str);
+		POP;
 		return static_cast<ASTExpression*>(new ASTNumber(c));
 	}
+	POP;
 	return static_cast<ASTExpression*>(new ASTNumber(stof(context->FloatConst()->toString())));
 }
 
 std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 {
+	LOG(color::cyan("visitUnaryExp"));
+	PUSH;
 	if (context->primaryExp() != nullptr)
-		return context->primaryExp()->accept(this);
+	{
+		auto ret = context->primaryExp()->accept(this);
+		POP;
+		return ret;
+	}
 	if (context->ID() != nullptr)
 	{
 		bool special = false;
@@ -739,9 +867,10 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 			               : vector<ASTExpression*>{};
 		if (special)
 		{
-			if (!getArgs.empty()) throw runtime_error(
-				"function call of " + id + " has incorrect args count. " + context->toString());
-			const int line =u2iNegThrow(context->rParen()->getStart()->getLine());
+			if (!getArgs.empty())
+				throw runtime_error(
+					"function call of " + id + " has incorrect args count. " + context->toString());
+			const int line = u2iNegThrow(context->rParen()->getStart()->getLine());
 			auto arg = new ASTNumber{line};
 			getArgs.emplace_back(arg);
 		}
@@ -787,6 +916,7 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 			}
 		}
 		const auto call = new ASTCall{func, getArgs};
+		POP;
 		return static_cast<ASTExpression*>(call);
 	}
 	auto exp = any_cast<ASTExpression*>(context->unaryExp()->accept(this));
@@ -794,6 +924,7 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 	{
 		if (exp->getExpressionType() == BOOL)
 			exp = exp->castTypeTo(INT, TypeCastEnvironment::LOGIC_EXPRESSION);
+		POP;
 		return exp;
 	}
 	if (context->SUB() != nullptr)
@@ -805,6 +936,7 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 			exp = n->_hold;
 			n->_hold = nullptr;
 			delete n;
+			POP;
 			return exp;
 		}
 		if (const auto n = dynamic_cast<ASTNumber*>(exp); n != nullptr)
@@ -815,10 +947,12 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 				return exp;
 			}
 			n->_field = ConstantValue{-n->_field.getFloatConstant()};
+			POP;
 			return exp;
 		}
 		const auto n = new ASTNeg(exp);
 		n->_haveFuncCall = exp->_haveFuncCall;
+		POP;
 		return static_cast<ASTExpression*>(n);
 	}
 	if (!_allowLogic) throw runtime_error("math expression don't allow logic!");
@@ -827,17 +961,20 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 		auto ret = logic->_hold;
 		logic->_hold = nullptr;
 		delete logic;
+		POP;
 		return ret;
 	}
 	if (auto n = dynamic_cast<ASTNumber*>(exp); n != nullptr)
 	{
 		n = dynamic_cast<ASTNumber*>(n->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION));
 		n->_field = ConstantValue{!n->_field.getBoolConstant()};
+		POP;
 		return static_cast<ASTExpression*>(n);
 	}
 	exp = exp->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
 	const auto n = new ASTNot(exp);
 	n->_haveFuncCall = exp->_haveFuncCall;
+	POP;
 	return static_cast<ASTExpression*>(n);
 }
 
@@ -848,17 +985,24 @@ std::any Antlr2AstVisitor::visitRParen(SysYParser::RParenContext* context)
 
 std::any Antlr2AstVisitor::visitFuncRParams(SysYParser::FuncRParamsContext* context)
 {
+	LOG(color::cyan("visitFuncRParams"));
+	PUSH;
 	vector<ASTExpression*> exp;
 	for (const auto& i : context->exp())
 		exp.emplace_back(any_cast<ASTExpression*>(i->accept(this)));
+	POP;
 	return exp;
 }
 
 std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 {
+	LOG(color::cyan("visitMulExp"));
+	PUSH;
 	if (context->mulExp() == nullptr)
 	{
-		return context->unaryExp()->accept(this);
+		auto ret = context->unaryExp()->accept(this);
+		POP;
+		return ret;
 	}
 	auto l = any_cast<ASTExpression*>(context->mulExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->unaryExp()->accept(this));
@@ -897,14 +1041,17 @@ std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 			if (op == MathOP::MUL)
 			{
 				lnum->_field = ConstantValue{a * b};
+				POP;
 				return static_cast<ASTExpression*>(lnum);
 			}
 			if (op == MathOP::DIV)
 			{
 				lnum->_field = ConstantValue{a / b};
+				POP;
 				return static_cast<ASTExpression*>(lnum);
 			}
 			lnum->_field = ConstantValue{a % b};
+			POP;
 			return static_cast<ASTExpression*>(lnum);
 		}
 		const float a = lnum->forceToFloat();
@@ -913,9 +1060,11 @@ std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 		if (op == MathOP::MUL)
 		{
 			lnum->_field = ConstantValue{a * b};
+			POP;
 			return static_cast<ASTExpression*>(lnum);
 		}
 		lnum->_field = ConstantValue{a / b};
+		POP;
 		return static_cast<ASTExpression*>(lnum);
 	}
 	const auto ln = dynamic_cast<ASTNeg*>(l);
@@ -937,18 +1086,24 @@ std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 		node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 		n->_hold = node;
 		n->_haveFuncCall = node->_haveFuncCall;
+		POP;
 		return static_cast<ASTExpression*>(n);
 	}
 	const auto node = new ASTMathExp(tyT, op, l, r);
 	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+	POP;
 	return static_cast<ASTExpression*>(node);
 }
 
 std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 {
+	LOG(color::cyan("visitAddExp"));
+	PUSH;
 	if (context->addExp() == nullptr)
 	{
-		return context->mulExp()->accept(this);
+		auto ret = context->mulExp()->accept(this);
+		POP;
+		return ret;
 	}
 	auto l = any_cast<ASTExpression*>(context->addExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->mulExp()->accept(this));
@@ -971,6 +1126,7 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 			if (op == MathOP::ADD)
 				lm->_field = ConstantValue{a + b};
 			else lm->_field = ConstantValue{a - b};
+			POP;
 			return static_cast<ASTExpression*>(lm);
 		}
 		float a = lm->forceToFloat();
@@ -978,8 +1134,10 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 		delete rm;
 		if (op == MathOP::ADD) lm->_field = ConstantValue{a + b};
 		else lm->_field = ConstantValue{a - b};
+		POP;
 		return static_cast<ASTExpression*>(lm);
 	}
+	exit(-1);
 	const auto ln = dynamic_cast<ASTNeg*>(l);
 	const auto rn = dynamic_cast<ASTNeg*>(r);
 	const bool nl = ln != nullptr;
@@ -1000,6 +1158,7 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 				node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 				rn->_hold = node;
 				rn->_haveFuncCall = node->_haveFuncCall;
+				POP;
 				return static_cast<ASTExpression*>(rn);
 			}
 			l = ln->_hold;
@@ -1012,6 +1171,7 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 			r = r->castTypeTo(tyT);
 			const auto node = new ASTMathExp(tyT, op, r, l);
 			node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+			POP;
 			return static_cast<ASTExpression*>(node);
 		}
 		if (op == MathOP::ADD)
@@ -1023,6 +1183,7 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 			r = r->castTypeTo(tyT);
 			const auto node = new ASTMathExp(tyT, MathOP::SUB, r, l);
 			node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+			POP;
 			return static_cast<ASTExpression*>(node);
 		}
 		l = ln->_hold;
@@ -1032,6 +1193,7 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 		node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
 		ln->_haveFuncCall = node->_haveFuncCall;
 		ln->_hold = node;
+		POP;
 		return static_cast<ASTExpression*>(ln);
 	}
 	if (nr)
@@ -1045,6 +1207,7 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 			r = r->castTypeTo(tyT);
 			const auto node = new ASTMathExp(tyT, MathOP::SUB, l, r);
 			node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+			POP;
 			return static_cast<ASTExpression*>(node);
 		}
 		r = rn->_hold;
@@ -1054,18 +1217,24 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 		r = r->castTypeTo(tyT);
 		const auto node = new ASTMathExp(tyT, MathOP::ADD, l, r);
 		node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+		POP;
 		return static_cast<ASTExpression*>(node);
 	}
 	const auto node = new ASTMathExp(tyT, op, l, r);
 	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+	POP;
 	return static_cast<ASTExpression*>(node);
 }
 
 std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 {
+	LOG(color::cyan("visitRelExp"));
+	PUSH;
 	if (context->relExp() == nullptr)
 	{
-		return context->addExp()->accept(this);
+		auto ret = context->addExp()->accept(this);
+		POP;
+		return ret;
 	}
 	auto l = any_cast<ASTExpression*>(context->relExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->addExp()->accept(this));
@@ -1104,6 +1273,7 @@ std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 		}
 		delete rNum;
 		lNum->_field = ConstantValue{res};
+		POP;
 		return static_cast<ASTExpression*>(lNum);
 	}
 	RelationOP op;
@@ -1113,12 +1283,20 @@ std::any Antlr2AstVisitor::visitRelExp(SysYParser::RelExpContext* context)
 	else op = RelationOP::GE;
 	auto node = new ASTRelation{op, l, r};
 	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+	POP;
 	return static_cast<ASTExpression*>(node);
 }
 
 std::any Antlr2AstVisitor::visitEqExp(SysYParser::EqExpContext* context)
 {
-	if (context->eqExp() == nullptr)return context->relExp()->accept(this);
+	LOG(color::cyan("visitEqExp"));
+	PUSH;
+	if (context->eqExp() == nullptr)
+	{
+		auto ret = context->relExp()->accept(this);
+		POP;
+		return ret;
+	}
 	auto l = any_cast<ASTExpression*>(context->eqExp()->accept(this));
 	auto r = any_cast<ASTExpression*>(context->relExp()->accept(this));
 	auto tyT = ASTExpression::maxType(l, r, TypeCastEnvironment::LOGIC_EXPRESSION);
@@ -1146,16 +1324,25 @@ std::any Antlr2AstVisitor::visitEqExp(SysYParser::EqExpContext* context)
 		}
 		delete rNum;
 		lNum->_field = ConstantValue{res};
+		POP;
 		return static_cast<ASTExpression*>(lNum);
 	}
 	auto node = new ASTEqual{context->EQ() != nullptr, l, r};
 	node->_haveFuncCall = l->_haveFuncCall || r->_haveFuncCall;
+	POP;
 	return static_cast<ASTExpression*>(node);
 }
 
 std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 {
-	if (context->eqExp().size() == 1) return context->eqExp()[0]->accept(this);
+	LOG(color::cyan("visitLAndExp"));
+	PUSH;
+	if (context->eqExp().size() == 1)
+	{
+		auto ret = context->eqExp()[0]->accept(this);
+		POP;
+		return ret;
+	}
 	bool cut = false;
 	bool comp = false;
 	vector<ASTExpression*> exps;
@@ -1189,11 +1376,21 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 		if (cut)
 		{
 			for (auto& i : exps) delete i;
+			POP;
 			return static_cast<ASTExpression*>(new ASTNumber(false));
 		}
-		if (exps.empty()) return static_cast<ASTExpression*>(new ASTNumber(true));
-		if (exps.size() == 1) return exps[0];
+		if (exps.empty())
+		{
+			POP;
+			return static_cast<ASTExpression*>(new ASTNumber(true));
+		}
+		if (exps.size() == 1)
+		{
+			POP;
+			return exps[0];
+		}
 		auto ret = new ASTLogicExp{LogicOP::AND, exps, ASTLogicExp::UNDEFINE};
+		POP;
 		return static_cast<ASTExpression*>(ret);
 	}
 	if (cut)
@@ -1207,16 +1404,25 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 		exps.emplace_back(new ASTNumber{false});
 		auto ret = new ASTLogicExp{LogicOP::AND, exps, ASTLogicExp::FALSE};
 		ret->_haveFuncCall = true;
+		POP;
 		return static_cast<ASTExpression*>(ret);
 	}
 	auto ret = new ASTLogicExp{LogicOP::AND, exps, ASTLogicExp::UNDEFINE};
 	ret->_haveFuncCall = true;
+	POP;
 	return static_cast<ASTExpression*>(ret);
 }
 
 std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 {
-	if (context->lAndExp().size() == 1) return context->lAndExp()[0]->accept(this);
+	LOG(color::cyan("visitLOrExp"));
+	PUSH;
+	if (context->lAndExp().size() == 1)
+	{
+		auto ret = context->lAndExp()[0]->accept(this);
+		POP;
+		return ret;
+	}
 	bool cut = false;
 	bool comp = false;
 	bool undef = false;
@@ -1264,11 +1470,21 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 		if (cut)
 		{
 			for (auto& i : exps) delete i;
+			POP;
 			return static_cast<ASTExpression*>(new ASTNumber(true));
 		}
-		if (exps.empty()) return static_cast<ASTExpression*>(new ASTNumber(false));
-		if (exps.size() == 1) return exps[0];
+		if (exps.empty())
+		{
+			POP;
+			return static_cast<ASTExpression*>(new ASTNumber(false));
+		}
+		if (exps.size() == 1)
+		{
+			POP;
+			return exps[0];
+		}
 		auto ret = new ASTLogicExp{LogicOP::OR, exps, ASTLogicExp::UNDEFINE};
+		POP;
 		return static_cast<ASTExpression*>(ret);
 	}
 	if (cut)
@@ -1283,28 +1499,38 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 		{
 			if (log->_have_result == ASTLogicExp::TRUE)
 			{
-				if (exps.size() == 1) return exps[0];
+				if (exps.size() == 1)
+				{
+					POP;
+					return exps[0];
+				}
 				auto ret = new ASTLogicExp{LogicOP::OR, exps, ASTLogicExp::TRUE};
 				ret->_haveFuncCall = true;
+				POP;
 				return static_cast<ASTExpression*>(ret);
 			}
 		}
 		exps.emplace_back(new ASTNumber{true});
 		auto ret = new ASTLogicExp{LogicOP::OR, exps, ASTLogicExp::TRUE};
 		ret->_haveFuncCall = true;
+		POP;
 		return static_cast<ASTExpression*>(ret);
 	}
 	auto ret = new ASTLogicExp{LogicOP::OR, exps, undef ? ASTLogicExp::UNDEFINE : ASTLogicExp::FALSE};
 	ret->_haveFuncCall = true;
+	POP;
 	return static_cast<ASTExpression*>(ret);
 }
 
 std::any Antlr2AstVisitor::visitConstExp(SysYParser::ConstExpContext* context)
 {
+	LOG(color::cyan("visitConstExp"));
+	PUSH;
 	const auto exp = any_cast<ASTExpression*>(context->addExp()->accept(this));
 	const auto num = dynamic_cast<ASTNumber*>(exp);
 	if (num == nullptr)
 		throw runtime_error(
 			"constExp should have const value, context " + context->addExp()->toString());
+	POP;
 	return num;
 }
