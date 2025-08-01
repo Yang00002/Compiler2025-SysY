@@ -71,15 +71,15 @@ std::any Antlr2AstVisitor::visitConstDecl(SysYParser::ConstDeclContext* context)
 {
 	list<ASTVarDecl*> defList;
 	const auto block = _structConstraint.back();
+	_declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
 	for (const auto& d : context->constDef())
 	{
-		_declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
 		auto decl = any_cast<ASTVarDecl*>(d->accept(this));
 		defList.emplace_back(decl);
 		if (!block->pushScope(decl))
 			throw runtime_error("duplicate var declaration of id " + decl->id());
-		_declarationTypeConstraint.pop();
 	}
+	_declarationTypeConstraint.pop();
 	return defList;
 }
 
@@ -178,15 +178,16 @@ std::any Antlr2AstVisitor::visitVarDecl(SysYParser::VarDeclContext* context)
 {
 	list<ASTVarDecl*> defList;
 	const auto block = _structConstraint.back();
+	auto ty = std::any_cast<Type*>(context->bType()->accept(this));
+	_declarationTypeConstraint.push(ty);
 	for (const auto& d : context->varDef())
 	{
-		_declarationTypeConstraint.push(std::any_cast<Type*>(context->bType()->accept(this)));
 		auto decl = any_cast<ASTVarDecl*>(d->accept(this));
 		defList.emplace_back(decl);
 		if (!block->pushScope(decl))
 			throw runtime_error("duplicate var declaration of id " + decl->id());
-		_declarationTypeConstraint.pop();
 	}
+	_declarationTypeConstraint.pop();
 	return defList;
 }
 
