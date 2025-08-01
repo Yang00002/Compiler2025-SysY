@@ -15,7 +15,7 @@
 #include "Type.hpp"
 #include "Value.hpp"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "Util.hpp"
 
 Mem2Reg::Mem2Reg(Module* m) : Pass(m)
@@ -221,7 +221,7 @@ public:
 	{
 		std::stack<BasicBlock*> dfsWorkList;
 		std::stack<bool> dfsVisitList;
-		dfsVisitList.emplace(bb);
+		dfsWorkList.emplace(bb);
 		dfsVisitList.emplace(false);
 		while (!dfsWorkList.empty())
 		{
@@ -407,9 +407,15 @@ public:
 		POP;
 	}
 
+	void showWD() const
+	{
+		for (const auto instr : wait_delete)
+			LOG(color::yellow("Remove " + instr->print()));
+	}
+
 	void clean() const
 	{
-		RUN(for (const auto instr : wait_delete) LOG(color::yellow("Remove " + instr->print())));
+		RUN(showWD());
 		for (const auto instr : wait_delete)
 		{
 			instr->get_parent()->erase_instr(instr);
