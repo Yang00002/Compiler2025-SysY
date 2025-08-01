@@ -12,6 +12,7 @@
 #include "CountLZ.hpp"
 #include "CriticalEdgeRemove.hpp"
 #include "DeadCode.hpp"
+#include "EmptyAntlrVisitor.hpp"
 #include "GCM.hpp"
 #include "GVN.hpp"
 #include "LICM.hpp"
@@ -149,6 +150,18 @@ void ir(std::string infile, std::string outfile) {
   delete m;
 }
 
+void tree(std::string infile) {
+  std::ifstream input_file(infile);
+  antlr4::ANTLRInputStream inputStream(input_file);
+  SysYLexer lexer{&inputStream};
+  antlr4::CommonTokenStream tokens(&lexer);
+  SysYParser parser(&tokens);
+  antlr4::tree::ParseTree *ptree = parser.compUnit();
+  EmptyAntlrVisitor MakeAst;
+  MakeAst.tryVisit(ptree);
+  input_file.close();
+}
+
 void ast(std::string infile, std::string outfile) {
   std::ifstream input_file(infile);
   antlr4::ANTLRInputStream inputStream(input_file);
@@ -166,6 +179,9 @@ void ast(std::string infile, std::string outfile) {
 }
 
 void compiler(std::string infile, std::string outfile) {
+  tree(infile);
+  exit(-1);
+
   Module *m = nullptr;
   {
     ASTCompUnit *ast;
@@ -223,8 +239,7 @@ void compiler(std::string infile, std::string outfile) {
   delete mir;
 }
 
-void beforeRun() {
-}
+void beforeRun() {}
 
 int main(int argc, char *argv[]) {
   if (testArchi)
