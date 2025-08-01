@@ -1,5 +1,6 @@
 #pragma once
 #include <assert.h>
+#include <cstddef>
 #include <cstring>
 #include <climits>
 
@@ -75,17 +76,11 @@ inline long long ULL2LLKeepBits(unsigned long long i)
 #endif
 }
 
-// 将无符号转换为 4 字节整型, 如果是负的或溢出就报错, 例如用于转换 size_t
-inline int u2iNegThrow(unsigned i)
+// 将无符号转换为整型, 如果是负的或溢出就报错, 例如用于转换 size_t
+template<typename TYT>
+inline int u2iNegThrow(TYT i)
 {
-	assert((i & 0x80000000u) == 0);
-	return static_cast<int>(i);
-}
-
-// 将无符号转换为 4 字节整型, 如果是负的或溢出就报错, 例如用于转换 size_t
-inline int u2iNegThrow(unsigned long long i)
-{
-	assert((i & 0xFFFFFFFF80000000ull) == 0);
+	assert((sizeof(TYT) == 4) ?( (i & 0x80000000) == 0) :((i & 0xFFFFFFFF80000000) == 0));
 	return static_cast<int>(i);
 }
 

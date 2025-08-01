@@ -1404,7 +1404,7 @@ std::list<std::string> CodeGen::makeI64Immediate(long long i, const Register* pl
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(placeIn, 64), immediate(~a[3])));
+		l.emplace_back(instruction("MOVN", regName(placeIn, 64), immediate((~a[3]) & 65535u)));
 		for (int t = 2; t > -1; t--)
 		{
 			if (a[t] != 65535u)
@@ -1453,7 +1453,7 @@ std::list<std::string> CodeGen::makeI32Immediate(int i, const Register* placeIn)
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(placeIn, 32), immediate(~a[1])));
+		l.emplace_back(instruction("MOVN", regName(placeIn, 32), immediate(~a[1] & 65535u)));
 		if (a[0] != 65535u)
 			l.emplace_back(instruction("MOVK", regName(placeIn, 32),
 			                           immediate(a[0]), leftShift(offset[0])));
@@ -1507,7 +1507,7 @@ std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeI
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(reg, 32), immediate(~a[1])));
+		l.emplace_back(instruction("MOVN", regName(reg, 32), immediate(~a[1] & 65535u)));
 		if (a[0] != 65535u)
 			l.emplace_back(instruction("MOVK", regName(reg, 32),
 			                           immediate(a[0]), leftShift(offset[0])));

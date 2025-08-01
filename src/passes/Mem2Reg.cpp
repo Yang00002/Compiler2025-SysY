@@ -133,8 +133,7 @@ void Mem2Reg::generate_phi()
 		std::vector<BasicBlock*> work_list;
 		work_list.assign(live_var_2blocks[var].begin(),
 		                 live_var_2blocks[var].end());
-		int wls = u2iNegThrow(work_list.size());
-		for (int i = 0; i < wls; i++)
+		for (int i = 0; i < u2iNegThrow(work_list.size()); i++)
 		{
 			auto bb = work_list[i];
 			LOGIF(color::yellow("BasicBlock ") + bb->get_name() + color::yellow(" have no dominance frontier"),
