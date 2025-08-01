@@ -13,15 +13,65 @@
 
 using namespace std;
 
+/*
+ DFS
+		std::stack<NodeType*> dfsWorkList;
+		std::stack<NextNodeIterator> dfsVisitList;
+		dfsWorkList.emplace(block);
+		dfsVisitList.emplace(block->nextBegin());
+		PRE_JOB
+		while (!dfsWorkList.empty())
+		{
+			auto b = dfsWorkList.top();
+			auto& it = dfsVisitList.top();
+			if (it == b->nextEnd())
+			{
+				dfsVisitList.pop();
+				SUFF_JOB
+				dfsWorkList.pop();
+				continue;
+			}
+			auto get = *it;
+			if (VALID CHECK)
+			{
+				PRE_JOB
+				dfsVisitList.push(get->nextBegin());
+				dfsWorkList.push(get);
+			}
+			it UPDATE
+		}
+ */
+
 namespace
 {
-	void dfsBlocks(bool* visited, vector<MBasicBlock*>& orders, MBasicBlock* block, size_t blockCount,
+	void dfsBlocks(bool* visited, vector<MBasicBlock*>& orders, MBasicBlock* block,
 	               int& allocatedIndex)
 	{
+		std::stack<MBasicBlock*> dfsWorkList;
+		std::stack<set<MBasicBlock*>::const_iterator> dfsVisitList;
+		dfsWorkList.emplace(block);
+		dfsVisitList.emplace(block->suc_bbs().begin());
 		visited[block->id()] = true;
-		for (auto v : block->suc_bbs())
-			if (!visited[v->id()]) dfsBlocks(visited, orders, v, blockCount, allocatedIndex);
-		orders[allocatedIndex--] = block;
+		while (!dfsWorkList.empty())
+		{
+			auto b = dfsWorkList.top();
+			auto& it = dfsVisitList.top();
+			if (it == b->suc_bbs().end())
+			{
+				dfsVisitList.pop();
+				orders[allocatedIndex--] = dfsWorkList.top();
+				dfsWorkList.pop();
+				continue;
+			}
+			auto get = *it;
+			if (!visited[get->id()])
+			{
+				visited[get->id()] = true;
+				dfsVisitList.push(get->suc_bbs().begin());
+				dfsWorkList.push(get);
+			}
+			++it;
+		}
 	}
 }
 
@@ -39,7 +89,7 @@ LiveMessage::LiveMessage(MFunction* function): int_(true)
 	rpos_.resize(bs);
 	bool* visited = new bool[bs]{};
 	int allocatedIndex = static_cast<int>(bs) - 1;
-	if (!visited[blocks[0]->id()]) dfsBlocks(visited, rpos_, blocks[0], bs, allocatedIndex);
+	if (!visited[blocks[0]->id()]) dfsBlocks(visited, rpos_, blocks[0], allocatedIndex);
 	delete[] visited;
 	liveIn_.resize(rpos_.size());
 	liveOut_.resize(rpos_.size());
@@ -231,7 +281,7 @@ FrameLiveMessage::FrameLiveMessage(MFunction* function)
 	rpos_.resize(bs);
 	bool* visited = new bool[bs]{};
 	int allocatedIndex = static_cast<int>(bs) - 1;
-	if (!visited[blocks[0]->id()]) dfsBlocks(visited, rpos_, blocks[0], bs, allocatedIndex);
+	if (!visited[blocks[0]->id()]) dfsBlocks(visited, rpos_, blocks[0], allocatedIndex);
 	delete[] visited;
 	liveIn_.resize(rpos_.size());
 	liveOut_.resize(rpos_.size());

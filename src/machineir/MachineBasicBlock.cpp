@@ -203,20 +203,8 @@ void MBasicBlock::acceptMathInst(Instruction* instruction, std::map<Value*, MOpe
 	auto l = block->function()->getOperandFor(l0, opMap);
 	auto r = block->function()->getOperandFor(r0, opMap);
 	auto t = block->function()->getOperandFor(instruction, opMap);
-	auto op = instruction->get_instr_type();
-	if (op != Instruction::srem)
-	{
-		auto ret = new MMathInst{block, op, l, r, t, 32};
-		instructions_.emplace_back(ret);
-		return;
-	}
-	auto b = VirtualRegister::createVirtualIRegister(function_, 32);
-	auto m = new MMathInst{ block, Instruction::sdiv, l, r,b, 32 };
-	auto s = new MMSUB{ block, t, b, r, l };
-	m->tiedWith_ = s;
-	s->tiedWith_ = m;
+	auto m = new MMathInst{ block, instruction->get_instr_type(), l, r,t, 32};
 	instructions_.emplace_back(m);
-	instructions_.emplace_back(s);
 }
 
 namespace

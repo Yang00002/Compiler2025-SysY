@@ -4,7 +4,7 @@ target_file="$2"
 mid_file_ll="${target_file}.ll"
 mid_file_s="${target_file}.s"
 
-./build/compiler -S -o "$source_file" "$mid_file_ll" -ir
+./build/compiler -S -o "$mid_file_ll" "$source_file" -ir
 
 llc -march=aarch64 -mcpu=cortex-a53 -filetype=asm "$mid_file_ll" -o "${mid_file_s}"
 

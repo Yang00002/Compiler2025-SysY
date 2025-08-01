@@ -79,8 +79,6 @@ class CodeGen
 	static MInstruction* preInst(const MInstruction* current);
 	static void reverseCmpOp(const MCMP* inst);
 	std::list<std::string> sub(const Register* to, const Register* l, const Register* r, int len);
-	std::list<std::string> msub(const MMSUB* inst, const MOperand* to, const MOperand* l, const MOperand* r,
-	                            const MOperand* s);
 	std::list<std::string> mathRRInst(const Register* to, const Register* l, const Register* r, Instruction::OpID op,
 	                                  int len);
 	std::list<std::string> fsub(const Register* to, const Register* l, const Register* r);

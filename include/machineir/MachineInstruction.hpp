@@ -139,7 +139,6 @@ class MMathInst final : public MInstruction
 	unsigned int width_;
 
 public:
-	MMSUB* tiedWith_ = nullptr;
 	[[nodiscard]] Instruction::OpID op() const
 	{
 		return op_;
@@ -266,7 +265,6 @@ public:
 class MMSUB final : public MInstruction
 {
 public:
-	MMathInst* tiedWith_ = nullptr;
 	explicit MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s);
 	std::string print() override;
 	void replace(MOperand* from, MOperand* to, MFunction* parent) override;

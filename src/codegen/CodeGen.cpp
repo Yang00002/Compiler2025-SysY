@@ -425,7 +425,7 @@ std::list<std::string> CodeGen::str(const Register* a, const Register* c, int of
 {
 	assert(len == 32 || len == 64 || len == 128);
 	assert(len == 32 ? align4(offset) : align8(offset));
-	if (inImm9(len)) return {instruction("STR", regName(a, len), regDataOffset(c, offset))};
+	if (inImm9(offset)) return {instruction("STR", regName(a, len), regDataOffset(c, offset))};
 	int absOff = offset < 0 ? -offset : offset;
 	int maxMov = static_cast<int>(m_countr_zero(absOff));
 	int lenLevel = static_cast<int>(m_countr_zero(len)) - 3;
@@ -521,7 +521,7 @@ std::list<std::string> CodeGen::ldr(const Register* a, const Register* baseOffse
 {
 	assert(len == 32 || len == 64 || len == 128);
 	assert(len == 32 ? align4(offset) : align8(offset));
-	if (inImm9(len)) return {instruction("LDR", regName(a, len), regDataOffset(baseOffsetReg, offset))};
+	if (inImm9(offset)) return {instruction("LDR", regName(a, len), regDataOffset(baseOffsetReg, offset))};
 	int absOff = offset < 0 ? -offset : offset;
 	int maxMov = static_cast<int>(m_countr_zero(absOff));
 	int lenLevel = static_cast<int>(m_countr_zero(len)) - 3;
@@ -586,13 +586,6 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
                                          Instruction::OpID op,
                                          int len)
 {
-	if (inst->tiedWith_)
-	{
-		auto tr = inst->tiedWith_->operands()[0];
-		op = Instruction::srem;
-		setBuf(0, t);
-		t = tr;
-	}
 	auto target = dynamic_cast<const Register*>(t);
 	assert(op >= Instruction::add && op <= Instruction::fdiv);
 	assert(op <= Instruction::srem || len != 64);
@@ -1157,17 +1150,6 @@ std::list<std::string> CodeGen::sub(const Register* to, const Register* l, const
 	return {instruction("SUB", regName(to, len), regName(l, len), regName(r, len))};
 }
 
-std::list<std::string> CodeGen::msub(const MMSUB* inst, const MOperand* to, const MOperand* l, const MOperand* r,
-                                     const MOperand* s)
-{
-	if (inst->tiedWith_)
-	{
-		releaseBuf(0);
-		return {};
-	}
-	throw runtime_error("unused");
-}
-
 std::list<std::string> CodeGen::mathRRInst(const Register* to, const Register* l, const Register* r,
                                            Instruction::OpID op, int len)
 {
@@ -1179,15 +1161,15 @@ std::list<std::string> CodeGen::mathRRInst(const Register* to, const Register* l
 		case Instruction::sdiv: return {instruction("SDIV", regName(to, len), regName(l, len), regName(r, len))};
 		case Instruction::srem:
 			{
-				auto b = dynamic_cast<const Register*>(getBuf(0));
-				assert(b != nullptr);
+			auto ip = getIP();
 				list ret = {
-					instruction("SDIV", regName(b, len), regName(l, len),
+					instruction("SDIV", regName(ip, len), regName(l, len),
 					            regName(r, len))
 				};
-				ret.emplace_back(instruction("MSUB", regName(to, len), regName(b, len),
+				ret.emplace_back(instruction("MSUB", regName(to, len), regName(ip, len),
 				                             regName(r, len),
 				                             regName(l, len)));
+				releaseIP(ip);
 				return ret;
 			}
 	}
@@ -1286,8 +1268,6 @@ std::list<std::string> CodeGen::makeInstruction(MInstruction* instruction)
 		merge(l, i2f(i->operands()[1], i->operands()[0]));
 	else if (auto i = dynamic_cast<MSXTW*>(instruction); i != nullptr)
 		merge(l, extend32To64(i->operands()[0], i->operands()[1]));
-	else if (auto i = dynamic_cast<MMSUB*>(instruction); i != nullptr)
-		merge(l, msub(i, i->operands()[0], i->operands()[1], i->operands()[2], i->operands()[3]));
 	else
 		assert(false);
 	return l;

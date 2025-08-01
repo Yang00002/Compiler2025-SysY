@@ -520,6 +520,8 @@ void Dominators::create_dom_dfs_order(Function* f)
 	dfsVisitList.emplace(false);
 
 	dom_tree_L_.clear();
+
+	// 这种非递归 DFS 只对树生效, 图上的去看 LiveMessage 的写法
 	while (!dfsWorkList.empty())
 	{
 		if (dfsVisitList.top())

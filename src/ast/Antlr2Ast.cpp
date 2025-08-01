@@ -120,7 +120,6 @@ std::any Antlr2AstVisitor::visitConstDef(SysYParser::ConstDefContext* context)
 
 std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* context)
 {
-	exit(-1);
 	const auto t = _initTensorConstraint.top();
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->constExp() != nullptr)

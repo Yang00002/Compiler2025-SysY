@@ -15,7 +15,7 @@
 #include "Type.hpp"
 #include "Value.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Util.hpp"
 
 Mem2Reg::Mem2Reg(Module* m) : Pass(m)
@@ -178,7 +178,6 @@ public:
 	std::stack<std::map<Value*, int>> count_map;
 	std::map<Value*, Value*> replace_map;
 	std::map<PhiInst*, Value*>* phi_lval;
-	std::set<BasicBlock*> visited;
 
 	rename_helper(std::map<PhiInst*, Value*>& m) : phi_lval(&m)
 	{
@@ -219,41 +218,45 @@ public:
 
 	void run(BasicBlock* bb)
 	{
+		std::set<BasicBlock*> visited;
 		std::stack<BasicBlock*> dfsWorkList;
-		std::stack<bool> dfsVisitList;
+		std::stack<std::list<BasicBlock*>::iterator> dfsVisitList;
 		dfsWorkList.emplace(bb);
-		dfsVisitList.emplace(false);
+		dfsVisitList.emplace(bb->get_succ_basic_blocks().begin());
+		run_inner(bb);
+		visited.insert(bb);
 		while (!dfsWorkList.empty())
 		{
-			if (dfsVisitList.top())
+			auto b = dfsWorkList.top();
+			auto& it = dfsVisitList.top();
+			if (it == b->get_succ_basic_blocks().end())
 			{
 				dfsVisitList.pop();
-				dfsWorkList.pop();
-				auto ic = count_map.top();
-				count_map.pop();
-				for (auto& [v, j] : ic)
+				if (!dfsVisitList.empty())
 				{
-					auto& focus = name_stack_map[v];
-					for (int k = 0; k < j; k++)
+					auto& ic = count_map.top();
+					for (auto& [v, j] : ic)
 					{
-						focus.pop();
+						auto& focus = name_stack_map[v];
+						for (int k = 0; k < j; k++)
+						{
+							focus.pop();
+						}
 					}
+					count_map.pop();
 				}
+				dfsWorkList.pop();
 				continue;
 			}
-			dfsVisitList.top() = true;
-			auto bb2 = dfsWorkList.top();
-			run_inner(bb2);
-			visited.insert(bb2);
-			for (auto& i : bb2->get_succ_basic_blocks())
+			auto get = *it;
+			if (visited.count(get) == 0)
 			{
-				if (visited.count(i) == 0)
-				{
-					visited.insert(i);
-					dfsWorkList.emplace(i);
-					dfsVisitList.emplace(false);
-				}
+				run_inner(get);
+				visited.insert(get);
+				dfsVisitList.push(get->get_succ_basic_blocks().begin());
+				dfsWorkList.push(get);
 			}
+			++it;
 		}
 		/*
 		 
