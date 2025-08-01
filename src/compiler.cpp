@@ -179,9 +179,6 @@ void ast(std::string infile, std::string outfile) {
 }
 
 void compiler(std::string infile, std::string outfile) {
-  tree(infile);
-  exit(-1);
-
   Module *m = nullptr;
   {
     ASTCompUnit *ast;
