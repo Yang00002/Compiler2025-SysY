@@ -99,16 +99,16 @@ public:
 class MCopy final : public MInstruction
 {
 public:
-	[[nodiscard]] unsigned int copy_len() const
+	[[nodiscard]] int copy_len() const
 	{
 		return copyLen_;
 	}
 
 private:
-	unsigned int copyLen_;
+	int copyLen_;
 
 public:
-	explicit MCopy(MBasicBlock* block, MOperand* src, MOperand* des, unsigned int copyLen);
+	explicit MCopy(MBasicBlock* block, MOperand* src, MOperand* des, int copyLen);
 	std::string print() override;
 };
 
@@ -136,7 +136,7 @@ public:
 class MMathInst final : public MInstruction
 {
 	Instruction::OpID op_;
-	unsigned int width_;
+	int width_;
 
 public:
 	[[nodiscard]] Instruction::OpID op() const
@@ -144,12 +144,12 @@ public:
 		return op_;
 	}
 
-	[[nodiscard]] unsigned int width() const
+	[[nodiscard]] int width() const
 	{
 		return width_;
 	}
 
-	explicit MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r, MOperand* t, unsigned width);
+	explicit MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r, MOperand* t, int width);
 	void replace(MOperand* from, MOperand* to, MFunction* parent) override;
 	void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;
 	void stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;
@@ -158,29 +158,29 @@ public:
 
 class MLDR final : public MInstruction
 {
-	unsigned int width_;
+	int width_;
 
 public:
-	[[nodiscard]] unsigned int width() const
+	[[nodiscard]] int width() const
 	{
 		return width_;
 	}
 
-	explicit MLDR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, unsigned int width);
+	explicit MLDR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, int width);
 	std::string print() override;
 };
 
 class MSTR final : public MInstruction
 {
-	unsigned int width_;
+	int width_;
 
 public:
-	[[nodiscard]] unsigned int width() const
+	[[nodiscard]] int width() const
 	{
 		return width_;
 	}
 
-	explicit MSTR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, unsigned int width);
+	explicit MSTR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, int width);
 	std::string print() override;
 	void replace(MOperand* from, MOperand* to, MFunction* parent) override;
 	void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;

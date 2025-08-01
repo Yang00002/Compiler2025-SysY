@@ -47,7 +47,7 @@ public:
 	std::string print() override;
 	// 该全局变量因为初始化而导致的实际类型设置
 	// 不同的初始化实际上对应不同的类型聚合
-	std::string printInitType() const;
+	[[nodiscard]] std::string printInitType() const;
 	// 该全局变量的初始化值
-	std::string printInitValue() const;
+	[[nodiscard]] std::string printInitValue() const;
 };

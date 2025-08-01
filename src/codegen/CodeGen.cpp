@@ -1,7 +1,6 @@
 #include "CodeGen.hpp"
 
 #include <cassert>
-#include <cstring>
 
 #include "Ast.hpp"
 #include "Config.hpp"
@@ -12,7 +11,6 @@
 
 #define DEBUG 0
 #include <iomanip>
-#include <sstream>
 
 #include "CountLZ.hpp"
 #include "Util.hpp"
@@ -23,7 +21,7 @@ namespace
 {
 	string condName(Instruction::OpID cond)
 	{
-		switch (cond)
+		switch (cond) // NOLINT(clang-diagnostic-switch-enum)
 		{
 			case Instruction::ge: return "GE";
 			case Instruction::gt: return "GT";
@@ -31,32 +29,20 @@ namespace
 			case Instruction::lt: return "LT";
 			case Instruction::eq: return "EQ";
 			case Instruction::ne: return "NE";
+			default: break;
 		}
 		throw runtime_error("unexpected");
 	}
 
-	int upAlignTo(int of, int s)
-	{
-		if (s > alignTo16NeedBytes) return ((of + 15) >> 4) << 4;
-		if (s > 8) s = 8;
-		const static int u[9] = {0, 0, 1, 3, 3, 7, 7, 7, 7};
-		const static int t[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
-		return ((of + u[s]) >> t[s]) << t[s];
-	}
-
 	int upAlignTo16(int of)
 	{
+		assert(of >= 0);
 		return ((of + 15) >> 4) << 4;
 	}
 
 	bool inUImm12(int i)
 	{
 		return i >= 0 && i < 4096;
-	}
-
-	bool inUImm12(unsigned i)
-	{
-		return i < 4096;
 	}
 
 	bool inUImm12(long long i)
@@ -77,13 +63,6 @@ namespace
 	bool inUImm12L12(int i)
 	{
 		if (i < 0) return false;
-		if (i & 4095) return false;
-		i >>= 12;
-		return i < 4096;
-	}
-
-	bool inUImm12L12(unsigned i)
-	{
 		if (i & 4095) return false;
 		i >>= 12;
 		return i < 4096;
@@ -111,13 +90,6 @@ namespace
 		return !(i & 0b111);
 	}
 
-	bool inImm7L4(int i)
-	{
-		if (i < -1024) return false;
-		if (i > 1008) return false;
-		return !(i & 0b1111);
-	}
-
 	bool inImm9(int i)
 	{
 		if (i < -256) return false;
@@ -134,24 +106,11 @@ namespace
 		return !(i & 0b111);
 	}
 
-	bool floatMovSupport(float imm) noexcept
-	{
-		unsigned u;
-		memcpy(&u, &imm, sizeof(u));
-		const unsigned exp = (u >> 23) & 0xFFu;
-		const unsigned frac = u & 0x7FFFFFu;
-		if (exp < 124 || exp > 131)
-			return false;
-		if (frac & 0x780000u)
-			return false;
-		return true;
-	}
-
 	bool floatMovSupport(unsigned u) noexcept
 	{
-		const unsigned exp = (u >> 23) & 0xFFu;
+		const unsigned exp = u & (0xFFu << 23u);
 		const unsigned frac = u & 0x7FFFFFu;
-		if (exp < 124 || exp > 131)
+		if (exp < 124u || exp > 131u)
 			return false;
 		if (frac & 0x780000u)
 			return false;
@@ -210,7 +169,7 @@ std::string CodeGen::label(const std::string& name)
 	return name + ":";
 }
 
-std::string CodeGen::word(std::vector<ConstantValue>* v)
+std::string CodeGen::word(const std::vector<ConstantValue>* v)
 {
 	string ret = "\t.word ";
 	for (auto& i : *v)
@@ -244,7 +203,7 @@ void CodeGen::append(const std::list<std::string>& txt)
 
 std::list<std::string> CodeGen::makeGlobal(const GlobalAddress* address)
 {
-	int allSize = static_cast<int>((address->size_) >> 3);
+	int allSize = u2iNegThrow(address->size_ >> 3);
 	list<string> l;
 	l.emplace_back(align(allSize, true));
 	l.emplace_back(global(address->name_));
@@ -427,8 +386,8 @@ std::list<std::string> CodeGen::str(const Register* a, const Register* c, int of
 	assert(len == 32 ? align4(offset) : align8(offset));
 	if (inImm9(offset)) return {instruction("STR", regName(a, len), regDataOffset(c, offset))};
 	int absOff = offset < 0 ? -offset : offset;
-	int maxMov = static_cast<int>(m_countr_zero(absOff));
-	int lenLevel = static_cast<int>(m_countr_zero(len)) - 3;
+	int maxMov = m_countr_zero(i2uKeepBits(absOff));
+	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
 	if (maxMov > lenLevel) maxMov = lenLevel;
 	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
 	auto reg = getIP();
@@ -523,8 +482,8 @@ std::list<std::string> CodeGen::ldr(const Register* a, const Register* baseOffse
 	assert(len == 32 ? align4(offset) : align8(offset));
 	if (inImm9(offset)) return {instruction("LDR", regName(a, len), regDataOffset(baseOffsetReg, offset))};
 	int absOff = offset < 0 ? -offset : offset;
-	int maxMov = static_cast<int>(m_countr_zero(absOff));
-	int lenLevel = static_cast<int>(m_countr_zero(len)) - 3;
+	int maxMov = m_countr_zero(i2uKeepBits(absOff));
+	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
 	if (maxMov > lenLevel) maxMov = lenLevel;
 	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
 	auto reg = getIP();
@@ -606,7 +565,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 			if (len == 32)
 			{
 				int i;
-				switch (op)
+				switch (op) // NOLINT(clang-diagnostic-switch-enum)
 				{
 					case Instruction::add:
 						i = immL->asInt() + immR->asInt();
@@ -629,7 +588,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 				return makeI32Immediate(i, target);
 			}
 			long long i;
-			switch (op)
+			switch (op) // NOLINT(clang-diagnostic-switch-enum)
 			{
 				case Instruction::add:
 					i = immL->as64BitsInt() + immR->as64BitsInt();
@@ -652,7 +611,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 			return makeI64Immediate(i, target);
 		}
 		float f;
-		switch (op)
+		switch (op) // NOLINT(clang-diagnostic-switch-enum)
 		{
 			case Instruction::fadd:
 				f = immL->asFloat() + immR->asFloat();
@@ -753,7 +712,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	}
 	if (flt)
 	{
-		switch (op)
+		switch (op) // NOLINT(clang-diagnostic-switch-enum)
 		{
 			case Instruction::fadd:
 				merge(ret, fadd(target, regL, regR));
@@ -994,7 +953,7 @@ std::list<std::string> CodeGen::extend32To64(const MOperand* from, const MOperan
 	assert(t);
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
-		long long i = static_cast<long long>(imm->asInt());
+		long long i = imm->asInt();
 		return makeI64Immediate(i, t);
 	}
 	assert(f);
@@ -1092,18 +1051,6 @@ std::list<std::string> CodeGen::compare(const MCMP* inst, const MOperand* l, con
 	return ret;
 }
 
-MInstruction* CodeGen::preInst(const MInstruction* current)
-{
-	auto bb = current->block();
-	auto& insts = bb->instructions();
-	int i = static_cast<int>(insts.size());
-	for (int j = i - 1; j > 0; j--)
-	{
-		if (insts[j] == current)
-			return insts[j - 1];
-	}
-	return nullptr;
-}
 
 void CodeGen::reverseCmpOp(const MCMP* inst)
 {
@@ -1153,7 +1100,7 @@ std::list<std::string> CodeGen::sub(const Register* to, const Register* l, const
 std::list<std::string> CodeGen::mathRRInst(const Register* to, const Register* l, const Register* r,
                                            Instruction::OpID op, int len)
 {
-	switch (op)
+	switch (op) // NOLINT(clang-diagnostic-switch-enum)
 	{
 		case Instruction::add: return add(to, l, r, len);
 		case Instruction::sub: return sub(to, l, r, len);
@@ -1161,7 +1108,7 @@ std::list<std::string> CodeGen::mathRRInst(const Register* to, const Register* l
 		case Instruction::sdiv: return {instruction("SDIV", regName(to, len), regName(l, len), regName(r, len))};
 		case Instruction::srem:
 			{
-			auto ip = getIP();
+				auto ip = getIP();
 				list ret = {
 					instruction("SDIV", regName(ip, len), regName(l, len),
 					            regName(r, len))
@@ -1172,6 +1119,7 @@ std::list<std::string> CodeGen::mathRRInst(const Register* to, const Register* l
 				releaseIP(ip);
 				return ret;
 			}
+		default: break;
 	}
 	throw runtime_error("unexpected");
 }
@@ -1235,39 +1183,39 @@ std::list<std::string> CodeGen::makeInstruction(MInstruction* instruction)
 	list<string> l;
 	RUN(l.emplace_back(color::green("# " + instruction->print())));
 	if (auto i = dynamic_cast<MCopy*>(instruction); i != nullptr)
-		merge(l, copy(instruction->operands()[1], instruction->operands()[0], static_cast<int>(i->copy_len())));
-	else if (auto i = dynamic_cast<MSTR*>(instruction); i != nullptr)
-		merge(l, str(instruction->operands()[0], instruction->operands()[1], static_cast<int>(i->width())));
-	else if (auto i = dynamic_cast<MLDR*>(instruction); i != nullptr)
-		merge(l, ldr(instruction->operands()[0], instruction->operands()[1], static_cast<int>(i->width())));
-	else if (auto i = dynamic_cast<MST1V16B*>(instruction); i != nullptr)
-		merge(l, st1(instruction->operands()[0], i->storeCount_, i->offset_));
-	else if (auto i = dynamic_cast<MLD1V16B*>(instruction); i != nullptr)
-		merge(l, ld1(instruction->operands()[0], i->loadCount_, i->offset_));
-	else if (auto i = dynamic_cast<MST1ZTV16B*>(instruction); i != nullptr)
-		merge(l, clearV(i->loadCount_));
-	else if (auto i = dynamic_cast<MMathInst*>(instruction); i != nullptr)
-		merge(l, mathInst(i, instruction->operands()[0], instruction->operands()[1], instruction->operands()[2],
-		                  i->op(),
-		                  i->width()));
-	else if (auto i = dynamic_cast<MBL*>(instruction); i != nullptr)
+		merge(l, copy(instruction->operands()[1], instruction->operands()[0], (i->copy_len())));
+	else if (auto i2 = dynamic_cast<MSTR*>(instruction); i2 != nullptr)
+		merge(l, str(instruction->operands()[0], instruction->operands()[1], (i2->width())));
+	else if (auto i3 = dynamic_cast<MLDR*>(instruction); i3 != nullptr)
+		merge(l, ldr(instruction->operands()[0], instruction->operands()[1], (i3->width())));
+	else if (auto i4 = dynamic_cast<MST1V16B*>(instruction); i4 != nullptr)
+		merge(l, st1(instruction->operands()[0], i4->storeCount_, i4->offset_));
+	else if (auto i5 = dynamic_cast<MLD1V16B*>(instruction); i5 != nullptr)
+		merge(l, ld1(instruction->operands()[0], i5->loadCount_, i5->offset_));
+	else if (auto i6 = dynamic_cast<MST1ZTV16B*>(instruction); i6 != nullptr)
+		merge(l, clearV(i6->loadCount_));
+	else if (auto i7 = dynamic_cast<MMathInst*>(instruction); i7 != nullptr)
+		merge(l, mathInst(i7, instruction->operands()[0], instruction->operands()[1], instruction->operands()[2],
+		                  i7->op(),
+		                  (i7->width())));
+	else if (auto i8 = dynamic_cast<MBL*>(instruction); i8 != nullptr)
 		merge(l, call(instruction->operands()[0]));
-	else if (auto i = dynamic_cast<MRet*>(instruction); i != nullptr)
+	else if (auto i9 = dynamic_cast<MRet*>(instruction); i9 != nullptr)
 		merge(l, ret());
-	else if (auto i = dynamic_cast<MBcc*>(instruction); i != nullptr)
-		merge(l, bcc(i->operands()[0], i->op()));
-	else if (auto i = dynamic_cast<MB*>(instruction); i != nullptr)
-		merge(l, branch(i->operands()[0]));
-	else if (auto i = dynamic_cast<MCMP*>(instruction); i != nullptr)
-		merge(l, compare(i, i->operands()[0], i->operands()[1], !i->itff_));
-	else if (auto i = dynamic_cast<MCSET*>(instruction); i != nullptr)
-		merge(l, cset(i->operands()[0], i->op_));
-	else if (auto i = dynamic_cast<MFCVTZS*>(instruction); i != nullptr)
-		merge(l, f2i(i->operands()[1], i->operands()[0]));
-	else if (auto i = dynamic_cast<MSCVTF*>(instruction); i != nullptr)
-		merge(l, i2f(i->operands()[1], i->operands()[0]));
-	else if (auto i = dynamic_cast<MSXTW*>(instruction); i != nullptr)
-		merge(l, extend32To64(i->operands()[0], i->operands()[1]));
+	else if (auto i10 = dynamic_cast<MBcc*>(instruction); i10 != nullptr)
+		merge(l, bcc(i10->operands()[0], i10->op()));
+	else if (auto i11 = dynamic_cast<MB*>(instruction); i11 != nullptr)
+		merge(l, branch(i11->operands()[0]));
+	else if (auto i12 = dynamic_cast<MCMP*>(instruction); i12 != nullptr)
+		merge(l, compare(i12, i12->operands()[0], i12->operands()[1], !i12->itff_));
+	else if (auto i13 = dynamic_cast<MCSET*>(instruction); i13 != nullptr)
+		merge(l, cset(i13->operands()[0], i13->op_));
+	else if (auto i14 = dynamic_cast<MFCVTZS*>(instruction); i14 != nullptr)
+		merge(l, f2i(i14->operands()[1], i14->operands()[0]));
+	else if (auto i15 = dynamic_cast<MSCVTF*>(instruction); i15 != nullptr)
+		merge(l, i2f(i15->operands()[1], i15->operands()[0]));
+	else if (auto i16 = dynamic_cast<MSXTW*>(instruction); i16 != nullptr)
+		merge(l, extend32To64(i16->operands()[0], i16->operands()[1]));
 	else
 		assert(false);
 	return l;
@@ -1311,36 +1259,34 @@ std::string CodeGen::immediate(int i)
 	return "#" + to_string(i);
 }
 
-std::string CodeGen::immediate(long long i)
-{
-	return "#" + to_string(i);
-}
-
-std::string CodeGen::immediate(unsigned short i)
-{
-	return "#" + to_string(static_cast<unsigned int>(i));
-}
-
 std::string CodeGen::immediate(unsigned i)
 {
 	return "#" + to_string(i);
 }
 
-std::string CodeGen::fimmediate(unsigned i)
+std::string CodeGen::immediate(long long i)
 {
-	float f;
-	memcpy(&f, &i, sizeof(float));
-	return "#" + to_string(f);
+	return "#" + to_string(i);
+}
+
+std::string CodeGen::fimmediate(float i)
+{
+	return "#" + to_string(i);
 }
 
 std::string CodeGen::immediate(float i)
 {
-	unsigned f = 0;
+	int f = 0;
 	memcpy(&f, &i, sizeof(float));
 	return "#" + to_string(f);
 }
 
 std::string CodeGen::poolImmediate(int i)
+{
+	return "=" + to_string(i);
+}
+
+std::string CodeGen::poolImmediate(unsigned i)
 {
 	return "=" + to_string(i);
 }
@@ -1362,7 +1308,7 @@ void CodeGen::decideCond(MInstruction* instruction, int cond)
 		op = cset->op_;
 	}
 	bool ok = false;
-	switch (op)
+	switch (op) // NOLINT(clang-diagnostic-switch-enum)
 	{
 		case Instruction::ge:
 			{
@@ -1394,6 +1340,7 @@ void CodeGen::decideCond(MInstruction* instruction, int cond)
 				ok = cond != 0;
 				break;
 			}
+		default: break;
 	}
 	op = Instruction::add;
 	if (!ok) op = Instruction::sub;
@@ -1401,10 +1348,6 @@ void CodeGen::decideCond(MInstruction* instruction, int cond)
 	else b->op_ = op;
 }
 
-std::string CodeGen::poolImmediate(unsigned i)
-{
-	return "=" + to_string(i);
-}
 
 std::string CodeGen::poolImmediate(long long i)
 {
@@ -1428,17 +1371,19 @@ std::list<std::string> CodeGen::makeI64Immediate(long long i, const Register* pl
 		}
 		else if (inUImm12(-i) || inUImm12L12(-i)) return sub32(placeIn, zeroRegister(), static_cast<int>(-i));
 	}
-	unsigned short a[4] = {
-		static_cast<unsigned short>((i >> 48) & 65535), static_cast<unsigned short>((i >> 32) & 65535),
-		static_cast<unsigned short>((i >> 16) & 65535), static_cast<unsigned short>(i & 65535)
+	unsigned a[4] = {
+		static_cast<unsigned>(ll2ullKeepBits((i >> 48) & 65535)),
+		static_cast<unsigned>(ll2ullKeepBits((i >> 32) & 65535)),
+		static_cast<unsigned>(ll2ullKeepBits((i >> 16) & 65535)),
+		static_cast<unsigned>(ll2ullKeepBits(i & 65535))
 	};
 	int offset[4] = {48, 32, 16, 0};
 	int nc = 0;
 	int zc = 0;
 	for (int t = 0; t < 3; t++)
 	{
-		if (a[t] == 65535) nc++;
-		else if (a[t] == 0) zc++;
+		if (a[t] == 65535u) nc++;
+		else if (a[t] == 0u) zc++;
 	}
 	bool uz = zc >= nc;
 	int count = 4 - (uz ? zc : nc);
@@ -1452,17 +1397,17 @@ std::list<std::string> CodeGen::makeI64Immediate(long long i, const Register* pl
 		l.emplace_back(instruction("MOVZ", regName(placeIn, 64), immediate(a[3])));
 		for (int t = 2; t > -1; t--)
 		{
-			if (a[t] != 0)
+			if (a[t] != 0u)
 				l.emplace_back(instruction("MOVK", regName(placeIn, 64),
 				                           immediate(a[t]), leftShift(offset[t])));
 		}
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(placeIn, 64), immediate(static_cast<unsigned short>(~a[3]))));
+		l.emplace_back(instruction("MOVN", regName(placeIn, 64), immediate(~a[3])));
 		for (int t = 2; t > -1; t--)
 		{
-			if (a[t] != 65535)
+			if (a[t] != 65535u)
 				l.emplace_back(instruction("MOVK", regName(placeIn, 64),
 				                           immediate(a[t]), leftShift(offset[t])));
 		}
@@ -1484,14 +1429,14 @@ std::list<std::string> CodeGen::makeI32Immediate(int i, const Register* placeIn)
 			if (inUImm12(-i) || inUImm12L12(-i)) return sub32(placeIn, zeroRegister(), -i);
 		}
 	}
-	unsigned short a[2] = {
-		static_cast<unsigned short>((i >> 16) & 65535), static_cast<unsigned short>(i & 65535)
+	unsigned a[2] = {
+		static_cast<unsigned>(ll2ullKeepBits((i >> 16) & 65535)), static_cast<unsigned>(ll2ullKeepBits(i & 65535))
 	};
 	int offset[4] = {16, 0};
 	int nc = 0;
 	int zc = 0;
-	if (a[0] == 65535) nc++;
-	else if (a[0] == 0) zc++;
+	if (a[0] == 65535u) nc++;
+	else if (a[0] == 0u) zc++;
 	bool uz = zc >= nc;
 	int count = 2 - (uz ? zc : nc);
 	if (count > useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan)
@@ -1502,14 +1447,14 @@ std::list<std::string> CodeGen::makeI32Immediate(int i, const Register* placeIn)
 	if (uz)
 	{
 		l.emplace_back(instruction("MOVZ", regName(placeIn, 32), immediate(a[1])));
-		if (a[0] != 0)
+		if (a[0] != 0u)
 			l.emplace_back(instruction("MOVK", regName(placeIn, 32),
 			                           immediate(a[0]), leftShift(offset[0])));
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(placeIn, 32), immediate(static_cast<unsigned short>(~a[1]))));
-		if (a[0] != 65535)
+		l.emplace_back(instruction("MOVN", regName(placeIn, 32), immediate(~a[1])));
+		if (a[0] != 65535u)
 			l.emplace_back(instruction("MOVK", regName(placeIn, 32),
 			                           immediate(a[0]), leftShift(offset[0])));
 	}
@@ -1521,13 +1466,12 @@ std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeI
 	unsigned u = 0;
 	memcpy(&u, &i, sizeof(float));
 	if (floatMovSupport(u))
-		return {instruction("FMOV", regName(placeIn, 32), fimmediate(u))};
-	unsigned short a[2] = {
-		static_cast<unsigned short>((u >> 16) & 65535), static_cast<unsigned short>(u & 65535)
+		return {instruction("FMOV", regName(placeIn, 32), fimmediate(i))};
+	unsigned a[2] = {
+		((u >> 16u) & 65535u), (u & 65535u)
 	};
 
-	int cu = 0;
-	memcpy(&cu, &i, sizeof(float));
+	int cu = u2iKeepBits(u);
 
 	if (useZRRegisterAsCommonRegister)
 	{
@@ -1544,8 +1488,8 @@ std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeI
 	int offset[4] = {16, 0};
 	int nc = 0;
 	int zc = 0;
-	if (a[0] == 65535) nc++;
-	else if (a[0] == 0) zc++;
+	if (a[0] == 65535u) nc++;
+	else if (a[0] == 0u) zc++;
 	bool uz = zc >= nc;
 	int count = 2 - (uz ? zc : nc);
 	if (count > useLDRInsteadOfMov2CreateFloatWhenMovCountBiggerThan)
@@ -1557,14 +1501,14 @@ std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeI
 	if (uz)
 	{
 		l.emplace_back(instruction("MOVZ", regName(reg, 32), immediate(a[1])));
-		if (a[0] != 0)
+		if (a[0] != 0u)
 			l.emplace_back(instruction("MOVK", regName(reg, 32),
 			                           immediate(a[0]), leftShift(offset[0])));
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(reg, 32), immediate(static_cast<unsigned short>(~a[1]))));
-		if (a[0] != 65535)
+		l.emplace_back(instruction("MOVN", regName(reg, 32), immediate(~a[1])));
+		if (a[0] != 65535u)
 			l.emplace_back(instruction("MOVK", regName(reg, 32),
 			                           immediate(a[0]), leftShift(offset[0])));
 	}
@@ -1596,7 +1540,7 @@ std::string CodeGen::leftShift(int count)
 	return "LSL #" + to_string(count);
 }
 
-std::string CodeGen::functionSize(std::string name)
+std::string CodeGen::functionSize(const std::string& name)
 {
 	return "	.size " + name + ", .-" + name;
 }

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Instruction.hpp"
 #include "Dominators.hpp"
 #include "PassManager.hpp"
 #include <memory>
@@ -8,18 +7,18 @@
 
 class GVN final : public Pass
 {
-    enum gvn_state_t { firstdef, redundant, invalid };
+    enum gvn_state_t : uint8_t { firstdef, redundant, invalid };
 
     std::map<std::string, Value*> expr_val_map_;
     std::unique_ptr<Dominators> dom_;
 
-    bool to_be_visited(Instruction* i);
+    static bool to_be_visited(const Instruction* i);
     gvn_state_t visit_inst(Instruction* i);
     void erase_inst(Instruction* i);
-    
-    bool is_commutative(Instruction* i);
-    std::string get_expr(Instruction* i);
-    std::string get_equiv_expr(Instruction* i);
+
+    static bool is_commutative(const Instruction* i);
+    static std::string get_expr(const Instruction* i);
+    static std::string get_equiv_expr(const Instruction* i);
 
 public:
 	GVN(const GVN&) = delete;

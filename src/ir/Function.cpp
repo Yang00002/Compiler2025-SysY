@@ -6,6 +6,7 @@
 #include <map>
 
 #include "MachineBasicBlock.hpp"
+#include "System.hpp"
 
 Function::Function(FuncType* ty, const std::string& name, Module* parent, const bool is_lib)
 	: Value(ty, name), is_lib_(is_lib), parent_(parent), seq_cnt_(0)
@@ -13,9 +14,9 @@ Function::Function(FuncType* ty, const std::string& name, Module* parent, const 
 	// num_args_ = ty->getNumParams();
 	parent->add_function(this);
 	// build args
-	for (unsigned i = 0; i < get_num_of_args(); i++)
+	for (int i = 0; i < get_num_of_args(); i++)
 	{
-		arguments_.emplace_back(ty->argumentType(static_cast<int>(i)), "", this, i);
+		arguments_.emplace_back(ty->argumentType(i), "", this, i);
 	}
 }
 
@@ -40,12 +41,12 @@ Type* Function::get_return_type() const
 	return get_function_type()->returnType();
 }
 
-unsigned Function::get_num_of_args() const
+int Function::get_num_of_args() const
 {
 	return get_function_type()->argumentCount();
 }
 
-unsigned Function::get_num_basic_blocks() const { return static_cast<int>(basic_blocks_.size()); }
+int Function::get_num_basic_blocks() const { return u2iNegThrow(basic_blocks_.size()); }
 
 Module* Function::get_parent() const { return parent_; }
 
@@ -80,10 +81,10 @@ void Function::set_instr_name()
 	{
 		if (seq.find(&arg) == seq.end())
 		{
-			auto seq_num = seq.size() + seq_cnt_;
+			auto seq_num = u2iNegThrow(seq.size()) + seq_cnt_;
 			if (arg.set_name("arg" + std::to_string(seq_num)))
 			{
-				seq.insert({&arg, seq_num});
+				seq.emplace(&arg, seq_num);
 			}
 		}
 	}
@@ -91,25 +92,25 @@ void Function::set_instr_name()
 	{
 		if (seq.find(bb) == seq.end())
 		{
-			auto seq_num = seq.size() + seq_cnt_;
+			auto seq_num = u2iNegThrow(seq.size()) + seq_cnt_;
 			if (bb->set_name("label" + std::to_string(seq_num)))
 			{
-				seq.insert({bb, seq_num});
+				seq.emplace(bb, seq_num);
 			}
 		}
 		for (auto instr : bb->get_instructions())
 		{
 			if (!instr->is_void() && seq.find(instr) == seq.end())
 			{
-				auto seq_num = seq.size() + seq_cnt_;
+				auto seq_num = u2iNegThrow(seq.size()) + seq_cnt_;
 				if (instr->set_name("op" + std::to_string(seq_num)))
 				{
-					seq.insert({instr, seq_num});
+					seq.emplace(instr, seq_num);
 				}
 			}
 		}
 	}
-	seq_cnt_ += static_cast<unsigned>(seq.size());
+	seq_cnt_ += u2iNegThrow(seq.size());
 }
 
 std::string Function::print()
@@ -133,12 +134,12 @@ std::string Function::print()
 	// print arg
 	if (this->is_declaration())
 	{
-		for (unsigned i = 0; i < this->get_num_of_args(); i++)
+		for (int i = 0; i < this->get_num_of_args(); i++)
 		{
 			if (i)
 				func_ir += ", ";
 			func_ir += dynamic_cast<FuncType*>(this->get_type())
-			           ->argumentType(static_cast<int>(i))
+			           ->argumentType(i)
 			           ->print();
 		}
 	}

@@ -155,7 +155,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 				idx = 1;
 			}
 			auto& ops = inst->get_operands();
-			int size = static_cast<int>(ops.size());
+			int size = u2iNegThrow(ops.size());
 			int c = 1;
 			for (int i = idx; i < size; i++)
 			{
@@ -204,7 +204,9 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 			POP;
 		}
 		if (changed == true)
+		{
 			LOG(color::green("Detect Invariant, try again"));
+		}
 	}
 	while (changed);
 
@@ -304,7 +306,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 		pred->add_succ_basic_block(preheader);
 		preheader->add_pre_basic_block(pred);
 		const auto ins = pred->get_instructions().back();
-		const int size = static_cast<int>(ins->get_operands().size());
+		const int size = u2iNegThrow(ins->get_operands().size());
 		for (int i = 0; i < size; i++)
 		{
 			if (ins->get_operand(i) == loop->get_header())
@@ -315,7 +317,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 	}
 	LOG(color::pink("Moving Invariants"));
 	PUSH;
-	for (auto ins : invariant_as_list)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	for (auto ins : invariant_as_list) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
 		LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
 		ins->get_parent()->erase_instr(ins);

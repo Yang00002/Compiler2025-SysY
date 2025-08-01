@@ -124,7 +124,7 @@ public:
 		return ReturnInst::create_ret(val, this->BB_);
 	}
 
-	ReturnInst* create_void_ret() const
+	ReturnInst* create_void_ret()
 	{
 		return ReturnInst::create_void_ret(this->BB_);
 	}

@@ -113,7 +113,7 @@ class InitializeValue
 		int _int_value[2];
 		float _float_value[2];
 		bool _bool_value[8];
-		char _segment[8];
+		unsigned char _segment[8];
 	};
 
 	Field _field;

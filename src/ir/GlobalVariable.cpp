@@ -58,7 +58,7 @@ std::string GlobalVariable::printInitType() const
 		auto [p, l] = init_val_->segment(0);
 		if (p != nullptr)
 		{
-			int len = static_cast<int>(p->size());
+			int len = u2iNegThrow(p->size());
 			return '[' + std::to_string(len) + " x " + tys + ']';
 		}
 		return '[' + std::to_string(l) + " x " + tys + ']';
@@ -102,7 +102,7 @@ std::string GlobalVariable::printInitValue() const
 		auto [p, l] = init_val_->segment(0);
 		if (p != nullptr)
 		{
-			int len = static_cast<int>(p->size());
+			int len = u2iNegThrow(p->size());
 			string ret = "[";
 			for (int i = 0; i < len; i++)
 			{
@@ -132,7 +132,7 @@ std::string GlobalVariable::printInitValue() const
 			}
 			else
 			{
-				int len = static_cast<int>(p->size());
+				int len = u2iNegThrow(p->size());
 				ret += '[' + std::to_string(len) + " x " + tys + "] [";
 				for (int ii = 0; ii < len; ii++)
 				{

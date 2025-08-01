@@ -40,7 +40,7 @@ bool Instruction::is_void() const
 
 void Instruction::replaceAllOperandMatchs(const Value* from, Value* to)
 {
-	int size = static_cast<int>(get_operands().size());
+	int size = u2iNegThrow(get_operands().size());
 	for (int i = 0; i < size; i++)
 	{
 		auto pre = get_operand(i);
@@ -258,10 +258,11 @@ CallInst::CallInst(Function* func, const std::vector<Value*>& args, BasicBlock* 
 	: BaseInst<CallInst>(func->get_return_type(), call, bb)
 {
 	assert(func->get_type()->isFunctionType() && "Not a function");
-	assert((func->get_num_of_args() == args.size()) && "Wrong number of args");
+	int size = u2iNegThrow(args.size());
+	assert((func->get_num_of_args() == size) && "Wrong number of args");
 	add_operand(func);
 	auto func_type = dynamic_cast<FuncType*>(func->get_type());
-	for (unsigned i = 0; i < args.size(); i++)
+	for (int i = 0; i < size; i++)
 	{
 		assert(func_type->argumentType(i) == args[i]->get_type() &&
 			"CallInst: Wrong arg type");
@@ -397,10 +398,11 @@ Type* GetElementPtrInst::get_element_type(const Value* ptr,
 	if (ty->isArrayType())
 	{
 		ArrayType* arr_ty = dynamic_cast<ArrayType*>(ty);
-		for (unsigned i = 1; i < idxs.size(); i++)
+		int size = u2iNegThrow(idxs.size());
+		for (int i = 1; i < size; i++)
 		{
 			ty = arr_ty->getSubType(1);
-			if (i < idxs.size() - 1)
+			if (i < size - 1)
 			{
 				assert(ty->isArrayType() && "Index error!");
 			}
@@ -531,7 +533,8 @@ PhiInst::PhiInst(Type* ty, const std::vector<Value*>& vals,
 	: BaseInst<PhiInst>(ty, phi)
 {
 	assert(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
-	for (unsigned i = 0; i < vals.size(); i++)
+	int size = u2iNegThrow(vals.size());
+	for (int i = 0; i < size; i++)
 	{
 		assert(ty == vals[i]->get_type() && "Bad type for phi");
 		add_operand(vals[i]);

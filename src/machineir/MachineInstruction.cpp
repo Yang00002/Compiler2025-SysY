@@ -17,7 +17,7 @@ MInstruction::MInstruction(MBasicBlock* block) : block_(block)
 
 bool MInstruction::haveUseOf(const VirtualRegister* reg) const
 {
-	for (auto i : use_)
+	for (auto i : use_)  // NOLINT(readability-use-anyofallof)
 	{
 		if (operands_[i] == reg) return true;
 	}
@@ -26,7 +26,7 @@ bool MInstruction::haveUseOf(const VirtualRegister* reg) const
 
 bool MInstruction::haveDefOf(const VirtualRegister* reg) const
 {
-	for (auto i : def_)
+	for (auto i : def_)  // NOLINT(readability-use-anyofallof)
 	{
 		if (operands_[i] == reg) return true;
 	}
@@ -77,8 +77,8 @@ std::string MRet::print()
 	return "RET\t\t\t;imp_use LR";
 }
 
-MCopy::MCopy(MBasicBlock* block, MOperand* src, MOperand* des, unsigned int copyLen) : MInstruction(block),
-	copyLen_(copyLen)
+MCopy::MCopy(MBasicBlock* block, MOperand* src, MOperand* des, int copyLen) : MInstruction(block),
+                                                                              copyLen_(copyLen)
 {
 	operands_.resize(2);
 	operands_[0] = src;
@@ -125,7 +125,7 @@ MB::MB(MBasicBlock* block, BlockAddress* t) : MInstruction(block)
 }
 
 MMathInst::MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r,
-                     MOperand* t, unsigned width) : MInstruction(block), op_(op), width_(width)
+                     MOperand* t, int width) : MInstruction(block), op_(op), width_(width)
 {
 	assert(l != nullptr);
 	assert(r != nullptr);
@@ -180,7 +180,7 @@ std::string MMathInst::print()
 	       print() + " [" + to_string(width_) + "]";
 }
 
-MLDR::MLDR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, unsigned int width): MInstruction(block),
+MLDR::MLDR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, int width): MInstruction(block),
 	width_(width)
 {
 	operands_.resize(2);
@@ -198,7 +198,7 @@ std::string MLDR::print()
 	return operands_[0]->print() + " = LDR " + operands_[1]->print() + " [" + to_string(width_) + "]";
 }
 
-MSTR::MSTR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, unsigned int width) : MInstruction(block),
+MSTR::MSTR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, int width) : MInstruction(block),
 	width_(width)
 {
 	operands_.resize(2);

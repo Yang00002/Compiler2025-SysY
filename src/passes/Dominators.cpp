@@ -90,7 +90,7 @@ namespace
 					}
 			}
 			while (rm);
-			blockCount_ = static_cast<int>(function->get_basic_blocks().size());
+			blockCount_ = u2iNegThrow(function->get_basic_blocks().size());
 			fromBlockIdToBlockPtr1_ = new BasicBlock*[blockCount_ + 1];
 			int edgeCount = 0;
 			int allocateId = 0;
@@ -98,7 +98,7 @@ namespace
 			{
 				fromBlockIdToBlockPtr1_[++allocateId] = block;
 				fromBlockPtrToBlockId_.emplace(block, allocateId);
-				edgeCount += static_cast<int>(block->get_succ_basic_blocks().size());
+				edgeCount += u2iNegThrow(block->get_succ_basic_blocks().size());
 			}
 			edges0_ = new int[edgeCount << 1];
 			idToEdgeIdxs2_ = new int[(blockCount_ << 1) + 3];
@@ -268,6 +268,7 @@ void Dominators::run_on_func(Function* f)
 }
 
 
+// ReSharper disable once CppParameterMayBeConstPtrOrRef
 BasicBlock* Dominators::get_idom(BasicBlock* bb) const { return idom_.at(bb); }
 
 const std::set<BasicBlock*>& Dominators::get_dominance_frontier(BasicBlock* bb)
@@ -275,6 +276,7 @@ const std::set<BasicBlock*>& Dominators::get_dominance_frontier(BasicBlock* bb)
 	return dom_frontier_[bb];
 }
 
+// ReSharper disable once CppParameterMayBeConstPtrOrRef
 const std::set<BasicBlock*>& Dominators::get_dom_tree_succ_blocks(BasicBlock* bb)
 {
 	return dom_tree_succ_blocks_.at(bb);
@@ -477,6 +479,7 @@ void Dominators::dump_dominator_tree(Function* f)
 	std::system(dot_cmd.c_str());
 }
 
+// ReSharper disable once CppParameterMayBeConstPtrOrRef
 bool Dominators::is_dominate(BasicBlock* bb1, BasicBlock* bb2) const
 {
 	return dom_tree_L_.at(bb1) <= dom_tree_L_.at(bb2) &&
@@ -512,7 +515,7 @@ const std::vector<BasicBlock*>& Dominators::get_dom_post_order(Function* functio
 void Dominators::create_dom_dfs_order(Function* f)
 {
 	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
-	unsigned int order = 0;
+	int order = 0;
 	auto& od = dom_dfs_order_[f];
 	std::stack<BasicBlock*> dfsWorkList;
 	std::stack<bool> dfsVisitList;

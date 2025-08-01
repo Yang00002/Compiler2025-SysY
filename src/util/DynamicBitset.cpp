@@ -6,10 +6,10 @@
 using namespace std;
 
 
-#define UPONES(start) ~((1ull << static_cast<unsigned>(start)) - 1)
-#define UPZEROS(start) ((1ull << static_cast<unsigned>(start)) - 1)
-#define ULLOFBITS(bits) (static_cast<unsigned>(bits) >> 6)
-#define OFFSETOFBITS(bits) (static_cast<unsigned>(bits) & 63u)
+#define UPONES(start) static_cast<unsigned long long>(~((1ll << (start)) - 1))
+#define UPZEROS(start) static_cast<unsigned long long>((1 << (start)) - 1)
+#define ULLOFBITS(bits) ((bits) >> 6)
+#define OFFSETOFBITS(bits) ((bits) & 63)
 
 DynamicBitset::DynamicBitset(): data_(nullptr), bitlen_(0), dataSize_(0)
 {
@@ -20,7 +20,7 @@ DynamicBitset::DynamicBitset(const DynamicBitset& other) :
 {
 	dataSize_ = (bitlen_ + 63) >> 6;
 	data_ = new unsigned long long[dataSize_];
-	memcpy(data_, other.data_, dataSize_ << 3);
+	memcpy(data_, other.data_, dataSize_ << 3u);
 }
 
 DynamicBitset::DynamicBitset(DynamicBitset&& other) noexcept
@@ -43,7 +43,7 @@ DynamicBitset& DynamicBitset::operator=(const DynamicBitset& other)
 	}
 	bitlen_ = other.bitlen_;
 	dataSize_ = other.dataSize_;
-	memcpy(data_, other.data_, dataSize_ << 3);
+	memcpy(data_, other.data_, dataSize_ << 3u);
 	return *this;
 }
 
@@ -62,13 +62,7 @@ DynamicBitset& DynamicBitset::operator=(DynamicBitset&& other) noexcept
 
 DynamicBitset::DynamicBitset(int len)
 {
-	bitlen_ = static_cast<unsigned>(len);
-	dataSize_ = (bitlen_ + 63) >> 6;
-	data_ = new unsigned long long[dataSize_]{};
-}
-
-DynamicBitset::DynamicBitset(unsigned len)
-{
+	assert(len >= 0);
 	bitlen_ = len;
 	dataSize_ = (bitlen_ + 63) >> 6;
 	data_ = new unsigned long long[dataSize_]{};
@@ -81,60 +75,41 @@ DynamicBitset::~DynamicBitset()
 
 bool DynamicBitset::test(int i) const
 {
+	assert(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	return data_[idx1] & (1ull << idx2);
 }
 
-void DynamicBitset::set(int i) const
+void DynamicBitset::set(int i) 
 {
+	assert(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	data_[idx1] |= 1ull << idx2;
 }
 
-bool DynamicBitset::test(unsigned i) const
+void DynamicBitset::set(int f, int t) 
 {
-	unsigned idx1 = i >> 6;
-	unsigned idx2 = i & 63;
-	return data_[idx1] & 1ull << idx2;
-}
-
-void DynamicBitset::set(unsigned i) const
-{
-	unsigned idx1 = i >> 6;
-	unsigned idx2 = i & 63;
-	data_[idx1] |= 1ull << idx2;
-}
-
-void DynamicBitset::set(unsigned f, unsigned t) const
-{
-	unsigned ullf = ULLOFBITS(f);
-	unsigned offf = OFFSETOFBITS(f);
-	unsigned ullt = ULLOFBITS(t);
-	unsigned offt = OFFSETOFBITS(t);
+	assert(f >= 0 && t >= 0);
+	auto ullf = ULLOFBITS(f);
+	auto offf = OFFSETOFBITS(f);
+	auto ullt = ULLOFBITS(t);
+	auto offt = OFFSETOFBITS(t);
 	if (ullf == ullt)
 	{
-		auto a = UPONES(offf);
-		auto b = UPZEROS(offt);
 		data_[ullf] |= UPONES(offf) & UPZEROS(offt);
 		return;
 	}
 	data_[ullf] |= UPONES(offf);
-	unsigned range = ullt - ullf - 1;
+	auto range = ullt - ullf - 1;
 	if (range > 0) memset(data_ + ullf + 1, 0XFF, range << 6);
 	data_[ullt] |= UPZEROS(offt);
 }
 
-void DynamicBitset::reset(unsigned i) const
+void DynamicBitset::reset(int i) 
 {
-	unsigned idx1 = i >> 6;
-	unsigned idx2 = i & 63;
-	data_[idx1] &= ~(1ull << idx2);
-}
-
-void DynamicBitset::reset(int i) const
-{
+	assert(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	data_[idx1] &= ~(1ull << idx2);
@@ -145,54 +120,54 @@ void DynamicBitset::reset() const
 	memset(data_, 0, dataSize_ << 3);
 }
 
-void DynamicBitset::operator|=(const DynamicBitset& bit) const
+void DynamicBitset::operator|=(const DynamicBitset& bit)
 {
-	for (unsigned i = 0; i < dataSize_; i++) data_[i] |= bit.data_[i];
+	for (int i = 0; i < dataSize_; i++) data_[i] |= bit.data_[i];
 }
 
-void DynamicBitset::operator-=(const DynamicBitset& bit) const
+void DynamicBitset::operator-=(const DynamicBitset& bit)
 {
-	for (unsigned i = 0; i < dataSize_; i++) data_[i] &= ~bit.data_[i];
+	for (int i = 0; i < dataSize_; i++) data_[i] &= ~bit.data_[i];
 }
 
 DynamicBitset DynamicBitset::operator-(const DynamicBitset& bit) const
 {
 	DynamicBitset nb = *this;
-	for (unsigned i = 0; i < dataSize_; i++) nb.data_[i] &= ~bit.data_[i];
+	for (int i = 0; i < dataSize_; i++) nb.data_[i] &= ~bit.data_[i];
 	return nb;
 }
 
 DynamicBitset DynamicBitset::operator|(const DynamicBitset& bit) const
 {
 	DynamicBitset nb = *this;
-	for (unsigned i = 0; i < dataSize_; i++) nb.data_[i] |= bit.data_[i];
+	for (int i = 0; i < dataSize_; i++) nb.data_[i] |= bit.data_[i];
 	return nb;
 }
 
 bool DynamicBitset::operator==(const DynamicBitset& bit) const
 {
-	for (unsigned i = 0; i < dataSize_; i++)
+	for (int i = 0; i < dataSize_; i++)
 		if (data_[i] != bit.data_[i])return false;
 	return true;
 }
 
 bool DynamicBitset::operator!=(const DynamicBitset& bit) const
 {
-	for (unsigned i = 0; i < dataSize_; i++)
+	for (int i = 0; i < dataSize_; i++)
 		if (data_[i] != bit.data_[i])return true;
 	return false;
 }
 
 bool DynamicBitset::allZeros() const
 {
-	for (unsigned i = 0; i < dataSize_; i++)
+	for (int i = 0; i < dataSize_; i++)
 		if (data_[i] != 0)return false;
 	return true;
 }
 
 bool DynamicBitset::include(const DynamicBitset& bit) const
 {
-	for (unsigned i = 0; i < dataSize_; i++)
+	for (int i = 0; i < dataSize_; i++)
 		if (~data_[i] & bit.data_[i]) return false;
 	return true;
 }
@@ -205,7 +180,7 @@ unsigned DynamicBitset::len() const
 std::string DynamicBitset::print() const
 {
 	std::string ret;
-	for (unsigned i = 0; i < bitlen_; i++)
+	for (int i = 0; i < bitlen_; i++)
 	{
 		if (test(i)) ret += to_string(i) + " ";
 	}
@@ -213,10 +188,10 @@ std::string DynamicBitset::print() const
 	return ret;
 }
 
-std::string DynamicBitset::print(const std::function<std::string(unsigned)>& sf) const
+std::string DynamicBitset::print(const std::function<std::string(int)>& sf) const
 {
 	std::string ret;
-	for (unsigned i = 0; i < bitlen_; i++)
+	for (int i = 0; i < bitlen_; i++)
 	{
 		if (test(i)) ret += sf(i) + " ";
 	}
@@ -247,7 +222,7 @@ DynamicBitset::Iterator::Iterator(const DynamicBitset* bs, bool begin)
 	}
 }
 
-size_t DynamicBitset::Iterator::operator*() const
+int DynamicBitset::Iterator::operator*() const
 {
 	// 当前字中最低位的 1 对应的全局 bit 下标
 	return (word_idx_ << 6) + m_countr_zero(mask_);

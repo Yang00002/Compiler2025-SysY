@@ -203,7 +203,7 @@ void MBasicBlock::acceptMathInst(Instruction* instruction, std::map<Value*, MOpe
 	auto l = block->function()->getOperandFor(l0, opMap);
 	auto r = block->function()->getOperandFor(r0, opMap);
 	auto t = block->function()->getOperandFor(instruction, opMap);
-	auto m = new MMathInst{ block, instruction->get_instr_type(), l, r,t, 32};
+	auto m = new MMathInst{block, instruction->get_instr_type(), l, r, t, 32};
 	instructions_.emplace_back(m);
 }
 
@@ -223,13 +223,12 @@ void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand
                                     std::map<BasicBlock*, MBasicBlock*>& bmap)
 {
 	vector<FrameCond> vec;
-	auto func = block->get_parent();
 	for (auto inst : block->get_instructions().phi_and_allocas())
 	{
 		auto alloc = dynamic_cast<AllocaInst*>(inst);
 		if (alloc != nullptr)
 		{
-			auto cost = func->opWeight(alloc, bmap);
+			auto cost = Function::opWeight(alloc, bmap);
 			auto fi = function()->allocaStack(alloc);
 			vec.emplace_back(FrameCond{fi, alloc, cost, false});
 		}
@@ -350,7 +349,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 	{
 		auto x0 = Register::getParameterRegisterWithType(0, instruction->get_type(), module());
 		auto get = function_->getOperandFor(instruction, opMap);
-		instructions_.emplace_back(new MCopy{ block, x0, get, 32 });
+		instructions_.emplace_back(new MCopy{block, x0, get, 32});
 	}
 	block->function()->called().set(mfunc->id());
 }
@@ -363,7 +362,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 	auto& ops = gep->get_operands();
 	auto idxs = vector{ops.begin() + 1, ops.end()};
 	auto typeVal = type->typeContained();
-	vector<unsigned> dimLen;
+	vector<int> dimLen;
 	if (!typeVal->isArrayType())
 		dimLen.emplace_back(1);
 	else
@@ -372,13 +371,13 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		dimLen = ar->dimensions();
 		dimLen.emplace_back(1);
 	}
-	int dimCount = static_cast<int>(instruction->get_num_operand()) - 1;
+	int dimCount = instruction->get_num_operand() - 1;
 	auto frameIndex = this->function()->getOperandFor(gep->get_operand(0), opMap);
 	auto immOperand = Immediate::getImmediate(0, module());
 	MOperand* operand = immOperand;
 	Immediate* immB = nullptr;
 	Immediate* immA = nullptr;
-	unsigned width = use64BitsMathOperationInPointerOp ? 64 : 32;
+	int width = use64BitsMathOperationInPointerOp ? 64 : 32;
 	// A * op + B
 	for (int i = 0; i < dimCount; i++)
 	{
@@ -394,7 +393,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		if (i == dimCount - 1)
 		{
 			len <<= 2;
-			int rs = static_cast<int>(dimLen.size()) - 1;
+			int rs = u2iNegThrow(dimLen.size()) - 1;
 			for (int j = i + 1; j < rs; j++)
 			{
 				len *= dimLen[j];
@@ -450,13 +449,13 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				// Ax + B + y -> (Ax + y) + B
 				if (immA != nullptr)
 				{
-					auto reg = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+					auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
 					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 					instructions_.emplace_back(inst);
 					operand = reg;
 					immA = nullptr;
 				}
-				auto reg2 = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+				auto reg2 = VirtualRegister::createVirtualIRegister(function(), (width));
 				auto inst = new MMathInst{block, Instruction::add, operand, mop, reg2, width};
 				instructions_.emplace_back(inst);
 				operand = reg2;
@@ -492,14 +491,14 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 	{
 		if (immA != nullptr)
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+			auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
 			auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 			instructions_.emplace_back(inst);
 			operand = reg;
 		}
 		if (immB != nullptr)
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(function(), static_cast<short>(width));
+			auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
 			auto inst = new MMathInst{block, Instruction::add, immB, operand, reg, width};
 			instructions_.emplace_back(inst);
 			operand = reg;
@@ -568,7 +567,7 @@ void MBasicBlock::acceptSiToFpInst(Instruction* instruction, std::map<Value*, MO
 void MBasicBlock::acceptMemCpyInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
 	auto mcp = dynamic_cast<MemCpyInst*>(instruction);
-	auto count = mcp->get_copy_bytes() >> 4;
+	auto count = logicalRightShift(mcp->get_copy_bytes(), 4);
 	auto srcF = function()->getOperandFor(instruction->get_operand(0), opMap);
 	auto desF = function()->getOperandFor(instruction->get_operand(1), opMap);
 	if (count <= maxCopyInstCountToInlineMemcpy)
@@ -581,7 +580,7 @@ void MBasicBlock::acceptMemCpyInst(Instruction* instruction, std::map<Value*, MO
 		instructions_.emplace_back(cp1);
 		while (count >= 4)
 		{
-			auto load = new MLD1V16B{block, src, 4, count > 4 ? 64 : 0 };
+			auto load = new MLD1V16B{block, src, 4, count > 4 ? 64 : 0};
 			auto store = new MST1V16B{block, des, 4, count > 4 ? 64 : 0};
 			instructions_.emplace_back(load);
 			instructions_.emplace_back(store);
@@ -615,7 +614,7 @@ void MBasicBlock::acceptMemCpyInst(Instruction* instruction, std::map<Value*, MO
 void MBasicBlock::acceptMemClearInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
 	auto mcp = dynamic_cast<MemClearInst*>(instruction);
-	auto count = mcp->get_clear_bytes() >> 4;
+	auto count = logicalRightShift(mcp->get_clear_bytes(), 4);
 	auto desF = function()->getOperandFor(instruction->get_operand(0), opMap);
 	if (count <= maxCopyInstCountToInlineMemclr)
 	{
@@ -668,7 +667,7 @@ MFunction* MBasicBlock::function() const
 	return function_;
 }
 
-std::string MBasicBlock::print(unsigned& sid) const
+std::string MBasicBlock::print(int& sid) const
 {
 	string ret = name_ + "[" + to_string(id_) + "]:\t\t\t";
 	if (!pre_bbs_.empty())

@@ -15,18 +15,6 @@ std::runtime_error error::TensorInit(const std::vector<int>& dim)
 	};
 }
 
-std::runtime_error error::TensorInit(const std::vector<unsigned>& dim)
-{
-	std::string str;
-	for (const auto& i : dim)
-	{
-		str += '[' + to_string(i) + ']';
-	}
-	return std::runtime_error{
-		"TensorInit Error: Tensor can not have shape of " + str
-	};
-}
-
 std::runtime_error error::TensorDimIndex(int dimSize, int index)
 {
 	return std::runtime_error{

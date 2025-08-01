@@ -88,7 +88,7 @@ LiveMessage::LiveMessage(MFunction* function): int_(true)
 	auto bs = blocks.size();
 	rpos_.resize(bs);
 	bool* visited = new bool[bs]{};
-	int allocatedIndex = static_cast<int>(bs) - 1;
+	int allocatedIndex = u2iNegThrow(bs) - 1;
 	if (!visited[blocks[0]->id()]) dfsBlocks(visited, rpos_, blocks[0], allocatedIndex);
 	delete[] visited;
 	liveIn_.resize(rpos_.size());
@@ -105,17 +105,17 @@ void LiveMessage::addRegister(RegisterLike* reg)
 		registerIds_.reserve(registerIds_.size() << 1);
 		registerIds_.resize(reg->uid() + 1);
 	}
-	registerIds_[reg->uid()] = static_cast<int>(register_.size());
+	registerIds_[reg->uid()] = u2iNegThrow(register_.size());
 }
 
 void LiveMessage::calculateLiveMessage()
 {
 	for (auto& bb : rpos_)
 	{
-		liveUse_[bb->id()] = DynamicBitset{static_cast<unsigned>(register_.size())};
-		liveDef_[bb->id()] = DynamicBitset{static_cast<unsigned>(register_.size())};
-		liveIn_[bb->id()] = DynamicBitset{static_cast<unsigned>(register_.size())};
-		liveOut_[bb->id()] = DynamicBitset{static_cast<unsigned>(register_.size())};
+		liveUse_[bb->id()] = DynamicBitset{u2iNegThrow(register_.size())};
+		liveDef_[bb->id()] = DynamicBitset{ u2iNegThrow(register_.size())};
+		liveIn_[bb->id()] = DynamicBitset{ u2iNegThrow(register_.size())};
+		liveOut_[bb->id()] = DynamicBitset{ u2iNegThrow(register_.size())};
 		for (auto& ins : bb->instructions())
 		{
 			for (auto& reg : ins->imp_use())
@@ -165,10 +165,10 @@ void LiveMessage::calculateLiveMessage()
 		}
 	}
 
-	auto bs = rpos_.size();
+	auto bs = u2iNegThrow(rpos_.size());
 	bool* visited = new bool[bs]{};
 	std::queue<MBasicBlock*> Q;
-	for (int i = static_cast<int>(bs) - 1; i > -1; i--)
+	for (int i = bs - 1; i > -1; i--)
 		Q.push(rpos_[i]);
 
 	while (!Q.empty())
@@ -219,7 +219,7 @@ bool LiveMessage::careVirtual(MOperand* op) const
 
 DynamicBitset LiveMessage::translate(const std::vector<MOperand*>& vec, const std::vector<int>& idx) const
 {
-	DynamicBitset ret{static_cast<unsigned>(register_.size())};
+	DynamicBitset ret{u2iNegThrow(register_.size())};
 	for (auto r : idx)
 	{
 		auto i = vec[r];
@@ -235,7 +235,7 @@ DynamicBitset LiveMessage::translate(const std::vector<MOperand*>& vec, const st
 
 DynamicBitset LiveMessage::translate(const std::vector<Register*>& vec) const
 {
-	DynamicBitset ret{static_cast<unsigned>(register_.size())};
+	DynamicBitset ret{u2iNegThrow(register_.size())};
 	for (auto reg : vec)
 	{
 		if (reg != nullptr && reg->canAllocate() && reg->isIntegerRegister() == int_)
@@ -249,7 +249,7 @@ DynamicBitset LiveMessage::translate(const std::vector<Register*>& vec) const
 
 int LiveMessage::regCount() const
 {
-	return static_cast<int>(register_.size());
+	return u2iNegThrow(register_.size());
 }
 
 RegisterLike* LiveMessage::getReg(int id) const
@@ -264,7 +264,7 @@ std::vector<RegisterLike*>& LiveMessage::regs()
 
 DynamicBitset LiveMessage::physicalRegMask() const
 {
-	DynamicBitset s{static_cast<unsigned>(register_.size())};
+	DynamicBitset s{u2iNegThrow(register_.size())};
 	for (auto i : register_)
 	{
 		if (i->isPhysicalRegister())
@@ -280,7 +280,7 @@ FrameLiveMessage::FrameLiveMessage(MFunction* function)
 	auto bs = blocks.size();
 	rpos_.resize(bs);
 	bool* visited = new bool[bs]{};
-	int allocatedIndex = static_cast<int>(bs) - 1;
+	int allocatedIndex = u2iNegThrow(bs) - 1;
 	if (!visited[blocks[0]->id()]) dfsBlocks(visited, rpos_, blocks[0], allocatedIndex);
 	delete[] visited;
 	liveIn_.resize(rpos_.size());
@@ -292,7 +292,7 @@ FrameLiveMessage::FrameLiveMessage(MFunction* function)
 void FrameLiveMessage::calculateLiveMessage()
 {
 	auto& frames = function_->stackFrames();
-	unsigned size = static_cast<unsigned>(frames.size());
+	int size = u2iNegThrow(frames.size());
 	for (auto& bb : rpos_)
 	{
 		liveUse_[bb->id()] = DynamicBitset{size};
@@ -306,8 +306,8 @@ void FrameLiveMessage::calculateLiveMessage()
 				auto frame = dynamic_cast<FrameIndex*>(ldr->operands()[1]);
 				if (frame != nullptr && frame->spilledFrame_)
 				{
-					if (!liveDef_[bb->id()].test(frame->index()))
-						liveUse_[bb->id()].set(frame->index());
+					if (!liveDef_[bb->id()].test((frame->index())))
+						liveUse_[bb->id()].set((frame->index()));
 				}
 			}
 			if (auto str = dynamic_cast<MSTR*>(ins); str != nullptr)
@@ -315,16 +315,16 @@ void FrameLiveMessage::calculateLiveMessage()
 				auto frame = dynamic_cast<FrameIndex*>(str->operands()[1]);
 				if (frame != nullptr && frame->spilledFrame_)
 				{
-					liveDef_[bb->id()].set(frame->index());
+					liveDef_[bb->id()].set((frame->index()));
 				}
 			}
 		}
 	}
 
-	auto bs = rpos_.size();
+	auto bs = u2iNegThrow(rpos_.size());
 	bool* visited = new bool[bs]{};
 	std::queue<MBasicBlock*> Q;
-	for (int i = static_cast<int>(bs) - 1; i > -1; i--)
+	for (int i = bs - 1; i > -1; i--)
 		Q.push(rpos_[i]);
 
 	while (!Q.empty())

@@ -3,6 +3,8 @@
 #include <list>
 #include <string>
 
+#include "System.hpp"
+
 class Type;
 class User;
 class Use;
@@ -36,13 +38,13 @@ public:
 	 * @param user 使用者
 	 * @param arg_no 使用者在第几个操作数使用它
 	 */
-	void add_use(User* user, unsigned arg_no);
+	void add_use(User* user, int arg_no);
 	/**
 	 * 移除该值在某处的被使用
 	 * @param user 使用者
 	 * @param arg_no 使用者在第几个操作数使用它
 	 */
-	void remove_use(User* user, unsigned arg_no);
+	void remove_use(User* user, int arg_no);
 	/**
 	 * 将该值的所有用法替换为另一个值, 并自动维护使用情况
 	 * @param new_val 替换它的新值
@@ -86,26 +88,26 @@ public:
 	[[nodiscard]] const std::vector<Value*>& get_operands() const;
 
 	// 操作数数量
-	[[nodiscard]] unsigned get_num_operand() const { return static_cast<unsigned>(operands_.size()); }
+	[[nodiscard]] int get_num_operand() const { return u2iNegThrow(operands_.size()); }
 
 	/**
 	 * 获取特定操作数
 	 * @param i 操作数索引, 从 0 开始
 	 */
-	[[nodiscard]] Value* get_operand(unsigned i) const;
+	[[nodiscard]] Value* get_operand(int i) const;
 	/**
 	 * 设置操作数, 并自动维护使用列表
 	 * @param i 索引
 	 * @param v 操作数
 	 */
-	void set_operand(unsigned i, Value* v);
+	void set_operand(int i, Value* v);
 	/**
 	 * 添加操作数, 并自动维护使用列表
 	 */
 	void add_operand(Value* v);
 
 	void remove_all_operands();
-	void remove_operand(unsigned i);
+	void remove_operand(int i);
 
 private:
 	// operands of this value
@@ -122,14 +124,14 @@ public:
 	// 使用者
 	User* val_;
 	// 在使用者使用其的表达式中, 其是第几个操作数
-	unsigned arg_no_;
+	int arg_no_;
 
 	/**
 	 *
 	 * @param val 使用者
 	 * @param no 使用者在第几个操作数使用它
 	 */
-	Use(User* val, unsigned no) : val_(val), arg_no_(no)
+	Use(User* val, int no) : val_(val), arg_no_(no)
 	{
 	}
 

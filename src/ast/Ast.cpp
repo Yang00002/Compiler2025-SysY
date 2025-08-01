@@ -88,27 +88,27 @@ std::string to_string(const TypeCastEnvironment e)
 
 bool InitializeValue::isExpression() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x00);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x00u);
 }
 
 bool InitializeValue::isConstant() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] != static_cast<char>(0x00);
+	return _field._segment[LOGICAL_LEFT_END_8] != static_cast<unsigned char>(0x00u);
 }
 
 bool InitializeValue::isIntConstant() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x10);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x10u);
 }
 
 bool InitializeValue::isBoolConstant() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x11);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x11u);
 }
 
 bool InitializeValue::isFloatConstant() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x01);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x01u);
 }
 
 ASTExpression* InitializeValue::getExpression() const
@@ -149,21 +149,21 @@ InitializeValue::InitializeValue(const int intConstant)
 {
 	_field._expression = nullptr;
 	_field._int_value[LOGICAL_RIGHT_END_2] = intConstant;
-	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x10);
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<unsigned char>(0x10u);
 }
 
 InitializeValue::InitializeValue(const float floatConstant)
 {
 	_field._expression = nullptr;
 	_field._float_value[LOGICAL_RIGHT_END_2] = floatConstant;
-	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x01);
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<unsigned char>(0x01u);
 }
 
 InitializeValue::InitializeValue(const bool boolConstant)
 {
 	_field._expression = nullptr;
 	_field._bool_value[LOGICAL_RIGHT_END_8] = boolConstant;
-	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x11);
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<unsigned char>(0x11u);
 }
 
 Type* InitializeValue::getExpressionType() const
@@ -198,19 +198,19 @@ ConstantValue InitializeValue::toConstant() const
 }
 
 
-bool ConstantValue::isIntConstant() const
+bool ConstantValue::isIntConstant() const 
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x10);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x10u);
 }
 
 bool ConstantValue::isBoolConstant() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x11);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x11u);
 }
 
 bool ConstantValue::isFloatConstant() const
 {
-	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<char>(0x01);
+	return _field._segment[LOGICAL_LEFT_END_8] == static_cast<unsigned char>(0x01u);
 }
 
 int ConstantValue::getIntConstant() const
@@ -234,19 +234,19 @@ float ConstantValue::getFloatConstant() const
 ConstantValue::ConstantValue(const int intConstant)
 {
 	_field._int_value[LOGICAL_RIGHT_END_2] = intConstant;
-	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x10);
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<unsigned char>(0x10u);
 }
 
 ConstantValue::ConstantValue(const float floatConstant)
 {
 	_field._float_value[LOGICAL_RIGHT_END_2] = floatConstant;
-	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x01);
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<unsigned char>(0x01u);
 }
 
 ConstantValue::ConstantValue(const bool boolConstant)
 {
 	_field._bool_value[LOGICAL_RIGHT_END_8] = boolConstant;
-	_field._segment[LOGICAL_LEFT_END_8] = static_cast<char>(0x11);
+	_field._segment[LOGICAL_LEFT_END_8] = static_cast<unsigned char>(0x11u);
 }
 
 Type* ConstantValue::getType() const
@@ -297,7 +297,7 @@ unsigned ConstantValue::bits2Unsigned() const
 		memcpy(&n, &_field._int_value[LOGICAL_RIGHT_END_2], 4);
 	else if (isFloatConstant())
 		memcpy(&n, &_field._float_value[LOGICAL_RIGHT_END_2], 4);
-	else n = _field._bool_value[LOGICAL_RIGHT_END_8];
+	else n = _field._bool_value[LOGICAL_RIGHT_END_8] ? 1u : 0u;
 	return n;
 }
 
@@ -804,7 +804,7 @@ Type* ASTRVal::getExpressionType() const
 	if (ty->isArrayType())
 	{
 		const auto ar = dynamic_cast<ArrayType*>(ty);
-		return ar->getSubType(static_cast<int>(_index.size()));
+		return ar->getSubType(u2iNegThrow(_index.size()));
 	}
 	return ty;
 }

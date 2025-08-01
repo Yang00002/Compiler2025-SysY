@@ -4,7 +4,6 @@
 #include <unordered_set>
 #include <climits>
 #include <cfloat>
-#include <string>
 
 #include "Config.hpp"
 #include "GraphColoring.hpp"
@@ -16,29 +15,7 @@
 #define DEBUG 0
 #include <algorithm>
 
-#include "Type.hpp"
 #include "Util.hpp"
-
-namespace
-{
-	InterfereGraphNode* makeInterfereGraphNode()
-	{
-		auto n = new InterfereGraphNode{};
-		n->parent_ = nullptr;
-		n->pre_ = n;
-		n->next_ = n;
-		return n;
-	}
-
-	MoveInstNode* makeMoveInstNode()
-	{
-		auto n = new MoveInstNode{};
-		n->parent_ = nullptr;
-		n->pre_ = n;
-		n->next_ = n;
-		return n;
-	}
-}
 
 InterfereGraph::InterfereGraph(GraphColorSolver* parent) : parent_(parent), worklistMoves_(), activeMoves_(),
                                                            coalescedMoves_(),
@@ -172,7 +149,7 @@ InterfereGraphNode* InterfereGraph::getOrCreateRegNode(RegisterLike* reg)
 	auto g = regNodes_[reg];
 	if (g == nullptr)
 	{
-		g = new InterfereGraphNode{nullptr, nullptr, nullptr, reg};
+		g = new InterfereGraphNode{nullptr, nullptr, nullptr, reg, {}, {}, 0, 0.0f, nullptr, nullptr};
 		regNodes_[reg] = g;
 	}
 	return g;
@@ -192,14 +169,14 @@ MoveInstNode* InterfereGraph::getOrCreateMoveNode(MCopy* reg)
 	return g;
 }
 
-void InterfereGraph::addEdge(unsigned i, unsigned j)
+void InterfereGraph::addEdge(int i, int j)
 {
 	if (i != j && !adjSet_.test(i, j))
 	{
 		adjSet_.set(i, j);
 		adjSet_.set(j, i);
-		auto ri = parent_->live_message()->getReg(static_cast<int>(i));
-		auto rj = parent_->live_message()->getReg(static_cast<int>(j));
+		auto ri = parent_->live_message()->getReg(i);
+		auto rj = parent_->live_message()->getReg(j);
 		LOG(color::green("addEdge ") + ri->print() + " " + rj->print());
 		auto vri = getOrCreateRegNode(ri);
 		auto vrj = getOrCreateRegNode(rj);
@@ -216,14 +193,14 @@ void InterfereGraph::addEdge(unsigned i, unsigned j)
 	}
 }
 
-void InterfereGraph::combineAddEdge(unsigned i, unsigned noAdd)
+void InterfereGraph::combineAddEdge(int i, int noAdd)
 {
 	if (i != noAdd && !adjSet_.test(i, noAdd))
 	{
 		adjSet_.set(i, noAdd);
 		adjSet_.set(noAdd, i);
-		auto ri = parent_->live_message()->getReg(static_cast<int>(i));
-		auto rj = parent_->live_message()->getReg(static_cast<int>(noAdd));
+		auto ri = parent_->live_message()->getReg(i);
+		auto rj = parent_->live_message()->getReg(noAdd);
 		LOG(color::green("addEdge ") + ri->print() + " " + rj->print());
 		auto vri = getOrCreateRegNode(ri);
 		auto vrj = getOrCreateRegNode(rj);
@@ -241,7 +218,7 @@ void InterfereGraph::combineAddEdge(unsigned i, unsigned noAdd)
 
 bool InterfereGraph::moveRelated(const InterfereGraphNode* node) const
 {
-	for (auto i : node->moveList_)
+	for (auto i : node->moveList_) // NOLINT(readability-use-anyofallof)
 		if (worklistMoves_.contain(i) || activeMoves_.contain(i)) return true;
 	return false;
 }
@@ -293,7 +270,7 @@ void InterfereGraph::addWorkList(InterfereGraphNode* node)
 
 bool InterfereGraph::GeorgeTest(const InterfereGraphNode* virtualReg, const InterfereGraphNode* physicReg) const
 {
-	for (auto t : virtualReg->adjList_)
+	for (auto t : virtualReg->adjList_) // NOLINT(readability-use-anyofallof)
 	{
 		if (inGraph(t) && t->degree_ >= K_ && !t->preColored() && !adj(t, physicReg))
 			return false;
@@ -573,7 +550,7 @@ bool InterfereGraph::selectSpill()
 					auto d = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
 					assert(d != nullptr);
 					if (d->isParameterFrame()) f *= fixFrameIndexParameterRegisterSpillPriority;
-					else if (static_cast<int>(d->size() >> 3) >= bigAllocaVariableGate)
+					else if (logicalRightShift(d->size(), 3) >= bigAllocaVariableGate)
 						f *= bigAllocaRegisterSpillPriority;
 					else f *= smallAllocaRegisterSpillPriority;
 				}
@@ -602,7 +579,7 @@ void InterfereGraph::assignColors()
 	DynamicBitset mask = message->physicalRegMask();
 	for (auto i : mask)
 	{
-		auto r = message->getReg(static_cast<int>(i));
+		auto r = message->getReg(i);
 		auto g = regNodes_.find(r);
 		if (g != regNodes_.end())
 		{
@@ -626,7 +603,7 @@ void InterfereGraph::assignColors()
 			spilledNode_.add(n);
 		}
 		else
-			n->color_ = dynamic_cast<Register*>(message->getReg(static_cast<int>(*oks.begin())));
+			n->color_ = dynamic_cast<Register*>(message->getReg(*oks.begin()));
 	}
 	for (auto it = coalescedNodes_.next_; it != &coalescedNodes_; it = it->next_)
 	{
@@ -657,7 +634,7 @@ void InterfereGraph::applyChanges()
 	for (auto i : func->blocks())
 	{
 		auto& instructions = i->instructions();
-		int size = static_cast<int>(i->instructions().size());
+		int size = u2iNegThrow(i->instructions().size());
 		for (int idx = 0; idx < size; idx++)
 		{
 			auto inst = instructions[idx];
@@ -730,10 +707,10 @@ void InterfereGraph::build()
 			{
 				// 指令后活跃的节点不能被定义所破坏
 				for (auto j : live)
-					addEdge(static_cast<unsigned>(j), static_cast<unsigned>(i));
+					addEdge((j), (i));
 				// 定义的节点必须同时存在, 不能分配到同一寄存器
 				for (auto j : def)
-					addEdge(static_cast<unsigned>(j), static_cast<unsigned>(i));
+					addEdge((j), (i));
 			}
 			// 定值在指令前不活跃
 			live -= def;
@@ -812,7 +789,7 @@ void InterfereGraph::makeWorklist()
 void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiveMessage& flm)
 {
 	auto func = parent->currentFunc();
-	int oc = static_cast<int>(func->stackFrames().size());
+	int oc = u2iNegThrow(func->stackFrames().size());
 	int frameCount_ = 0;
 	int* denseIds_ = new int[oc]{};
 	for (auto f : func->stackFrames())
@@ -851,7 +828,7 @@ void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiv
 				auto frame = dynamic_cast<FrameIndex*>(ldr->operands()[1]);
 				if (frame != nullptr && frame->spilledFrame_)
 				{
-					live.reset(frame->index());
+					live.reset((frame->index()));
 					for (auto i : live)
 					{
 						auto fi = denseIds_[i];

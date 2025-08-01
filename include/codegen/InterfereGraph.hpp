@@ -57,14 +57,9 @@ struct MoveInstNode
 
 class AdjSet : public DynamicBitset
 {
-	unsigned len_;
+	int len_;
 
 public:
-	AdjSet(unsigned len) : DynamicBitset(len * len)
-	{
-		len_ = len;
-	}
-
 	AdjSet(int len) : DynamicBitset(len * len)
 	{
 		len_ = len;
@@ -79,17 +74,7 @@ public:
 		return DynamicBitset::test(i * len_ + j);
 	}
 
-	[[nodiscard]] bool test(unsigned i, unsigned j) const
-	{
-		return DynamicBitset::test(i * len_ + j);
-	}
-
-	void set(int i, int j) const
-	{
-		DynamicBitset::set(i * len_ + j);
-	}
-
-	void set(unsigned i, unsigned j) const
+	void set(int i, int j)
 	{
 		DynamicBitset::set(i * len_ + j);
 	}
@@ -132,9 +117,9 @@ class InterfereGraph
 	InterfereGraphNode* getOrCreateRegNode(RegisterLike* reg);
 	MoveInstNode* getOrCreateMoveNode(MCopy* reg);
 	// 添加冲突边(操作数可以是源, 可以是目标)
-	void addEdge(unsigned i, unsigned j);
+	void addEdge(int i, int j);
 	// 添加冲突边(操作数可以是源, 可以是目标), 但是不增加一端的度数
-	void combineAddEdge(unsigned i, unsigned noAdd);
+	void combineAddEdge(int i, int noAdd);
 	// 节点是否传送相关
 	bool moveRelated(const InterfereGraphNode* node) const;
 	// 使节点的度数减少 1, 并自动重新分类(不用对物理寄存器进行, 也没有效果)

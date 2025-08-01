@@ -100,7 +100,7 @@ public:
 
 	[[nodiscard]] Module* getModule() const;
 
-	Value* visit(ASTCompUnit*);
+	Value* visit(const ASTCompUnit*);
 	Value* visit(ASTVarDecl*);
 	Value* visit(ASTFuncDecl*);
 	Value* visit(ASTLVal*);

@@ -1,24 +1,20 @@
 #pragma once
 
 #include "Instruction.hpp"
-#include "BasicBlock.hpp"
-#include "Type.hpp"
 #include "PassManager.hpp"
-#include "Constant.hpp"
-#include <cmath>
 #include <vector>
 
 class Arithmetic final : public Pass
 {
     std::vector<Instruction*> worklist_;
     void run(Function* f);
-    void simplify(Instruction* i);
-    void optimize_addsub(Instruction* i);
-    void optimize_mul(Instruction* i);
-    void optimize_fmul(Instruction* i);
-    void optimize_div(Instruction* i);
-    void optimize_fdiv(Instruction* i);
-    void optimize_rem(Instruction* i);
+    void simplify(Instruction* i) const;
+    void optimize_addsub(Instruction* i) const;
+    void optimize_mul(Instruction* i) const;
+    void optimize_fmul(Instruction* i) const;
+    void optimize_div(Instruction* i) const;
+    void optimize_fdiv(Instruction* i) const;
+    void optimize_rem(Instruction* i) const;
 public:
 	Arithmetic(const Arithmetic&) = delete;
 	Arithmetic(Arithmetic&&) = delete;

@@ -137,9 +137,9 @@ void GraphColorSolver::run()
 		callChain[idx++] = all_func->called();
 	}
 
-	DynamicBitset leaf{static_cast<unsigned>(idx)};
-	DynamicBitset workList{static_cast<unsigned>(idx)};
-	workList.set(0, static_cast<unsigned>(idx));
+	DynamicBitset leaf{(idx)};
+	DynamicBitset workList{(idx)};
+	workList.set(0, (idx));
 	while (idx > 0)
 	{
 		bool changed = false;
@@ -149,8 +149,8 @@ void GraphColorSolver::run()
 			{
 				idx--;
 				changed = true;
-				workList.reset(static_cast<unsigned>(i));
-				leaf.set(static_cast<unsigned>(i));
+				workList.reset((i));
+				leaf.set((i));
 				auto func = funcs[i];
 				if (func->blocks().empty()) break;
 				func->rewriteCallsDefList();

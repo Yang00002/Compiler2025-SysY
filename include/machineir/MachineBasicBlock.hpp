@@ -40,7 +40,7 @@ public:
 		return name_;
 	}
 
-	[[nodiscard]] unsigned id() const
+	[[nodiscard]] int id() const
 	{
 		return id_;
 	}
@@ -58,7 +58,7 @@ private:
 	std::set<MBasicBlock*> pre_bbs_;
 	std::set<MBasicBlock*> suc_bbs_;
 	MBasicBlock* next_ = nullptr;
-	unsigned id_ = 0;
+	int id_ = 0;
 
 	MBasicBlock(std::string name, MFunction* function);
 
@@ -98,5 +98,5 @@ public:
 	void acceptCopyInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block) const;
 	[[nodiscard]] MModule* module() const;
 	[[nodiscard]] MFunction* function() const;
-	[[nodiscard]] std::string print(unsigned& sid) const;
+	[[nodiscard]] std::string print(int& sid) const;
 };

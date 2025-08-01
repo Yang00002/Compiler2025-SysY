@@ -23,7 +23,7 @@ AST2IRVisitor::~AST2IRVisitor()
 
 Module* AST2IRVisitor::getModule() const { return _module; }
 
-Value* AST2IRVisitor::visit(ASTCompUnit* comp_unit)
+Value* AST2IRVisitor::visit(const ASTCompUnit* comp_unit)
 {
 	_var_scope.enter();
 	_func_scope.enter();
@@ -91,7 +91,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 		int fill = 0;
 		for (auto i = ini->getIterator(); !i.isEnd(); ++i)
 		{
-			switch (i.getCurrentIterateType())
+			switch (i.getCurrentIterateType())  // NOLINT(clang-diagnostic-switch-enum)
 			{
 				case TensorIterateType::VALUE:
 					{
@@ -155,7 +155,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 							}
 							seg_type = 0;
 						}
-						int len = fill >> 2;
+						int len = logicalRightShift(fill, 2);
 						fill &= 0b11;
 						if (len > 0)
 						{
@@ -178,7 +178,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 					break;
 			}
 		}
-		int ps = static_cast<int>(prefill.size());
+		int ps = u2iNegThrow(prefill.size());
 		// 为 memcpy 初始化分配常量全局变量
 		GlobalVariable* glob = nullptr;
 		if (ps > 0)
@@ -188,13 +188,13 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 			auto id = createPrivateGlobalVarID();
 			glob = GlobalVariable::create(id, _builder->get_module(),
 			                              Types::arrayType(ini->defaultValue().getExpressionType(), false,
-			                                               {static_cast<unsigned>(ps)}),
+			                                               {ps}),
 			                              true, tensor);
 			_var_scope.pushFront(id, glob);
 			delete tensor;
 		}
 		auto glob_plain = glob != nullptr ? _builder->create_global_fix(glob) : nullptr;
-		int ed = static_cast<int>(segmentOpTypes.size());
+		int ed = u2iNegThrow(segmentOpTypes.size());
 		int selfIdx = 0;
 		int cpIdx = 0;
 		for (int i = 0; i < ed; i++)
@@ -298,7 +298,7 @@ Value* AST2IRVisitor::visit(ASTFuncDecl* func_decl)
 	const auto funBB = BasicBlock::create(_module, "entry", func);
 	_builder->set_insert_point(funBB);
 	_var_scope.enter();
-	const int argCount = static_cast<int>(func_decl->args().size());
+	const int argCount = u2iNegThrow(func_decl->args().size());
 	auto it = func->get_args().begin();
 	for (int i = 0; i < argCount; ++i, ++it)
 	{
@@ -399,8 +399,8 @@ Value* AST2IRVisitor::visit(ASTRVal* r_val)
 		var_type = var_type->toPointerType()->typeContained();
 		// ? ** -> ? *
 		var = _builder->create_load(var);
-		int dimAll = (var_type->isArrayType() ? static_cast<int>(var_type->toArrayType()->dimensions().size()) : 0) + 1;
-		int dimGet = static_cast<int>(idx.size());
+		int dimAll = (var_type->isArrayType() ? u2iNegThrow(var_type->toArrayType()->dimensions().size()) : 0) + 1;
+		int dimGet = u2iNegThrow(idx.size());
 		vector<Value*> indexes;
 		indexes.reserve(idx.size());
 		for (auto& i : idx)
@@ -428,8 +428,8 @@ Value* AST2IRVisitor::visit(ASTRVal* r_val)
 	indexes.emplace_back(_builder->create_constant(0));
 	for (auto& i : idx)
 		indexes.emplace_back(i->accept(this));
-	int dimAll = static_cast<int>(var_type->toArrayType()->dimensions().size());
-	int dimGet = static_cast<int>(idx.size());
+	int dimAll = u2iNegThrow(var_type->toArrayType()->dimensions().size());
+	int dimGet = u2iNegThrow(idx.size());
 	var = _builder->create_gep(var, indexes);
 	// hit: [a x [b x i32]]* -> i32* -> i32
 	// mis: [a x [b x i32]]* -> [b x i32]*
@@ -556,7 +556,7 @@ Value* AST2IRVisitor::visit(ASTMathExp* math_exp)
 
 Value* AST2IRVisitor::visit(ASTLogicExp* logic_exp)
 {
-	int exp_num = static_cast<int>(logic_exp->exps().size());
+	int exp_num = u2iNegThrow(logic_exp->exps().size());
 	if (logic_exp->op() == LogicOP::OR)
 	{
 		for (int i = 0; i < exp_num; ++i)
@@ -663,7 +663,7 @@ Value* AST2IRVisitor::visit(ASTCall* call)
 				else // 库函数的任意数组维度都解码
 				{
 					auto ar = dims->toArrayType();
-					int ds = static_cast<int>(ar->dimensions().size());
+					int ds = u2iNegThrow(ar->dimensions().size());
 					vector<Value*> d;
 					d.reserve(1 + ds);
 					auto zero = _builder->create_constant(0);
@@ -915,7 +915,7 @@ std::string AST2IRVisitor::createPrivateGlobalVarID()
 std::vector<Value*> AST2IRVisitor::index(const std::vector<int>& capacity, int idx, int paddings) const
 {
 	std::vector<Value*> ret;
-	int ed = static_cast<int>(capacity.size());
+	int ed = u2iNegThrow(capacity.size());
 	ret.reserve(ed + paddings);
 	for (int i = 0; i < paddings; i++) ret.emplace_back(_builder->create_constant(0));
 	for (int i = 0; i < ed; i++)

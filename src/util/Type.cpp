@@ -4,6 +4,8 @@
 #include <map>
 #include <set>
 
+#include "System.hpp"
+
 namespace error
 {
 	namespace
@@ -20,7 +22,7 @@ namespace error
 
 namespace
 {
-	unsigned basicTypeSizeInBitesInArm64(const TypeIDs& type)
+	int basicTypeSizeInBitesInArm64(const TypeIDs& type)
 	{
 		switch (type)
 		{
@@ -142,7 +144,7 @@ Type::Type(const TypeIDs& id)
 	_basic_type = id;
 }
 
-unsigned Type::sizeInBitsInArm64()
+int Type::sizeInBitsInArm64()
 {
 	return basicTypeSizeInBitesInArm64(_basic_type);
 }
@@ -252,7 +254,7 @@ PointerType* Types::pointerType(Type* contained)
 }
 
 ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter,
-                     const std::initializer_list<unsigned> dims): Type(
+                     const std::initializer_list<int> dims): Type(
 	inParameter ? TypeIDs::ArrayInParameter : TypeIDs::Array)
 {
 	_contained = contained;
@@ -261,7 +263,7 @@ ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter,
 	_arrayDims = dims;
 }
 
-ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter, const std::vector<unsigned>& dims) : Type(
+ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter, const std::vector<int>& dims) : Type(
 	inParameter ? TypeIDs::ArrayInParameter : TypeIDs::Array)
 {
 	_contained = contained;
@@ -270,7 +272,7 @@ ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter, const std
 	_arrayDims = dims;
 }
 
-unsigned ArrayType::sizeInBitsInArm64()
+int ArrayType::sizeInBitsInArm64()
 {
 	return _size;
 }
@@ -291,7 +293,7 @@ std::string ArrayType::print() const
 	std::string base = Types::simpleType(_contained)->print();
 	for (auto it = _arrayDims.rbegin(); it != _arrayDims.rend(); ++it)
 	{
-		base = '[' + std::to_string(*it) + " x " + base + "]";
+		base = '[' + std::to_string(*it) + " x " + base + "]";  // NOLINT(performance-inefficient-string-concatenation)
 	}
 	if (_basic_type == TypeIDs::ArrayInParameter) base += "*";
 	return base;
@@ -313,12 +315,12 @@ bool ArrayType::isInParameter() const
 	return _basic_type == TypeIDs::ArrayInParameter;
 }
 
-const std::vector<unsigned>& ArrayType::dimensions() const
+const std::vector<int>& ArrayType::dimensions() const
 {
 	return _arrayDims;
 }
 
-unsigned ArrayType::elementCount() const
+int ArrayType::elementCount() const
 {
 	return _size / basicTypeSizeInBitesInArm64(_contained);
 }
@@ -335,13 +337,13 @@ Type* ArrayType::getSubType(const int confirmedDimension) const
 	if (_basic_type == TypeIDs::Array)
 	{
 		if (confirmedDimension == 0) return const_cast<ArrayType*>(this);
-		const auto maxDim = static_cast<int>(_arrayDims.size());
+		const auto maxDim = u2iNegThrow(_arrayDims.size());
 		if (confirmedDimension == maxDim) return Types::simpleType(_contained);
 		if (confirmedDimension > maxDim) return nullptr;
 		return Types::arrayType(_contained, false, {_arrayDims.begin() + confirmedDimension, _arrayDims.end()});
 	}
 	if (confirmedDimension == 0) return const_cast<ArrayType*>(this);
-	const auto maxDim = static_cast<int>(_arrayDims.size() + 1);
+	const auto maxDim = u2iNegThrow(_arrayDims.size() + 1);
 	if (confirmedDimension == maxDim) return Types::simpleType(_contained);
 	if (confirmedDimension > maxDim) return nullptr;
 	return Types::arrayType(_contained, false, {_arrayDims.begin() + confirmedDimension - 1, _arrayDims.end()});
@@ -429,15 +431,15 @@ const std::vector<Type*>& FuncType::argumentTypes() const
 
 Type* FuncType::argumentType(const int i) const
 {
-	if (i < 0 || i >= static_cast<int>(_argTypes.size()))
+	if (i < 0 || i >= u2iNegThrow(_argTypes.size()))
 		throw error::FuncTypeArgIndex(
-			static_cast<int>(_argTypes.size()), i);
+			u2iNegThrow(_argTypes.size()), i);
 	return _argTypes[i];
 }
 
-unsigned FuncType::argumentCount() const
+int FuncType::argumentCount() const
 {
-	return static_cast<unsigned>(_argTypes.size());
+	return u2iNegThrow(_argTypes.size());
 }
 
 PointerType::PointerType(Type* contained) : Type(TypeIDs::Pointer)
@@ -511,7 +513,7 @@ namespace Types
 	Type* FLOAT = basicType(TypeIDs::Float);
 	Type* CHAR = basicType(TypeIDs::Char);
 
-	ArrayType* arrayType(const TypeIDs& contained, const bool inParameter, const std::initializer_list<unsigned> dims)
+	ArrayType* arrayType(const TypeIDs& contained, const bool inParameter, const std::initializer_list<int> dims)
 	{
 		if (contained == TypeIDs::Float || contained == TypeIDs::Integer)
 		{
@@ -523,7 +525,7 @@ namespace Types
 			{
 				allocator.arrayTypes_.emplace(type);
 				if (type->getTypeID() == TypeIDs::Array)
-					for (const unsigned dim : type->_arrayDims)
+					for (const int dim : type->_arrayDims)
 						type->_size *= dim;
 				return type;
 			}
@@ -533,7 +535,7 @@ namespace Types
 		throw std::runtime_error("Array Type can not have Element ID of " + to_string(contained));
 	}
 
-	ArrayType* arrayType(const TypeIDs& contained, const bool inParameter, const std::vector<unsigned>& dims)
+	ArrayType* arrayType(const TypeIDs& contained, const bool inParameter, const std::vector<int>& dims)
 	{
 		if (contained == TypeIDs::Float || contained == TypeIDs::Integer)
 		{
@@ -545,7 +547,7 @@ namespace Types
 			{
 				allocator.arrayTypes_.emplace(type);
 				if (type->getTypeID() == TypeIDs::Array)
-					for (const unsigned dim : type->_arrayDims)
+					for (const int dim : type->_arrayDims)
 						type->_size *= dim;
 				return type;
 			}
@@ -555,7 +557,7 @@ namespace Types
 		throw std::runtime_error("Array Type can not have Element ID of " + to_string(contained));
 	}
 
-	ArrayType* arrayType(const Type* contained, const bool inParameter, const std::initializer_list<unsigned> dims)
+	ArrayType* arrayType(const Type* contained, const bool inParameter, const std::initializer_list<int> dims)
 	{
 		if (contained == FLOAT || contained == INT)
 		{
@@ -564,7 +566,7 @@ namespace Types
 		throw std::runtime_error("Array Type can not have Element ID of " + contained->toString());
 	}
 
-	ArrayType* arrayType(const Type* contained, const bool inParameter, const std::vector<unsigned int>& dims)
+	ArrayType* arrayType(const Type* contained, const bool inParameter, const std::vector<int>& dims)
 	{
 		if (contained == FLOAT || contained == INT)
 		{

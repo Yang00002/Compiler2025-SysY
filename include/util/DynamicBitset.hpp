@@ -2,6 +2,8 @@
 #include <string>
 #include <functional>
 
+#include "System.hpp"
+
 class DynamicBitset
 {
 	friend class Iterator;
@@ -18,24 +20,20 @@ public:
 
 private:
 	unsigned long long* data_;
-	unsigned bitlen_;
-	unsigned dataSize_;
+	int bitlen_;
+	int dataSize_;
 
 public:
 	DynamicBitset(int len);
-	DynamicBitset(unsigned len);
 	~DynamicBitset();
 	[[nodiscard]] bool test(int i) const;
-	void set(int i) const;
-	[[nodiscard]] bool test(unsigned i) const;
-	void set(unsigned i) const;
+	void set(int i);
 	// 设置一个范围, 不包含末尾
-	void set(unsigned f, unsigned t) const;
-	void reset(unsigned i) const;
-	void reset(int i) const;
+	void set(int f, int t);
+	void reset(int i);
 	void reset() const;
-	void operator|=(const DynamicBitset& bit) const;
-	void operator-=(const DynamicBitset& bit) const;
+	void operator|=(const DynamicBitset& bit);
+	void operator-=(const DynamicBitset& bit);
 	DynamicBitset operator-(const DynamicBitset& bit) const;
 	DynamicBitset operator|(const DynamicBitset& bit) const;
 	bool operator==(const DynamicBitset& bit) const;
@@ -44,9 +42,9 @@ public:
 	[[nodiscard]] bool include(const DynamicBitset& bit) const;
 	[[nodiscard]] unsigned len() const;
 	[[nodiscard]] std::string print() const;
-	[[nodiscard]] std::string print(const std::function<std::string(unsigned)>& sf) const;
+	[[nodiscard]] std::string print(const std::function<std::string(int)>& sf) const;
 
-	[[nodiscard]] unsigned dataSize() const
+	[[nodiscard]] int dataSize() const
 	{
 		return dataSize_;
 	}
@@ -55,7 +53,7 @@ public:
 	class Iterator
 	{
 		const DynamicBitset* bs_;
-		unsigned long long word_idx_; // 当前 64-bit 字的下标
+		int word_idx_; // 当前 64-bit 字的下标
 		unsigned long long mask_; // 当前字中还没报告的 1
 
 		// 跳到下一个非零字
@@ -63,12 +61,12 @@ public:
 
 	public:
 		using iterator_category = std::forward_iterator_tag;
-		using value_type = size_t;
+		using value_type = int;
 		using difference_type = std::ptrdiff_t;
 
 		Iterator(const DynamicBitset* bs, bool begin);
 
-		size_t operator*() const;
+		int operator*() const;
 
 		Iterator& operator++();
 

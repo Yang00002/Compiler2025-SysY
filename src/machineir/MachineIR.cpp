@@ -32,7 +32,7 @@ MFunction::MFunction(std::string name, MModule* module)
 	: module_(module),
 	  name_(std::move(name))
 {
-	id_ = static_cast<int>(module_->allFuncs_.size());
+	id_ = u2iNegThrow(module_->allFuncs_.size());
 	module->allFuncs_.emplace_back(this);
 }
 
@@ -45,15 +45,14 @@ FrameIndex* MFunction::allocaStack(Value* value)
 {
 	auto a = dynamic_cast<AllocaInst*>(value);
 	auto ty = a->get_alloca_type();
-	size_t size = ty->sizeInBitsInArm64();
-	FrameIndex* index = new FrameIndex{this, static_cast<unsigned int>(stack_.size()), size, true};
+	FrameIndex* index = new FrameIndex{this, u2iNegThrow(stack_.size()), ty->sizeInBitsInArm64(), true};
 	stack_.emplace_back(index);
 	return index;
 }
 
-FrameIndex* MFunction::allocaStack(short size)
+FrameIndex* MFunction::allocaStack(int size)
 {
-	FrameIndex* index = new FrameIndex{this, static_cast<unsigned int>(stack_.size()), static_cast<size_t>(size), true};
+	FrameIndex* index = new FrameIndex{this, u2iNegThrow(stack_.size()), size, true};
 	stack_.emplace_back(index);
 	return index;
 }
@@ -68,8 +67,7 @@ FrameIndex* MFunction::allocaFix(const Value* value)
 	auto arg = dynamic_cast<const Argument*>(value);
 	assert(arg);
 	assert(arg->get_parent()->get_name() == name());
-	size_t size = value->get_type()->sizeInBitsInArm64();
-	FrameIndex* index = new FrameIndex{this, static_cast<unsigned int>(fix_.size()), size, false};
+	FrameIndex* index = new FrameIndex{this, u2iNegThrow(fix_.size()),  value->get_type()->sizeInBitsInArm64(), false};
 	fix_.emplace_back(index);
 	return index;
 }
@@ -107,7 +105,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	const auto& bbs = function->get_basic_blocks();
 	std::map<BasicBlock*, MBasicBlock*> cache;
 	MBasicBlock* preMB = nullptr;
-	unsigned int bbc = 0;
+	int bbc = 0;
 	for (const auto& bb : bbs)
 	{
 		const auto mbb = MBasicBlock::createBasicBlock(name_ + "_" + bb->get_name(), this);
@@ -234,7 +232,7 @@ std::string MFunction::print() const
 	string ret = "function " + name_ + ":";
 	for (auto& bb : blocks_)
 	{
-		unsigned i = 0;
+		int i = 0;
 		ret += '\n';
 		ret += bb->print(i);
 	}
@@ -256,7 +254,7 @@ MOperand* MFunction::getOperandFor(Value* value, std::map<Value*, MOperand*>& op
 		else
 		{
 			operand = VirtualRegister::createVirtualFRegister(
-				this, static_cast<short>(value->get_type()->sizeInBitsInArm64()));
+				this, (value->get_type()->sizeInBitsInArm64()));
 		}
 	}
 	else
@@ -269,7 +267,7 @@ MOperand* MFunction::getOperandFor(Value* value, std::map<Value*, MOperand*>& op
 		else
 		{
 			operand = VirtualRegister::createVirtualIRegister(
-				this, static_cast<short>(value->get_type()->sizeInBitsInArm64()));
+				this, (value->get_type()->sizeInBitsInArm64()));
 		}
 	}
 	opMap.emplace(value, operand);
@@ -289,7 +287,7 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 	{
 		auto entry = blocks_[0];
 		auto& inst = entry->instructions();
-		int size = static_cast<int>(inst.size());
+		int size = u2iNegThrow(inst.size());
 		for (int i = 0; i < size; i++)
 		{
 			auto in = dynamic_cast<MCopy*>(inst[i]);
@@ -317,7 +315,7 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 		}
 		assert(u != nullptr);
 		auto& insts = u->block()->instructions();
-		for (int i = 0, size = static_cast<int>(insts.size()); i < size; i++)
+		for (int i = 0, size = u2iNegThrow(insts.size()); i < size; i++)
 		{
 			if (insts[i] == u)
 			{
@@ -341,7 +339,7 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 	for (auto bb : blocks())
 	{
 		auto& instructions = bb->instructions();
-		int size = static_cast<int>(instructions.size());
+		int size = u2iNegThrow(instructions.size());
 		for (int i = 0; i < size; i++)
 		{
 			auto inst = instructions[i];
@@ -357,14 +355,14 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 			inst->replace(vreg, nreg, this);
 			if (haveUse)
 			{
-				auto ld = new MLDR{bb, nreg, to, static_cast<unsigned int>(nreg->size())};
+				auto ld = new MLDR{bb, nreg, to, (nreg->size())};
 				instructions.emplace(instructions.begin() + i, ld);
 				size++;
 				i++;
 			}
 			if (haveDef)
 			{
-				auto ld = new MSTR{bb, nreg, to, static_cast<unsigned int>(nreg->size())};
+				auto ld = new MSTR{bb, nreg, to, (nreg->size())};
 				instructions.emplace(instructions.begin() + (i + 1), ld);
 				size++;
 				i++;
@@ -426,7 +424,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	for (auto& i : scores)
 		i.score_ /= static_cast<float>(i.frame_->size_);
 	sort(scores.begin(), scores.end(), greater());
-	int size = static_cast<int>(scores.size());
+	int size = u2iNegThrow(scores.size());
 	for (int i = 0; i < size; i++)
 	{
 		scores[i].frame_->index_ = i;
@@ -436,7 +434,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	int of = 0;
 	for (auto i : stack_)
 	{
-		int s = static_cast<int>(i->size()) >> 3;
+		int s = logicalRightShift(i->size(),3);
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
 	}
@@ -464,11 +462,11 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 			}
 		}
 	}
-	int ic = static_cast<int>(module()->IRegisterCount());
+	int ic = (module()->IRegisterCount());
 	for (auto i : b)
 	{
 		int next = ((of + 7) >> 3) << 3;
-		if (static_cast<int>(i) >= ic)
+		if ((i) >= ic)
 			calleeSaved.emplace_back(module()->fregs_[i - ic], next);
 		else calleeSaved.emplace_back(module()->iregs_[i], next);
 		of = next + 8;
@@ -479,7 +477,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	{
 		auto i = *it;
 		assert((i->size() & 31) == 0);
-		int s = static_cast<int>(i->size()) >> 3;
+		int s = logicalRightShift(i->size(), 3);
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
 	}
@@ -539,7 +537,7 @@ void MFunction::rewriteCallsDefList() const
 	}
 }
 
-void MFunction::rewriteDestroyRegs() const
+void MFunction::rewriteDestroyRegs()
 {
 	auto& lb = module_->lib_functions_[0]->destroy_regs();
 	for (auto c : called_) destroyRegs_ |= module_->all_funcs()[c]->destroyRegs_;
@@ -552,7 +550,7 @@ void MFunction::rewriteDestroyRegs() const
 			{
 				auto df = dynamic_cast<Register*>(inst->def(0));
 				if (df == nullptr)continue;
-				int id = static_cast<int>(df->isIntegerRegister() ? df->id() : df->id() + module_->IRegisterCount());
+				int id = df->isIntegerRegister() ? df->id() : df->id() + module_->IRegisterCount();
 				destroyRegs_.set(id);
 			}
 		}
@@ -567,7 +565,7 @@ std::unordered_map<MOperand*, std::unordered_set<MInstruction*>>& MFunction::use
 MModule::MModule()
 {
 	Register* r;
-	for (unsigned i = 0; i < 8; i++)
+	for (int i = 0; i < 8; i++)
 	{
 		// 0 - 7
 		r = new Register{i, true, "X" + to_string(i), "W" + to_string(i)};
@@ -575,7 +573,7 @@ MModule::MModule()
 		r->callerSave_ = true;
 		iregs_.emplace_back(r);
 	}
-	for (unsigned i = 0; i < 7; i++)
+	for (int i = 0; i < 7; i++)
 	{
 		// 8 - 14
 		r = new Register{i + 8, true, "X" + to_string(i + 9), "W" + to_string(i + 9)};
@@ -583,13 +581,13 @@ MModule::MModule()
 		r->callerSave_ = true;
 		iregs_.emplace_back(r);
 	}
-	for (unsigned i = 0; i < 2; i++)
+	for (int i = 0; i < 2; i++)
 	{
 		// 15 - 16 IP0/IP1
 		r = new Register{i + 15, true, "X" + to_string(i + 16), "W" + to_string(i + 16)};
 		iregs_.emplace_back(r);
 	}
-	for (unsigned i = 0; i < 10; i++)
+	for (int i = 0; i < 10; i++)
 	{
 		// 17 - 26
 		r = new Register{i + 17, true, "X" + to_string(i + 19), "W" + to_string(i + 19)};
@@ -613,26 +611,26 @@ MModule::MModule()
 	iregs_.emplace_back(r);
 	r = new Register{31, true, "NZCV", "NZCV"};
 	iregs_.emplace_back(r);
-	for (unsigned i = 0; i < 8; i++)
+	for (int i = 0; i < 8; i++)
 	{
 		r = new Register{i, false, "Q" + to_string(i), "S" + to_string(i)};
 		r->canAllocate_ = true;
 		r->callerSave_ = true;
 		fregs_.emplace_back(r);
 	}
-	for (unsigned i = 8; i < 16; i++)
+	for (int i = 8; i < 16; i++)
 	{
 		r = new Register{i, false, "Q" + to_string(i), "S" + to_string(i)};
 		r->canAllocate_ = true;
 		r->calleeSave_ = true;
 		fregs_.emplace_back(r);
 	}
-	for (unsigned i = 16; i < 18; i++)
+	for (int i = 16; i < 18; i++)
 	{
 		r = new Register{i, false, "Q" + to_string(i), "S" + to_string(i)};
 		fregs_.emplace_back(r);
 	}
-	for (unsigned i = 18; i < 32; i++)
+	for (int i = 18; i < 32; i++)
 	{
 		r = new Register{i, false, "Q" + to_string(i), "S" + to_string(i)};
 		r->canAllocate_ = true;
@@ -678,7 +676,7 @@ void MModule::accept(Module* module)
 		cache.emplace(func, mfunc);
 	}
 
-	for (auto& f : allFuncs_) f->called_ = DynamicBitset{static_cast<unsigned>(allFuncs_.size())};
+	for (auto& f : allFuncs_) f->called_ = DynamicBitset{u2iNegThrow(allFuncs_.size())};
 
 	for (auto& [bb,mbb] : cache)
 	{
@@ -703,19 +701,19 @@ std::string MModule::print() const
 	return ret;
 }
 
-unsigned MModule::IRegisterCount() const
+int MModule::IRegisterCount() const
 {
-	return static_cast<unsigned>(iregs_.size());
+	return u2iNegThrow(iregs_.size());
 }
 
-unsigned MModule::FRegisterCount() const
+int MModule::FRegisterCount() const
 {
-	return static_cast<unsigned>(fregs_.size());
+	return u2iNegThrow(fregs_.size());
 }
 
-unsigned MModule::RegisterCount() const
+int MModule::RegisterCount() const
 {
-	return static_cast<unsigned>(iregs_.size() + fregs_.size());
+	return u2iNegThrow(iregs_.size() + fregs_.size());
 }
 
 const std::vector<Register*>& MModule::IRegs() const
@@ -768,19 +766,19 @@ std::vector<GlobalAddress*> MModule::ncZeroGlobalAddresses() const
 	return v;
 }
 
-unsigned MFunction::virtualIRegisterCount() const
+int MFunction::virtualIRegisterCount() const
 {
-	return static_cast<unsigned>(virtual_iregs_.size());
+	return u2iNegThrow(virtual_iregs_.size());
 }
 
-unsigned MFunction::virtualFRegisterCount() const
+int MFunction::virtualFRegisterCount() const
 {
-	return static_cast<unsigned>(virtual_fregs_.size());
+	return u2iNegThrow(virtual_fregs_.size());
 }
 
-unsigned MFunction::virtualRegisterCount() const
+int MFunction::virtualRegisterCount() const
 {
-	return static_cast<unsigned>(virtual_iregs_.size()) + static_cast<unsigned>(virtual_fregs_.size());
+	return u2iNegThrow(virtual_iregs_.size() + virtual_fregs_.size());
 }
 
 MModule::~MModule()

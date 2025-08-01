@@ -115,13 +115,13 @@ bool RegisterLike::isPhysicalRegister() const
 	return false;
 }
 
-unsigned int RegisterLike::uid() const
+int RegisterLike::uid() const
 {
 	return (id() << 1) + isVirtualRegister();
 }
 
-VirtualRegister::VirtualRegister(unsigned int id, bool ireg_t_freg_f, short size) : id_(id),
-	ireg_t_freg_f_(ireg_t_freg_f), size_(size)
+VirtualRegister::VirtualRegister(int id, bool ireg_t_freg_f, int size) : id_(id),
+	ireg_t_freg_f_(ireg_t_freg_f), size_(static_cast<short>(size))
 {
 }
 
@@ -131,23 +131,23 @@ bool VirtualRegister::isVirtualRegister() const
 }
 
 
-VirtualRegister* VirtualRegister::createVirtualIRegister(MFunction* f, short size)
+VirtualRegister* VirtualRegister::createVirtualIRegister(MFunction* f, int size)
 {
-	unsigned int id = static_cast<unsigned int>(f->virtual_iregs_.size());
+	int id = u2iNegThrow(f->virtual_iregs_.size());
 	auto reg = new VirtualRegister{id, true, size};
 	f->virtual_iregs_.emplace_back(reg);
 	return reg;
 }
 
-VirtualRegister* VirtualRegister::createVirtualFRegister(MFunction* f, short size)
+VirtualRegister* VirtualRegister::createVirtualFRegister(MFunction* f, int size)
 {
-	unsigned int id = static_cast<unsigned int>(f->virtual_fregs_.size());
+	int id = u2iNegThrow(f->virtual_fregs_.size());
 	auto reg = new VirtualRegister{id, false, size};
 	f->virtual_fregs_.emplace_back(reg);
 	return reg;
 }
 
-VirtualRegister* VirtualRegister::copy(MFunction* f, VirtualRegister* v)
+VirtualRegister* VirtualRegister::copy(MFunction* f, const VirtualRegister* v)
 {
 	if (v->ireg_t_freg_f_)
 	{
@@ -158,7 +158,7 @@ VirtualRegister* VirtualRegister::copy(MFunction* f, VirtualRegister* v)
 
 std::string VirtualRegister::print()
 {
-	return (ireg_t_freg_f_ ? "%vireg" : "%vfreg") + to_string(id_) + "<" + to_string(size_) + ">";;
+	return (ireg_t_freg_f_ ? "%vireg" : "%vfreg") + to_string(id_) + "<" + to_string(size_) + ">";
 }
 
 bool Register::isPhysicalRegister() const
@@ -166,7 +166,7 @@ bool Register::isPhysicalRegister() const
 	return true;
 }
 
-Register::Register(unsigned int id, bool ireg_t_freg_f, const std::string& name,
+Register::Register(int id, bool ireg_t_freg_f, const std::string& name,
                    const std::string& sname) : id_(id), ireg_t_freg_f_(ireg_t_freg_f)
 {
 	name_ = name;
@@ -304,8 +304,7 @@ std::string FuncAddress::print()
 
 GlobalAddress::GlobalAddress(MModule* module, GlobalVariable* var)
 {
-	auto idx = module->globals_.size();
-	index_ = static_cast<unsigned>(idx);
+	index_ = u2iNegThrow(module->globals_.size());
 	size_ = var->get_type()->toPointerType()->typeContained()->sizeInBitsInArm64();
 	data_ = var->move_init();
 	const_ = var->is_const();
@@ -323,7 +322,7 @@ std::string GlobalAddress::print()
 	return "global:" + name_;
 }
 
-FrameIndex::FrameIndex(MFunction* func, unsigned int idx, size_t size, bool stack_t_fix_f) : func_(func), size_(size),
+FrameIndex::FrameIndex(MFunction* func, int idx, int size, bool stack_t_fix_f) : func_(func), size_(size),
 	index_(idx), stack_t_fix_f_(stack_t_fix_f), spilledFrame_(false)
 {
 }

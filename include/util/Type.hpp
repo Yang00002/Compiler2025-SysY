@@ -39,7 +39,7 @@ public:
 	Type& operator=(Type&&) = delete;
 	virtual ~Type() = default;
 	// 对于数组, 是它的所有元素所占空间; 对于参数中数组, 是指针的大小 (64)
-	virtual unsigned sizeInBitsInArm64();
+	virtual int sizeInBitsInArm64();
 	[[nodiscard]] virtual std::string toString() const;
 	// IR 输出
 	[[nodiscard]] virtual std::string print() const;
@@ -73,13 +73,13 @@ namespace Types
 	// 值得注意的是, 所有 sysy 中分配的命名变量在 ir 全是指针
 	PointerType* pointerType(Type* contained);
 	// 当你需要一个函数参数里的 int a[] 时, 填写 (Integer, true, {}) 省掉空的那维
-	ArrayType* arrayType(const TypeIDs& contained, bool inParameter, std::initializer_list<unsigned> dims);
+	ArrayType* arrayType(const TypeIDs& contained, bool inParameter, std::initializer_list<int> dims);
 	// 当你需要一个函数参数里的 int a[] 时, 填写 (Integer, true, {}) 省掉空的那维
-	ArrayType* arrayType(const TypeIDs& contained, bool inParameter, const std::vector<unsigned>& dims);
+	ArrayType* arrayType(const TypeIDs& contained, bool inParameter, const std::vector<int>& dims);
 	// 它是 arrayType(const TypeIDs& contained,... 的一个重载
-	ArrayType* arrayType(const Type* contained, bool inParameter, std::initializer_list<unsigned> dims);
+	ArrayType* arrayType(const Type* contained, bool inParameter, std::initializer_list<int> dims);
 	// 它是 arrayType(const TypeIDs& contained,... 的一个重载
-	ArrayType* arrayType(const Type* contained, bool inParameter, const std::vector<unsigned>& dims);
+	ArrayType* arrayType(const Type* contained, bool inParameter, const std::vector<int>& dims);
 	FuncType* functionType(const TypeIDs& returnType, std::initializer_list<Type*> argTypes);
 	FuncType* functionType(const TypeIDs& returnType, const std::vector<Type*>& argTypes);
 	// 它是 functionType(const TypeIDs& returnType,... 的一个重载
@@ -94,20 +94,20 @@ namespace Types
 class ArrayType final : public Type
 {
 	friend ArrayType* Types::arrayType(const TypeIDs& contained, bool inParameter,
-	                                   std::initializer_list<unsigned> dims);
-	friend ArrayType* Types::arrayType(const TypeIDs& contained, bool inParameter, const std::vector<unsigned>& dims);
+	                                   std::initializer_list<int> dims);
+	friend ArrayType* Types::arrayType(const TypeIDs& contained, bool inParameter, const std::vector<int>& dims);
 	friend struct CompareArrayType;
 
 protected:
 	TypeIDs _contained;
-	std::vector<unsigned> _arrayDims;
-	unsigned _size;
-	ArrayType(const TypeIDs& contained, bool inParameter, std::initializer_list<unsigned> dims);
-	ArrayType(const TypeIDs& contained, bool inParameter, const std::vector<unsigned>& dims);
+	std::vector<int> _arrayDims;
+	int _size;
+	ArrayType(const TypeIDs& contained, bool inParameter, std::initializer_list<int> dims);
+	ArrayType(const TypeIDs& contained, bool inParameter, const std::vector<int>& dims);
 
 public:
 	// 对于数组, 是它的所有元素所占空间; 对于参数中数组, 是指针的大小 (64)
-	unsigned sizeInBitsInArm64() override;
+	int sizeInBitsInArm64() override;
 	[[nodiscard]] std::string toString() const override;
 	[[nodiscard]] std::string print() const override;
 	// 将其后面的维度单独转换为字符串, 可用于输出声明中对应的数组维度
@@ -115,9 +115,9 @@ public:
 	// getTypeID 一样可以区分
 	[[nodiscard]] bool isInParameter() const;
 	// 对于参数中数组, 去掉了空的那维, 所以导致维度可能是空的
-	[[nodiscard]] const std::vector<unsigned>& dimensions() const;
+	[[nodiscard]] const std::vector<int>& dimensions() const;
 	// 元素数量. 对于参数中数组, 去掉了空的那维, 如果没维度了(例如 a[]), 那就是 1
-	[[nodiscard]] unsigned elementCount() const;
+	[[nodiscard]] int elementCount() const;
 	// 当它是 Array 时, 将其转化为传入函数后的函数参数 ArrayInParameter 类型
 	// 例如将 int[2][3] 转化为 int[][3]
 	// 注意如果想要定义 int[][1], 应该调用 arrayType(Integer, true, {1}) 或 arrayType(Integer, false, {任意正数, 1})->toFuncParameter
@@ -155,7 +155,7 @@ public:
 	// 返回指定参数
 	[[nodiscard]] Type* argumentType(int i) const;
 	// 参数数量
-	[[nodiscard]] unsigned argumentCount() const;
+	[[nodiscard]] int argumentCount() const;
 };
 
 class PointerType final : public Type

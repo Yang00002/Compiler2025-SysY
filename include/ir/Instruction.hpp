@@ -474,7 +474,7 @@ public:
 
 	void remove_phi_operand(const Value* pre_bb)
 	{
-		for (unsigned i = 0; i < this->get_num_operand(); i += 2)
+		for (int i = 0; i < static_cast<int>(this->get_num_operand()); i += 2)
 		{
 			if (this->get_operand(i + 1) == pre_bb)
 			{
@@ -485,7 +485,7 @@ public:
 		}
 	}
 
-	void remove_phi_operand(const Value* pre_bb, unsigned opId)
+	void remove_phi_operand(const Value* pre_bb, int opId)
 	{
 		if (get_operand(opId) == pre_bb)
 		{

@@ -5,16 +5,16 @@
 #include <intrin.h>
 #endif
 
-inline unsigned m_countr_zero(unsigned long long x) noexcept
+inline int m_countr_zero(unsigned long long x) noexcept
 {
 	if (x == 0) return sizeof(unsigned long long) * 8;
 
 #if CZ_MSVC
 	unsigned long index;
 	_BitScanForward64(&index, x);
-	return static_cast<unsigned>(index);
+	return static_cast<int>(index);
 
 #else
-     return static_cast<unsigned>(__builtin_ctzll(x));
+     return __builtin_ctzll(x);
 #endif
 }

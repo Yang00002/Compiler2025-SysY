@@ -12,7 +12,6 @@ namespace error
 {
 	// 张量初始化错误
 	std::runtime_error TensorInit(const std::vector<int>& dim);
-	std::runtime_error TensorInit(const std::vector<unsigned>& dim);
 
 	// 张量维度索引错误
 	std::runtime_error TensorDimIndex(int dimSize, int index);
@@ -156,7 +155,6 @@ public:
 	// 张量形状, 当为 [] 代表是标量; 否则, 任何一维都应该是正整数.
 	[[nodiscard]] const std::vector<int>& getShape() const;
 	explicit Tensor(const std::vector<int>& shape, const Element& defaultV);
-	explicit Tensor(const std::vector<unsigned>& shape, const Element& defaultV);
 	// 每一维的容量, 例如 Tensor[4][3][2], 0 维占用 6, 1 维占用 2, 2 维占用 1.
 	// 小于 0 的数输出张量总容量
 	[[nodiscard]] int getDimCapacity(int dim) const;
@@ -316,7 +314,7 @@ private:
 template <typename Element>
 int PlainTensor<Element>::segmentCount()
 {
-	return static_cast<int>(_segments.size());
+	return u2iNegThrow(_segments.size());
 }
 
 template <typename Element>
@@ -355,28 +353,7 @@ Tensor<Element>::Tensor(const std::vector<int>& shape, const Element& defaultV)
 	_defaultValue = defaultV;
 	_shape = shape;
 	_dimLen.resize(_shape.size());
-	int i = static_cast<int>(shape.size()) - 1;
-	if (i >= 0)
-	{
-		_dimLen[i] = 1;
-		for (; i > 0; --i)
-		{
-			if (_shape[i] <= 0) throw error::TensorInit(shape);
-			_dimLen[i - 1] = _dimLen[i] * _shape[i];
-		}
-		if (_shape[0] <= 0) throw error::TensorInit(shape);
-		_data = new TensorData<Element>{this, 0};
-	}
-	else
-		_data = new TensorData<Element>{this, -1};
-}
-
-template <typename Element>
-Tensor<Element>::Tensor(const std::vector<unsigned>& shape, const Element& defaultV) : _defaultValue(defaultV)
-{
-	for (auto& i : shape) _shape.emplace_back(static_cast<int>(i));
-	_dimLen.resize(_shape.size());
-	int i = static_cast<int>(shape.size()) - 1;
+	int i = u2iNegThrow(shape.size()) - 1;
 	if (i >= 0)
 	{
 		_dimLen[i] = 1;
@@ -396,7 +373,8 @@ template <typename Element>
 int Tensor<Element>::getDimCapacity(const int dim) const
 {
 	if (dim < 0) return _shape.empty() ? 1 : _shape[0] * _dimLen[0];
-	if (dim >= static_cast<int>(_dimLen.size())) throw error::TensorDimIndex(static_cast<int>(_dimLen.size()), dim);
+	int sz = u2iNegThrow(_dimLen.size());
+	if (dim >= sz) throw error::TensorDimIndex(sz, dim);
 	return _dimLen[dim];
 }
 
@@ -434,7 +412,7 @@ template <typename Element>
 std::vector<int> Tensor<Element>::index(int idx) const
 {
 	std::vector<int> ret;
-	int ed = static_cast<int>(_dimLen.size());
+	int ed = u2iNegThrow(_dimLen.size());
 	for (int i = 0; i < ed; i++)
 	{
 		int x = idx / _dimLen[i];
@@ -540,7 +518,7 @@ typename Tensor<Element>::Iterator& Tensor<Element>::Iterator::operator++()
 	{
 		_index.pop();
 		_data.pop();
-		int size = static_cast<int>(_data.top()->getSubTensors()->size());
+		int size = u2iNegThrow(_data.top()->getSubTensors()->size());
 		auto allocated = _data.top()->getSpaceAllocated();
 		auto all = _data.top()->getDimCapacity(-1);
 		idx = _index.top();
@@ -570,7 +548,7 @@ typename Tensor<Element>::Iterator& Tensor<Element>::Iterator::operator++()
 		}
 	}
 	_index.pop();
-	int size = static_cast<int>(_data.top()->getSubTensors()->size());
+	int size = u2iNegThrow(_data.top()->getSubTensors()->size());
 	auto allocated = dataTop->getSpaceAllocated();
 	auto all = dataTop->getDimCapacity(-1);
 	if ((idx + 1 < size) || (idx + 1 == size && all > allocated))
@@ -814,14 +792,14 @@ template <typename Element>
 TensorData<Element>* TensorData<Element>::makeSubTensor()
 {
 	// 维度小于等于 1
-	if (static_cast<int>(_tensor->_shape.size()) <= 1 + _beginDim) return nullptr;
+	if (u2iNegThrow(_tensor->_shape.size()) <= 1 + _beginDim) return nullptr;
 	int nextBegin = _beginDim + 1;
 	int currentDataTake = _size / _tensor->_dimLen[nextBegin - 1];
 	while (_size - currentDataTake * _tensor->_dimLen[nextBegin - 1] != 0)
 	{
 		nextBegin++;
 		// 不能整除
-		if (nextBegin >= static_cast<int>(_tensor->_shape.size())) return nullptr;
+		if (nextBegin >= u2iNegThrow(_tensor->_shape.size())) return nullptr;
 		currentDataTake = _size / _tensor->_dimLen[nextBegin - 1];
 	}
 	// 满了
@@ -837,9 +815,9 @@ template <typename Element>
 int TensorData<Element>::getDimCapacity(const int dim) const
 {
 	if (dim < 0) return _beginDim == -1 ? 1 : _tensor->_shape[_beginDim] * _tensor->_dimLen[_beginDim];
-	if (dim + _beginDim >= static_cast<int>(_tensor->_dimLen.size()))
+	if (dim + _beginDim >= u2iNegThrow(_tensor->_dimLen.size()))
 		throw error::TensorDimIndex(
-			static_cast<int>(_tensor->_dimLen.size()), dim);
+			u2iNegThrow(_tensor->_dimLen.size()), dim);
 	return _tensor->_dimLen[dim + _beginDim];
 }
 
@@ -874,7 +852,7 @@ Element TensorData<Element>::getElement(const std::vector<int>& index, const boo
 	if (index.size() + _beginDim != _tensor->_dimLen.size())
 		throw
 			std::runtime_error("Tensor's index should have same dimension with shape.");
-	const int size = static_cast<int>(index.size());
+	const int size = u2iNegThrow(index.size());
 	if (strict)
 		for (int i = 0; i < size; i++)
 		{

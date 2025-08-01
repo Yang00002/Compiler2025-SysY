@@ -193,7 +193,7 @@ std::string CallInst::print()
 		"Wrong call operand function");
 	instr_ir += print_as_op(this->get_operand(0), false);
 	instr_ir += "(";
-	for (unsigned i = 1; i < this->get_num_operand(); i++)
+	for (int i = 1; i < this->get_num_operand(); i++)
 	{
 		if (i > 1)
 			instr_ir += ", ";
@@ -304,7 +304,7 @@ std::string GetElementPtrInst::print()
 	instr_ir +=
 		this->get_operand(0)->get_type()->toPointerType()->typeContained()->print();
 	instr_ir += ", ";
-	for (unsigned i = 0; i < this->get_num_operand(); i++)
+	for (int i = 0; i < this->get_num_operand(); i++)
 	{
 		if (i > 0)
 			instr_ir += ", ";
@@ -416,12 +416,12 @@ std::string PhiInst::print()
 	instr_ir += " ";
 	if (this->get_operand(0) == nullptr)
 	{
-		instr_ir += "?"; return instr_ir;
+		instr_ir += "?";
+		return instr_ir;
 	}
-	else
-		instr_ir += this->get_operand(0)->get_type()->print();
+	instr_ir += this->get_operand(0)->get_type()->print();
 	instr_ir += " ";
-	for (unsigned i = 0; i < this->get_num_operand() / 2; i++)
+	for (int i = 0; i < this->get_num_operand() / 2; i++)
 	{
 		if (i > 0)
 			instr_ir += ", ";
@@ -431,8 +431,7 @@ std::string PhiInst::print()
 		instr_ir += print_as_op(this->get_operand(2 * i + 1), false);
 		instr_ir += " ]";
 	}
-	if (this->get_num_operand() / 2 <
-	    this->get_parent()->get_pre_basic_blocks().size())
+	if (this->get_num_operand() / 2 < u2iNegThrow(this->get_parent()->get_pre_basic_blocks().size()))
 	{
 		for (auto pre_bb : this->get_parent()->get_pre_basic_blocks())
 		{

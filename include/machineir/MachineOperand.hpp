@@ -51,13 +51,13 @@ public:
 		return true;
 	}
 
-	[[nodiscard]] virtual unsigned int id() const = 0;
-	[[nodiscard]] unsigned int uid() const;
+	[[nodiscard]] virtual int id() const = 0;
+	[[nodiscard]] int uid() const;
 };
 
 class VirtualRegister final : public RegisterLike
 {
-	unsigned int id_;
+	int id_;
 	bool ireg_t_freg_f_;
 
 public:
@@ -65,11 +65,11 @@ public:
 
 private:
 	short size_;
-	explicit VirtualRegister(unsigned int id, bool ireg_t_freg_f, short size);
+	explicit VirtualRegister(int id, bool ireg_t_freg_f, int size);
 
 public:
 	MOperand* replacePrefer_ = nullptr; // 被 spill 时优先进行替换而非分配栈帧
-	[[nodiscard]] short size() const
+	[[nodiscard]] int size() const
 	{
 		return size_;
 	}
@@ -81,14 +81,14 @@ public:
 		return ireg_t_freg_f_;
 	}
 
-	[[nodiscard]] unsigned int id() const override
+	[[nodiscard]] int id() const override
 	{
 		return id_;
 	}
 
-	static VirtualRegister* createVirtualIRegister(MFunction* f, short size);
-	static VirtualRegister* createVirtualFRegister(MFunction* f, short size);
-	static VirtualRegister* copy(MFunction* f, VirtualRegister* v);
+	static VirtualRegister* createVirtualIRegister(MFunction* f, int size);
+	static VirtualRegister* createVirtualFRegister(MFunction* f, int size);
+	static VirtualRegister* copy(MFunction* f, const VirtualRegister* v);
 	std::string print() override;
 };
 
@@ -97,7 +97,7 @@ class Register final : public RegisterLike
 public:
 	[[nodiscard]] bool isPhysicalRegister() const override;
 
-	[[nodiscard]] unsigned int id() const override
+	[[nodiscard]] int id() const override
 	{
 		return id_;
 	}
@@ -114,10 +114,10 @@ public:
 
 private:
 	friend class MModule;
-	unsigned int id_;
+	int id_;
 	bool ireg_t_freg_f_;
 	bool canAllocate_ = false;
-	explicit Register(unsigned int id, bool ireg_t_freg_f, const std::string& name, const std::string& sname);
+	explicit Register(int id, bool ireg_t_freg_f, const std::string& name, const std::string& sname);
 
 public:
 	bool callerSave_ = false;
@@ -187,7 +187,7 @@ class GlobalAddress final : public MOperand
 	friend class CodeGen;
 	friend class MModule;
 	size_t size_;
-	unsigned int index_;
+	int index_;
 	bool const_;
 	PlainTensor<ConstantValue>* data_;
 	std::string name_;
@@ -206,12 +206,12 @@ class FrameIndex final : public MOperand
 {
 	friend class MFunction;
 	MFunction* func_;
-	size_t size_;
-	unsigned int index_;
+	int size_;
+	int index_;
 	int offset_ = 0;
 	bool stack_t_fix_f_;
 	friend class MModule;
-	explicit FrameIndex(MFunction* func, unsigned int idx, size_t size, bool stack_t_fix_f);
+	explicit FrameIndex(MFunction* func, int idx, int size, bool stack_t_fix_f);
 
 public:
 	[[nodiscard]] int offset() const
@@ -239,7 +239,7 @@ public:
 		offset_ = offset;
 	}
 
-	[[nodiscard]] size_t size() const
+	[[nodiscard]] int size() const
 	{
 		return size_;
 	}
@@ -249,12 +249,12 @@ public:
 		return !stack_t_fix_f_;
 	}
 
-	void set_size(size_t size)
+	void set_size(int size)
 	{
 		size_ = size;
 	}
 
-	[[nodiscard]] unsigned int index() const
+	[[nodiscard]] int index() const
 	{
 		return index_;
 	}

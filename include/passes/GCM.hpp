@@ -13,8 +13,8 @@ class GlobalCodeMotion final : public Pass
     std::unordered_set<Instruction*> visited_;
     
     void run(Function* f);
-    bool is_pinned(Instruction* i);
-    BasicBlock* LCA(BasicBlock* bb1, BasicBlock* bb2);
+    static bool is_pinned(const Instruction* i);
+    BasicBlock* LCA(BasicBlock* bb1, BasicBlock* bb2) const;
     void moveEarly(Instruction* i, Function* f); // 计算最早可插入位置并移动指令
     void postpone(Instruction* i);  // 尽可能延迟计算
 public:

@@ -23,6 +23,7 @@ void FuncInfo::run()
 	}
 }
 
+// ReSharper disable once CppParameterMayBeConstPtrOrRef
 bool FuncInfo::is_pure_function(Function* func) const
 {
 	return is_pure.at(func);
@@ -46,7 +47,7 @@ void FuncInfo::trivial_mark(Function* func)
 		}
 	}
 	for (const auto& bb : func->get_basic_blocks())
-		for (const auto& inst : bb->get_instructions())
+		for (auto inst : bb->get_instructions())
 		{
 			if (is_side_effect_inst(inst))
 			{

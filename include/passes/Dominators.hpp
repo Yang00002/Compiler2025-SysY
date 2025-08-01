@@ -13,8 +13,8 @@ class Dominators : public Pass
 	std::map<BasicBlock*, std::set<BasicBlock*>> dom_tree_succ_blocks_{}; // 支配树中的后继节点
 
 	// 支配树上的dfs序L,R
-	std::map<BasicBlock*, unsigned int> dom_tree_L_;
-	std::map<BasicBlock*, unsigned int> dom_tree_R_;
+	std::map<BasicBlock*, int> dom_tree_L_;
+	std::map<BasicBlock*, int> dom_tree_R_;
 
 	std::map<Function*, std::vector<BasicBlock*>> dom_dfs_order_;
 	std::map<Function*, std::vector<BasicBlock*>> dom_post_order_;

@@ -84,7 +84,7 @@ public:
 	//
 	[[nodiscard]] bool is_entry_block() const { return this == parent_->get_entry_block(); }
 	// 指令数
-	[[nodiscard]] int get_num_of_instr() const { return static_cast<int>(instr_list_.size()); }
+	[[nodiscard]] int get_num_of_instr() const { return instr_list_.size(); }
 
 	/****************api about accessing parent****************/
 

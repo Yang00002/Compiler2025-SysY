@@ -123,7 +123,7 @@ public:
 
 	static MFunction* createFunc(const std::string& name, MModule* module);
 	FrameIndex* allocaStack(Value* value);
-	FrameIndex* allocaStack(short size);
+	FrameIndex* allocaStack(int size);
 	[[nodiscard]] FrameIndex* getFix(int idx) const;
 	void preprocess(Function* function);
 	void accept(Function* function, std::map<Function*, MFunction*>& funcMap, std::map<GlobalVariable*, GlobalAddress*>& global_address);
@@ -137,14 +137,14 @@ public:
 	void addUse(MOperand* op, MInstruction* ins);
 	void removeUse(MOperand* op, MInstruction* ins);
 	void rewriteCallsDefList() const;
-	void rewriteDestroyRegs() const;
+	void rewriteDestroyRegs();
 	std::unordered_map<MOperand*, std::unordered_set<MInstruction*>>& useList();
 
 	[[nodiscard]] const std::vector<VirtualRegister*>& IVRegs() const;
 	[[nodiscard]] const std::vector<VirtualRegister*>& FVRegs() const;
-	[[nodiscard]] unsigned virtualIRegisterCount() const;
-	[[nodiscard]] unsigned virtualFRegisterCount() const;
-	[[nodiscard]] unsigned virtualRegisterCount() const;
+	[[nodiscard]] int virtualIRegisterCount() const;
+	[[nodiscard]] int virtualFRegisterCount() const;
+	[[nodiscard]] int virtualRegisterCount() const;
 };
 
 class MModule
@@ -200,9 +200,9 @@ public:
 	}
 
 	[[nodiscard]] std::string print() const;
-	[[nodiscard]] unsigned IRegisterCount() const;
-	[[nodiscard]] unsigned FRegisterCount() const;
-	[[nodiscard]] unsigned RegisterCount() const;
+	[[nodiscard]] int IRegisterCount() const;
+	[[nodiscard]] int FRegisterCount() const;
+	[[nodiscard]] int RegisterCount() const;
 	[[nodiscard]] const std::vector<Register*>& IRegs() const;
 	[[nodiscard]] const std::vector<Register*>& FRegs() const;
 	[[nodiscard]] std::vector<GlobalAddress*> constGlobalAddresses() const;

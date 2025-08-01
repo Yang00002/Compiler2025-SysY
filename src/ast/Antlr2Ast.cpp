@@ -91,7 +91,7 @@ std::any Antlr2AstVisitor::visitBType(SysYParser::BTypeContext* context)
 
 std::any Antlr2AstVisitor::visitConstDef(SysYParser::ConstDefContext* context)
 {
-	vector<unsigned> dims;
+	vector<int> dims;
 	for (const auto const_exp : context->constExp())
 	{
 		const auto n = any_cast<ASTNumber*>(const_exp->accept(this));
@@ -192,7 +192,7 @@ std::any Antlr2AstVisitor::visitVarDecl(SysYParser::VarDeclContext* context)
 
 std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 {
-	vector<unsigned> dims;
+	vector<int> dims;
 	for (const auto const_exp : context->constExp())
 	{
 		const auto n = any_cast<ASTNumber*>(const_exp->accept(this));
@@ -353,7 +353,7 @@ std::any Antlr2AstVisitor::visitFuncFParam(SysYParser::FuncFParamContext* contex
 {
 	const auto id = context->ID()->toString();
 	const auto btype = any_cast<Type*>(context->bType()->accept(this));
-	vector<unsigned> dims;
+	vector<int> dims;
 	for (const auto& i : context->exp())
 	{
 		const auto exp = any_cast<ASTExpression*>(i->accept(this));
@@ -619,11 +619,11 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 	if (d == nullptr)
 		throw runtime_error("undefined scope " + context->ID()->toString() + " . context " + context->toString());
 	const auto decl = dynamic_cast<ASTVarDecl*>(d);
-	const auto indexCount = static_cast<int>(context->exp().size());
+	const auto indexCount = u2iNegThrow(context->exp().size());
 	if (decl->getType()->isArrayType())
 	{
 		const auto ar = dynamic_cast<ArrayType*>(decl->getType());
-		const int ori = static_cast<int>(ar->dimensions().size()) +
+		const int ori = u2iNegThrow(ar->dimensions().size()) +
 		                (ar->getTypeID() == TypeIDs::ArrayInParameter ? 1 : 0);
 		if (ori < indexCount)
 			throw
@@ -643,10 +643,10 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 				int m = INT_MAX;
 				if (ar->getTypeID() == TypeIDs::Array)
 				{
-					m = static_cast<int>(ar->dimensions()[dimIdx]);
+					m = ar->dimensions()[dimIdx];
 				}
 				else if (dimIdx > 0)
-					m = static_cast<int>(ar->dimensions()[dimIdx - 1]);
+					m = ar->dimensions()[dimIdx - 1];
 				if (const int n = num->toInteger();
 					n < 0 || n >= m)
 					throw runtime_error(
@@ -738,15 +738,16 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 			               : vector<ASTExpression*>{};
 		if (special)
 		{
-			if (!getArgs.empty()) throw runtime_error("function call of " + id + " has incorrect args count. " + context->toString());
-			const int line = static_cast<int>(context->rParen()->getStart()->getLine());
-			auto arg = new ASTNumber{ line };
+			if (!getArgs.empty()) throw runtime_error(
+				"function call of " + id + " has incorrect args count. " + context->toString());
+			const int line =u2iNegThrow(context->rParen()->getStart()->getLine());
+			auto arg = new ASTNumber{line};
 			getArgs.emplace_back(arg);
 		}
 		const auto typeArgs = func->args();
 		if (typeArgs.size() != getArgs.size())
 			throw runtime_error("function call of " + id + " has incorrect args count. " + context->toString());
-		const int size = static_cast<int>(getArgs.size());
+		const int size = u2iNegThrow(getArgs.size());
 		for (int i = 0; i < size; i++)
 		{
 			auto& get = getArgs[i];

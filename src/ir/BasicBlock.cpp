@@ -1,6 +1,7 @@
 #include "BasicBlock.hpp"
 #include "Function.hpp"
 #include "IRPrinter.hpp"
+#include "System.hpp"
 #include "Type.hpp"
 #include "Util.hpp"
 
@@ -30,7 +31,7 @@ bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 	bool multiPre = pb.size() > 1;
 	BasicBlock* preBB = pb.empty() ? nullptr : pb.front();
 	// 收集使用该基本块定值的 phi 指令
-	std::list<std::pair<PhiInst*, unsigned>> phiInsts;
+	std::list<std::pair<PhiInst*, int>> phiInsts;
 	for (auto use : get_use_list())
 	{
 		auto phi = dynamic_cast<PhiInst*>(use.val_);
@@ -42,7 +43,7 @@ bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 				// 替代会增加 phi 的长度
 				if (multiPre) return false;
 				auto& ops = phi->get_operands();
-				int s = static_cast<int>(ops.size());
+				int s = u2iNegThrow(ops.size());
 				for (int i = 1; i < s; i += 2)
 				{
 					// 依赖跳转进行定值
@@ -68,8 +69,8 @@ bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 		pre_basic_block->add_succ_basic_block(bb);
 		bb->add_pre_basic_block(pre_basic_block);
 		auto term = pre_basic_block->get_terminator();
-		unsigned size = static_cast<int>(term->get_operands().size());
-		for (unsigned i = 0; i < size; i++)
+		int size = u2iNegThrow(term->get_operands().size());
+		for (int i = 0; i < size; i++)
 		{
 			auto op = term->get_operand(i);
 			if (op == this)

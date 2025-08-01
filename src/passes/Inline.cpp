@@ -1,8 +1,6 @@
 #include "Inline.hpp"
 
 #include <queue>
-#include <unordered_set>
-#include <vector>
 
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"

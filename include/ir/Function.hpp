@@ -33,8 +33,8 @@ public:
 
 	void add_basic_block(BasicBlock* bb);
 
-	[[nodiscard]] unsigned get_num_of_args() const;
-	[[nodiscard]] unsigned get_num_basic_blocks() const;
+	[[nodiscard]] int get_num_of_args() const;
+	[[nodiscard]] int get_num_basic_blocks() const;
 
 	[[nodiscard]] Module* get_parent() const;
 	/**
@@ -57,13 +57,13 @@ public:
 	// 是否是库函数, 以对函数参数进行不同的处理
 	bool is_lib_;
 
-	float opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap);
+	static float opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap);
 
 private:
 	std::list<BasicBlock*> basic_blocks_;
 	std::list<Argument> arguments_;
 	Module* parent_;
-	unsigned seq_cnt_; // print use
+	int seq_cnt_; // print use
 };
 
 // Argument of Function, does not contain actual value
@@ -75,7 +75,7 @@ public:
 	Argument& operator=(const Argument& other) = delete;
 	Argument& operator=(Argument&& other) = delete;
 
-	explicit Argument(Type* ty, const std::string& name = "", Function* f = nullptr, unsigned arg_no = 0)
+	explicit Argument(Type* ty, const std::string& name = "", Function* f = nullptr, int arg_no = 0)
 		: Value(ty, name), parent_(f), arg_no_(arg_no)
 	{
 	}
@@ -86,7 +86,7 @@ public:
 	Function* get_parent() { return parent_; }
 
 	// For example in "void foo(int a, float b)" a is 0 and b is 1.
-	[[nodiscard]] unsigned get_arg_no() const
+	[[nodiscard]] int get_arg_no() const
 	{
 		assert(parent_ && "can't get number of unparented arg");
 		return arg_no_;
@@ -96,5 +96,5 @@ public:
 
 private:
 	Function* parent_;
-	unsigned arg_no_; // argument No.
+	int arg_no_; // argument No.
 };

@@ -21,12 +21,12 @@ bool Value::set_name(const std::string& name)
 	return false;
 }
 
-void Value::add_use(User* user, unsigned arg_no)
+void Value::add_use(User* user, int arg_no)
 {
 	use_list_.emplace_back(user, arg_no);
 };
 
-void Value::remove_use(User* user, unsigned arg_no)
+void Value::remove_use(User* user, int arg_no)
 {
 	auto target_use = Use(user, arg_no);
 	use_list_.remove_if([&](const Use& use) { return use == target_use; });
@@ -64,11 +64,11 @@ User::User(Type* ty, const std::string& name) : Value(ty, name)
 
 const std::vector<Value*>& User::get_operands() const { return operands_; }
 
-Value* User::get_operand(unsigned i) const { return operands_.at(i); }
+Value* User::get_operand(int i) const { return operands_.at(i); }
 
-void User::set_operand(unsigned i, Value* v)
+void User::set_operand(int i, Value* v)
 {
-	assert(i < operands_.size() && "set_operand out of index");
+	assert(i <u2iNegThrow(operands_.size()) && "set_operand out of index");
 	if (operands_[i])
 	{
 		// old operand
@@ -85,13 +85,14 @@ void User::set_operand(unsigned i, Value* v)
 void User::add_operand(Value* v)
 {
 	assert(v != nullptr && "bad use: add_operand(nullptr)");
-	v->add_use(this, static_cast<int>(operands_.size()));
+	v->add_use(this, u2iNegThrow(operands_.size()));
 	operands_.push_back(v);
 }
 
 void User::remove_all_operands()
 {
-	for (unsigned i = 0; i != operands_.size(); ++i)
+	int size = u2iNegThrow(operands_.size());
+	for (int i = 0; i != size; ++i)
 	{
 		if (operands_[i])
 		{
@@ -101,11 +102,12 @@ void User::remove_all_operands()
 	operands_.clear();
 }
 
-void User::remove_operand(unsigned idx)
+void User::remove_operand(int idx)
 {
-	assert(idx < operands_.size() && "remove_operand out of index");
+	int size = u2iNegThrow(operands_.size());
+	assert(idx < size && "remove_operand out of index");
 	// influence on other operands
-	for (unsigned i = idx + 1; i < operands_.size(); ++i)
+	for (int i = idx + 1; i < size; ++i)
 	{
 		operands_[i]->remove_use(this, i);
 		operands_[i]->add_use(this, i - 1);

@@ -125,7 +125,7 @@ public:
     ValStatus get_mapped_val(Value* key) { return value_map.get(key); }
 
     void replace_with_constant(Function* f);
-    void convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* invalid);
+    static void convert_cond_br(Instruction* i, BasicBlock* target, const BasicBlock* invalid);
 
     auto& get_visited() { return visited; }
     auto& get_flow_worklist() { return flow_worklist; }
@@ -149,8 +149,8 @@ public:
         }
         return nullptr;
     }
-    Constant* constFold(Instruction* i, Constant* op1, Constant* op2);
-    Constant* constFold(Instruction* i, Constant* op);
+    Constant* constFold(const Instruction* i, const Constant* op1, const Constant* op2) const;
+    Constant* constFold(const Instruction* i, const Constant* op) const;
 };
 
 class SCCPVisitor {
@@ -162,8 +162,8 @@ public:
     void visit(Instruction* inst);
 
 private:
-    void visit_br(BranchInst* inst); // 仅检查基本块的可达性
-    void visit_phi(PhiInst* inst);
+    void visit_br(const BranchInst* inst); // 仅检查基本块的可达性
+    void visit_phi(const PhiInst* inst);
     void visit_fold(Instruction* inst);
 
     SCCP& sccp;
