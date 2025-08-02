@@ -81,7 +81,7 @@ bool DynamicBitset::test(int i) const
 	return data_[idx1] & (1ull << idx2);
 }
 
-void DynamicBitset::set(int i) 
+void DynamicBitset::set(int i)
 {
 	assert(i >= 0);
 	int idx1 = i >> 6;
@@ -89,7 +89,29 @@ void DynamicBitset::set(int i)
 	data_[idx1] |= 1ull << idx2;
 }
 
-void DynamicBitset::set(int f, int t) 
+bool DynamicBitset::setAndGet(int i)
+{
+	assert(i >= 0);
+	int idx1 = i >> 6;
+	int idx2 = i & 63;
+	auto p = data_[idx1];
+	auto next = p | (1ull << idx2);
+	data_[idx1] = next;
+	return p != next;
+}
+
+bool DynamicBitset::resetAndGet(int i)
+{
+	assert(i >= 0);
+	int idx1 = i >> 6;
+	int idx2 = i & 63;
+	auto p = data_[idx1];
+	auto next = p & ~(1ull << idx2);
+	data_[idx1] = next;
+	return p != next;
+}
+
+void DynamicBitset::set(int f, int t)
 {
 	assert(f >= 0 && t >= 0);
 	auto ullf = ULLOFBITS(f);
@@ -107,7 +129,7 @@ void DynamicBitset::set(int f, int t)
 	data_[ullt] |= UPZEROS(offt);
 }
 
-void DynamicBitset::reset(int i) 
+void DynamicBitset::reset(int i)
 {
 	assert(i >= 0);
 	int idx1 = i >> 6;
