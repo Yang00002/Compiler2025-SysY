@@ -63,6 +63,7 @@ void GVN::run(Function* f)
 		for (auto i : to_delete_)
 		{
 			i->get_parent()->erase_instr(i);
+            delete i;
 			LOG("Replaced expression: " + i->print());
 		}
 	}
