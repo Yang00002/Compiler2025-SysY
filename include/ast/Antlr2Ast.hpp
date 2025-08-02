@@ -1,4 +1,6 @@
 #pragma once
+#include <queue>
+
 #include "SysYBaseVisitor.h"
 
 class ASTFuncDecl;
@@ -31,6 +33,9 @@ class Antlr2AstVisitor final : SysYBaseVisitor
 	bool _allowLogic = false;
 	// 目前所在函数
 	ASTFuncDecl* _currentFunction = nullptr;
+
+	std::queue<ASTNode*> returnSlot_;
+	Type* typeReturnSlot_ = nullptr;
 
 	// 插入符号. 尝试在 _structConstraint 最右侧插入符号, 若重名则返回 false; 否则插入并返回 true.
 	bool pushScope(ASTDecl* decl) const;
@@ -104,6 +109,13 @@ class Antlr2AstVisitor final : SysYBaseVisitor
 	std::any visitLOrExp(SysYParser::LOrExpContext* context) override;
 
 	std::any visitConstExp(SysYParser::ConstExpContext* context) override;
+
+	ASTNode* poll()
+	{
+		auto ret = returnSlot_.front();
+		returnSlot_.pop();
+		return ret;
+	}
 
 public:
 	ASTCompUnit* astTree(antlr4::tree::ParseTree* parseTree);

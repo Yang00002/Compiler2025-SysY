@@ -814,7 +814,7 @@ private:
 };
 
 // 取负号表达式, 包含操作数. 该节点会自动简化
-class ASTNeg final : ASTExpression
+class ASTNeg final : public ASTExpression
 {
 public:
 	[[nodiscard]] ASTExpression* hold() const
