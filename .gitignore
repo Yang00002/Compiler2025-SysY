@@ -5,6 +5,7 @@
 lib/sylib.a
 lib/sylib.o
 test
+compiler
 /tests/arm/
 /tests/functional/
 /tests/debug/
