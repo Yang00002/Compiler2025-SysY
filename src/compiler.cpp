@@ -201,15 +201,15 @@ void compiler(std::string infile, std::string outfile) {
     // Optimization Pass
     pm->add_pass<Mem2Reg>();
     pm->add_pass<DeadCode>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<SCCP>();
-    pm->add_pass<DeadCode>();
+    // pm->add_pass<Arithmetic>(); 内存泄漏
+    // pm->add_pass<SCCP>(); 内存泄漏
+    // pm->add_pass<DeadCode>();
     pm->add_pass<LoopInvariantCodeMotion>();
     pm->add_pass<DeadCode>();
-    pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<GlobalCodeMotion>();
-    pm->add_pass<DeadCode>();
+    // pm->add_pass<GVN>(); 内存泄漏
+    // pm->add_pass<Arithmetic>(); 内存泄漏
+    // pm->add_pass<GlobalCodeMotion>();
+    // pm->add_pass<DeadCode>();
   } else
     pm->add_pass<DeadCode>();
   pm->add_pass<CriticalEdgeERemove>();

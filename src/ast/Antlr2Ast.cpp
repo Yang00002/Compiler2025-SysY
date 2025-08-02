@@ -427,6 +427,7 @@ std::any Antlr2AstVisitor::visitFuncFParam(SysYParser::FuncFParamContext* contex
 			throw runtime_error(
 				"function parameter array dimension size must > 0. context " + context->toString());
 		dims.emplace_back(n);
+		delete num;
 	}
 	auto decl = new ASTVarDecl(false, false, btype);
 	decl->_id = id;
