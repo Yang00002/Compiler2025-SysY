@@ -174,10 +174,15 @@ void SCCP::replace_with_constant(Function* f)
 		}
 	}
 	auto c = del_.size();
-	if (c != 0)
-		LOG(color::cyan("Replaced "+std::to_string(c)+" use(s) with constant(s)"))
-	for (auto d : del_)
+	
+    if (c != 0){
+		LOG(color::cyan("Replaced "+std::to_string(c)+" use(s) with constant(s)"));
+    }
+
+    for (auto d : del_){
 		d->get_parent()->erase_instr(d);
+        delete d;
+    }
 
 	// 处理条件跳转
 	for (auto b : f->get_basic_blocks())

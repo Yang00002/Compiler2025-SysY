@@ -50,9 +50,11 @@ void Arithmetic::optimize_addsub(Instruction* i) const
         if (i->is_fsub()) {
             i->replace_all_use_with(Constant::create(m_,0.0f));
             i->get_parent()->erase_instr(i);
+            delete i;
         } else if(i->is_sub()) {
             i->replace_all_use_with(Constant::create(m_,0));
             i->get_parent()->erase_instr(i);
+            delete i;
         }
     }
     if( auto constval = dynamic_cast<Constant*>(op0)  ){
@@ -61,6 +63,7 @@ void Arithmetic::optimize_addsub(Instruction* i) const
         ){
             i->replace_all_use_with(op1);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
     }
@@ -70,6 +73,7 @@ void Arithmetic::optimize_addsub(Instruction* i) const
         ){
             i->replace_all_use_with(op0);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
     }
@@ -84,11 +88,13 @@ void Arithmetic::optimize_mul(Instruction* i) const
         if( const_op==0 ){
             i->replace_all_use_with(Constant::create(m_,0));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( const_op==1 ){
             i->replace_all_use_with(op1);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( const_op==-1 ){
@@ -101,6 +107,7 @@ void Arithmetic::optimize_mul(Instruction* i) const
                     instructions.emplace_common_inst_after(subinst, it);
                     i->replace_all_use_with(subinst);
                     i->get_parent()->erase_instr(i);
+                    delete i;
                     break;
                 }
             }
@@ -112,11 +119,13 @@ void Arithmetic::optimize_mul(Instruction* i) const
         if( const_op==0 ){
             i->replace_all_use_with(Constant::create(m_,0));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( const_op==1 ){
             i->replace_all_use_with(op0);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( const_op==-1 ){
@@ -129,6 +138,7 @@ void Arithmetic::optimize_mul(Instruction* i) const
                     instructions.emplace_common_inst_after(subinst, it);
                     i->replace_all_use_with(subinst);
                     i->get_parent()->erase_instr(i);
+                    delete i;
                     break;
                 }
             }
@@ -145,11 +155,13 @@ void Arithmetic::optimize_fmul(Instruction* i) const
         if( constval->getFloatConstant()==0.0f ){
             i->replace_all_use_with(Constant::create(m_,0.0f));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( constval->getFloatConstant()==1.0f ){
             i->replace_all_use_with(op1);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( constval->getFloatConstant()==-1.0f ){
@@ -162,6 +174,7 @@ void Arithmetic::optimize_fmul(Instruction* i) const
                     instructions.emplace_common_inst_after(subinst, it);
                     i->replace_all_use_with(subinst);
                     i->get_parent()->erase_instr(i);
+                    delete i;
                     break;
                 }
             }
@@ -172,11 +185,13 @@ void Arithmetic::optimize_fmul(Instruction* i) const
         if( constval->getFloatConstant()==0.0f ){
             i->replace_all_use_with(Constant::create(m_,0.0f));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( constval->getFloatConstant()==1.0f ){
             i->replace_all_use_with(op0);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( constval->getFloatConstant()==-1.0f ){
@@ -189,6 +204,7 @@ void Arithmetic::optimize_fmul(Instruction* i) const
                     instructions.emplace_common_inst_after(subinst, it);
                     i->replace_all_use_with(subinst);
                     i->get_parent()->erase_instr(i);
+                    delete i;
                     break;
                 }
             }
@@ -204,6 +220,7 @@ void Arithmetic::optimize_rem(Instruction* i) const
     if( op0 == op1 ){
         i->replace_all_use_with(Constant::create(m_,0));
         i->get_parent()->erase_instr(i);
+        delete i;
         return;
     }
     if(auto constval = dynamic_cast<Constant*>(op0)){
@@ -211,6 +228,7 @@ void Arithmetic::optimize_rem(Instruction* i) const
         if( const_op==0 ){
             i->replace_all_use_with(Constant::create(m_,0));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
     }
@@ -219,6 +237,7 @@ void Arithmetic::optimize_rem(Instruction* i) const
         if( const_op==1 || const_op==-1 ){
             i->replace_all_use_with(Constant::create(m_,0));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
     }
@@ -231,12 +250,14 @@ void Arithmetic::optimize_div(Instruction* i) const
     if( op0 == op1 ){
         i->replace_all_use_with(Constant::create(m_,1));
         i->get_parent()->erase_instr(i);
+        delete i;
         return;
     }
     if(auto constval = dynamic_cast<Constant*>(op0)){
         if( constval->getIntConstant()==0 ){
             i->replace_all_use_with(Constant::create(m_,0));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
     }
@@ -244,6 +265,7 @@ void Arithmetic::optimize_div(Instruction* i) const
         if( constval->getIntConstant()==1 ){
             i->replace_all_use_with(op0);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( constval->getIntConstant()==-1 ){
@@ -256,6 +278,7 @@ void Arithmetic::optimize_div(Instruction* i) const
                     instructions.emplace_common_inst_after(subinst, it);
                     i->replace_all_use_with(subinst);
                     i->get_parent()->erase_instr(i);
+                    delete i;
                     break;
                 }
             }
@@ -271,12 +294,14 @@ void Arithmetic::optimize_fdiv(Instruction* i) const
     if( op0 == op1 ){
         i->replace_all_use_with(Constant::create(m_,1.0f));
         i->get_parent()->erase_instr(i);
+        delete i;
         return;
     }
     if(auto constval = dynamic_cast<Constant*>(op0)){
         if( constval->getFloatConstant()==0.0f ){
             i->replace_all_use_with(Constant::create(m_,0.0f));
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
     }
@@ -285,6 +310,7 @@ void Arithmetic::optimize_fdiv(Instruction* i) const
         if( floatconst==1.0f ){
             i->replace_all_use_with(op0);
             i->get_parent()->erase_instr(i);
+            delete i;
             return;
         }
         if( floatconst==-1.0f ){
@@ -297,6 +323,7 @@ void Arithmetic::optimize_fdiv(Instruction* i) const
                     instructions.emplace_common_inst_after(subinst, it);
                     i->replace_all_use_with(subinst);
                     i->get_parent()->erase_instr(i);
+                    delete i;
                     break;
                 }
             }
