@@ -14,6 +14,7 @@
 
 #define DEBUG 0
 #include <algorithm>
+#include <iostream>
 
 #include "Util.hpp"
 
@@ -562,6 +563,41 @@ bool InterfereGraph::selectSpill()
 			m = node;
 		}
 	}
+	// 不知道为什么有时候要溢出 spill
+	if (m == nullptr)
+	{
+		for (auto node = spillWorklist_.next_; node != &spillWorklist_; node = node->next_)
+		{
+			float f;
+			auto vreg = dynamic_cast<VirtualRegister*>(node->reg_);
+			assert(!node->preColored());
+			if (node->degree_ == 0 || vreg->size() == 128)
+				f = FLT_MAX;
+			else
+			{
+				f = node->weight_ / static_cast<float>(node->degree_);
+				if (vreg->replacePrefer_ != nullptr)
+				{
+					if (dynamic_cast<GlobalAddress*>(vreg->replacePrefer_)) f *= globalRegisterSpillPriority;
+					else
+					{
+						auto d = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
+						assert(d != nullptr);
+						if (d->isParameterFrame()) f *= fixFrameIndexParameterRegisterSpillPriority;
+						else if (logicalRightShift(d->size(), 3) >= bigAllocaVariableGate)
+							f *= bigAllocaRegisterSpillPriority;
+						else f *= smallAllocaRegisterSpillPriority;
+					}
+				}
+			}
+			if (f < mw)
+			{
+				mw = f;
+				m = node;
+			}
+		}
+	}
+	assert(m != nullptr);
 	LOG(color::pink("spillWorklist_ - ") + m->reg_->print());
 	spillWorklist_.remove(m);
 	LOG(color::pink("simplifyWorklist_ + ") + m->reg_->print());

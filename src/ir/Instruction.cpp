@@ -15,7 +15,7 @@
 using namespace Types;
 
 Instruction::Instruction(Type* ty, OpID id, BasicBlock* parent)
-	: User(ty, ""), op_id_(id), parent_(parent)
+	: User(ty, ""), parent_(parent), op_id_(id)
 {
 	if (parent)
 	{

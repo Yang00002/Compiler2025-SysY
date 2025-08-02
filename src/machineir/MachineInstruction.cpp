@@ -125,7 +125,7 @@ MB::MB(MBasicBlock* block, BlockAddress* t) : MInstruction(block)
 }
 
 MMathInst::MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r,
-                     MOperand* t, int width) : MInstruction(block), op_(op), width_(width)
+                     MOperand* t, int width) : MInstruction(block), width_(width), op_(op)
 {
 	assert(l != nullptr);
 	assert(r != nullptr);

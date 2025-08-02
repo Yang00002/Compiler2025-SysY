@@ -34,7 +34,7 @@ namespace
 		throw runtime_error("unexpected");
 	}
 
-	int upAlignTo16(int of)
+	long long upAlignTo16(long long of)
 	{
 		assert(of >= 0);
 		return ((of + 15) >> 4) << 4;
@@ -90,18 +90,26 @@ namespace
 		return !(i & 0b111);
 	}
 
-	bool inImm9(int i)
+	bool inImm7L3(long long i)
+	{
+		if (i < -512) return false;
+		if (i > 504) return false;
+		return !(i & 0b111);
+	}
+
+	bool inImm9(long long i)
 	{
 		if (i < -256) return false;
 		return i < 256;
 	}
 
-	bool align4(int i)
+
+	bool align4(long long i)
 	{
 		return !(i & 0b11);
 	}
 
-	bool align8(int i)
+	bool align8(long long i)
 	{
 		return !(i & 0b111);
 	}
@@ -159,6 +167,15 @@ std::string CodeGen::align(int dataSize, bool glob)
 	return "\t.align 0";
 }
 
+std::string CodeGen::align(long long dataSize, bool glob)
+{
+	if ((dataSize > alignTo16NeedBytes) || (glob && dataSize > 8)) return "\t.align 4";
+	if (dataSize > 4) return "\t.align 3";
+	if (dataSize > 2) return "\t.align 2";
+	if (dataSize > 1) return "\t.align 1";
+	return "\t.align 0";
+}
+
 std::string CodeGen::global(const std::string& globName)
 {
 	return "\t.globl " + globName;
@@ -191,6 +208,11 @@ std::string CodeGen::size(const std::string& globName, int bytes)
 	return "\t.size " + globName + ", " + to_string(bytes);
 }
 
+std::string CodeGen::size(const std::string& globName, long long bytes)
+{
+	return "\t.size " + globName + ", " + to_string(bytes);
+}
+
 void CodeGen::append(const std::string& txt)
 {
 	txt_.emplace_back(txt);
@@ -203,7 +225,7 @@ void CodeGen::append(const std::list<std::string>& txt)
 
 std::list<std::string> CodeGen::makeGlobal(const GlobalAddress* address)
 {
-	int allSize = u2iNegThrow(address->size_ >> 3);
+	auto allSize = logicalRightShift(address->size_, 3);
 	list<string> l;
 	l.emplace_back(align(allSize, true));
 	l.emplace_back(global(address->name_));
@@ -258,7 +280,7 @@ std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
 		{
 			for (int i = lc & 1; i < lc; i += 2)
 			{
-				merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), calleeSaved[i].second, 64));
+				merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second), 64));
 			}
 		}
 		if (rc & 1) merge(l, str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64));
@@ -266,21 +288,21 @@ std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
 		{
 			for (int i = rc & 1; i < rc; i += 2)
 			{
-				merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(), calleeSaved[lc + i].second,
+				merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(), u2iNegThrow(calleeSaved[lc + i].second),
 				             64));
 			}
 		}
 		return l;
 	}
-	int minOffset = upAlignTo16(function->stack_move_offset() - calleeSaved[0].second);
-	int nextOffset = function->stack_move_offset() - minOffset;
+	long long minOffset = upAlignTo16(function->stack_move_offset() - calleeSaved[0].second);
+	long long nextOffset = function->stack_move_offset() - minOffset;
 	merge(l, sub64(sp(), sp(), minOffset));
 	if (lc & 1) merge(l, str(calleeSaved[0].first, sp(), calleeSaved[0].second - nextOffset, 64));
 	if (lc >= 2)
 	{
 		for (int i = lc & 1; i < lc; i += 2)
 		{
-			merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), calleeSaved[i].second - nextOffset, 64));
+			merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second - nextOffset), 64));
 		}
 	}
 	if (rc & 1) merge(l, str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64));
@@ -289,7 +311,7 @@ std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
 		for (int i = rc & 1; i < rc; i += 2)
 		{
 			merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
-			             calleeSaved[lc + i].second - nextOffset, 64));
+			             u2iNegThrow(calleeSaved[lc + i].second - nextOffset), 64));
 		}
 	}
 	merge(l, sub64(sp(), sp(), nextOffset));
@@ -313,7 +335,8 @@ std::list<std::string> CodeGen::functionSuffix(const MFunction* function)
 		{
 			for (int i = rc - 2; i >= 0; i -= 2)
 			{
-				merge(l, ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(), calleeSaved[lc + i].second,
+				merge(l, ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
+				             u2iNegThrow(calleeSaved[lc + i].second),
 				             64));
 			}
 		}
@@ -322,22 +345,23 @@ std::list<std::string> CodeGen::functionSuffix(const MFunction* function)
 		{
 			for (int i = lc - 2; i >= 0; i -= 2)
 			{
-				merge(l, ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), calleeSaved[i].second, 64));
+				merge(l, ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second),
+				             64));
 			}
 		}
 		if (lc & 1) merge(l, ldr(calleeSaved[0].first, sp(), calleeSaved[0].second, 64));
 		merge(l, add64(sp(), sp(), function->stack_move_offset()));
 		return l;
 	}
-	int minOffset = upAlignTo16(function->stack_move_offset() - calleeSaved[0].second);
-	int nextOffset = function->stack_move_offset() - minOffset;
+	long long minOffset = upAlignTo16(function->stack_move_offset() - calleeSaved[0].second);
+	long long nextOffset = function->stack_move_offset() - minOffset;
 	merge(l, add64(sp(), sp(), nextOffset));
 	if (rc >= 2)
 	{
 		for (int i = rc - 2; i >= 0; i -= 2)
 		{
 			merge(l, ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
-			             calleeSaved[lc + i].second - nextOffset, 64));
+			             u2iNegThrow(calleeSaved[lc + i].second - nextOffset), 64));
 		}
 	}
 	if (rc & 1) merge(l, ldr(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64));
@@ -345,7 +369,8 @@ std::list<std::string> CodeGen::functionSuffix(const MFunction* function)
 	{
 		for (int i = lc - 2; i >= 0; i -= 2)
 		{
-			merge(l, ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), calleeSaved[i].second - nextOffset, 64));
+			merge(l, ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(),
+			             u2iNegThrow(calleeSaved[i].second - nextOffset), 64));
 		}
 	}
 	if (lc & 1) merge(l, ldr(calleeSaved[0].first, sp(), calleeSaved[0].second - nextOffset, 64));
@@ -380,13 +405,13 @@ std::list<std::string> CodeGen::stp(const Register* a, const Register* b, const 
 	return {instruction("STP", regName(a, len), regName(b, len), regDataOffset(c, offset))};
 }
 
-std::list<std::string> CodeGen::str(const Register* a, const Register* c, int offset, int len)
+std::list<std::string> CodeGen::str(const Register* a, const Register* c, long long offset, int len)
 {
 	assert(len == 32 || len == 64 || len == 128);
 	assert(len == 32 ? align4(offset) : align8(offset));
-	if (inImm9(offset)) return {instruction("STR", regName(a, len), regDataOffset(c, offset))};
-	int absOff = offset < 0 ? -offset : offset;
-	int maxMov = m_countr_zero(i2uKeepBits(absOff));
+	if (inImm9(offset)) return {instruction("STR", regName(a, len), regDataOffset(c, u2iNegThrow(offset)))};
+	long long absOff = offset < 0 ? -offset : offset;
+	int maxMov = m_countr_zero(ll2ullKeepBits(absOff));
 	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
 	if (maxMov > lenLevel) maxMov = lenLevel;
 	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
@@ -476,13 +501,13 @@ std::list<std::string> CodeGen::ldp(const Register* a, const Register* b, const 
 	return {instruction("LDP", regName(a, len), regName(b, len), regDataOffset(c, offset))};
 }
 
-std::list<std::string> CodeGen::ldr(const Register* a, const Register* baseOffsetReg, int offset, int len)
+std::list<std::string> CodeGen::ldr(const Register* a, const Register* baseOffsetReg, long long offset, int len)
 {
 	assert(len == 32 || len == 64 || len == 128);
 	assert(len == 32 ? align4(offset) : align8(offset));
-	if (inImm9(offset)) return {instruction("LDR", regName(a, len), regDataOffset(baseOffsetReg, offset))};
-	int absOff = offset < 0 ? -offset : offset;
-	int maxMov = m_countr_zero(i2uKeepBits(absOff));
+	if (inImm9(offset)) return {instruction("LDR", regName(a, len), regDataOffset(baseOffsetReg, u2iNegThrow(offset)))};
+	long long absOff = offset < 0 ? -offset : offset;
+	int maxMov = m_countr_zero(ll2ullKeepBits(absOff));
 	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
 	if (maxMov > lenLevel) maxMov = lenLevel;
 	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
@@ -737,7 +762,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	auto fr = dynamic_cast<const FrameIndex*>(r);
 	if (fl && immR)
 	{
-		int offset = frameOffset(fl, false, ret);
+		long long offset = frameOffset(fl, false, ret);
 		immR = Immediate::getImmediate(immR->as64BitsInt() + offset, m_);
 		r = immR;
 		regL = sp();
@@ -746,7 +771,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	}
 	if (fr && immL)
 	{
-		int offset = frameOffset(fr, false, ret);
+		long long offset = frameOffset(fr, false, ret);
 		immL = Immediate::getImmediate(immL->as64BitsInt() + offset, m_);
 		l = immL;
 		r = sp();
@@ -1620,7 +1645,7 @@ void CodeGen::merge(std::list<std::string>& l, const std::list<std::string>& r)
 	for (const auto& basic_string : r) l.emplace_back(basic_string);
 }
 
-bool CodeGen::canLSInOneSPMove(const std::vector<pair<Register*, int>>& offsets)
+bool CodeGen::canLSInOneSPMove(const std::vector<pair<Register*, long long>>& offsets)
 {
 	if (offsets.empty()) return true;
 	if (offsets.back().second > 1016) return false;
@@ -1640,15 +1665,14 @@ bool CodeGen::canLSInOneSPMove(const std::vector<pair<Register*, int>>& offsets)
 // 区分不同的参数栈帧: caller 永远不会往自己的参数栈帧存值, 只会往 callee 的栈帧存值
 
 // 获得 FrameIndex 在当前语境偏移, 如必要, 插入函数调用前的 SP 移动
-int CodeGen::frameOffset(const FrameIndex* index, bool isStore, list<string>& appendSlot)
+long long CodeGen::frameOffset(const FrameIndex* index, bool isStore, list<string>& appendSlot)
 {
 	if (func2Call_)
 	{
 		if (!index->stack_t_fix_f() && isStore)
 		{
 			assert(index->func() == func2Call_);
-			int ret = index->offset() - index->func()->stack_move_offset();
-			return ret;
+			return index->offset() - index->func()->stack_move_offset();
 		}
 		assert(index->func() == func_);
 		return index->offset() + func2Call_->fix_move_offset();

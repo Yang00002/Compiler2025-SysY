@@ -147,7 +147,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 				auto cp = new MCopy{
 					entryMBB, Register::getIParameterRegister(ic, module_),
 					getOperandFor(argv, opMap),
-					argC.get_type()->sizeInBitsInArm64()
+					u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
 				};
 				entryMBB->instructions_.emplace_back(cp);
 				++ic;
@@ -161,7 +161,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 				auto cp = new MCopy{
 					entryMBB, Register::getFParameterRegister(fc, module_),
 					getOperandFor(argv, opMap),
-					argC.get_type()->sizeInBitsInArm64()
+					u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
 				};
 				entryMBB->instructions_.emplace_back(cp);
 				++fc;
@@ -174,7 +174,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 		auto frameIdx = getFix(idx++);
 		assert(this == frameIdx->func());
 		vr->replacePrefer_ = frameIdx;
-		auto cp = new MLDR{entryMBB, val, frameIdx, argC.get_type()->sizeInBitsInArm64()};
+		auto cp = new MLDR{entryMBB, val, frameIdx, u2iNegThrow(argC.get_type()->sizeInBitsInArm64())};
 		entryMBB->instructions_.emplace_back(cp);
 	}
 	LoopDetection detection{function->get_parent()};
@@ -254,7 +254,7 @@ MOperand* MFunction::getOperandFor(Value* value, std::map<Value*, MOperand*>& op
 		else
 		{
 			operand = VirtualRegister::createVirtualFRegister(
-				this, (value->get_type()->sizeInBitsInArm64()));
+				this, u2iNegThrow(value->get_type()->sizeInBitsInArm64()));
 		}
 	}
 	else
@@ -267,7 +267,7 @@ MOperand* MFunction::getOperandFor(Value* value, std::map<Value*, MOperand*>& op
 		else
 		{
 			operand = VirtualRegister::createVirtualIRegister(
-				this, (value->get_type()->sizeInBitsInArm64()));
+				this, u2iNegThrow(value->get_type()->sizeInBitsInArm64()));
 		}
 	}
 	opMap.emplace(value, operand);
@@ -385,16 +385,17 @@ namespace
 		}
 	};
 
-	int upAlignTo(int of, int s)
+	long long upAlignTo(long long of, long long s)
 	{
 		if (s > alignTo16NeedBytes) return ((of + 15) >> 4) << 4;
 		if (s > 8) s = 8;
-		const static int u[9] = {0, 0, 1, 3, 3, 7, 7, 7, 7};
-		const static int t[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
+		const static long long u[9] = { 0, 0, 1, 3, 3, 7, 7, 7, 7 };
+		const static long long t[9] = { 0, 0, 1, 2, 2, 3, 3, 3, 3 };
 		return ((of + u[s]) >> t[s]) << t[s];
 	}
 
-	int upAlignTo16(int of)
+
+	long long upAlignTo16(long long of)
 	{
 		return ((of + 15) >> 4) << 4;
 	}
@@ -431,10 +432,10 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 		stack_[i] = scores[i].frame_;
 	}
 
-	int of = 0;
+	long long of = 0;
 	for (auto i : stack_)
 	{
-		int s = logicalRightShift(i->size(),3);
+		auto s = logicalRightShift(i->size(),3);
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
 	}
@@ -465,7 +466,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	int ic = (module()->IRegisterCount());
 	for (auto i : b)
 	{
-		int next = ((of + 7) >> 3) << 3;
+		auto next = ((of + 7) >> 3) << 3;
 		if ((i) >= ic)
 			calleeSaved.emplace_back(module()->fregs_[i - ic], next);
 		else calleeSaved.emplace_back(module()->iregs_[i], next);
@@ -477,7 +478,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	{
 		auto i = *it;
 		assert((i->size() & 31) == 0);
-		int s = logicalRightShift(i->size(), 3);
+		auto s = logicalRightShift(i->size(), 3);
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
 	}

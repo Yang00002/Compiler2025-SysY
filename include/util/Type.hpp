@@ -39,7 +39,7 @@ public:
 	Type& operator=(Type&&) = delete;
 	virtual ~Type() = default;
 	// 对于数组, 是它的所有元素所占空间; 对于参数中数组, 是指针的大小 (64)
-	virtual int sizeInBitsInArm64();
+	virtual long long sizeInBitsInArm64();
 	[[nodiscard]] virtual std::string toString() const;
 	// IR 输出
 	[[nodiscard]] virtual std::string print() const;
@@ -101,13 +101,13 @@ class ArrayType final : public Type
 protected:
 	TypeIDs _contained;
 	std::vector<int> _arrayDims;
-	int _size;
+	long long _size;
 	ArrayType(const TypeIDs& contained, bool inParameter, std::initializer_list<int> dims);
 	ArrayType(const TypeIDs& contained, bool inParameter, const std::vector<int>& dims);
 
 public:
 	// 对于数组, 是它的所有元素所占空间; 对于参数中数组, 是指针的大小 (64)
-	int sizeInBitsInArm64() override;
+	long long sizeInBitsInArm64() override;
 	[[nodiscard]] std::string toString() const override;
 	[[nodiscard]] std::string print() const override;
 	// 将其后面的维度单独转换为字符串, 可用于输出声明中对应的数组维度

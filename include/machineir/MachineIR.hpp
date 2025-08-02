@@ -41,6 +41,7 @@ public:
 	{
 		return blocks_;
 	}
+
 	~MFunction();
 
 private:
@@ -57,12 +58,12 @@ private:
 	DynamicBitset called_;
 	DynamicBitset destroyRegs_;
 	std::vector<MBL*> calls_;
-	std::vector<std::pair<Register*, int>> calleeSaved;
+	std::vector<std::pair<Register*, long long>> calleeSaved;
 	std::vector<VirtualRegister*> virtual_iregs_;
 	std::vector<VirtualRegister*> virtual_fregs_;
+	long long stackMoveOffset_;
+	long long fixMoveOffset_;
 	int id_;
-	int stackMoveOffset_;
-	int fixMoveOffset_;
 
 public:
 	MFunction(const MFunction& other) = delete;
@@ -70,17 +71,17 @@ public:
 	MFunction& operator=(const MFunction& other) = delete;
 	MFunction& operator=(MFunction&& other) noexcept = delete;
 
-	[[nodiscard]] const std::vector<std::pair<Register*, int>>& callee_saved() const
+	[[nodiscard]] const std::vector<std::pair<Register*, long long>>& callee_saved() const
 	{
 		return calleeSaved;
 	}
 
-	[[nodiscard]] int stack_move_offset() const
+	[[nodiscard]] long long stack_move_offset() const
 	{
 		return stackMoveOffset_;
 	}
 
-	[[nodiscard]] int fix_move_offset() const
+	[[nodiscard]] long long fix_move_offset() const
 	{
 		return fixMoveOffset_;
 	}
@@ -126,7 +127,8 @@ public:
 	FrameIndex* allocaStack(int size);
 	[[nodiscard]] FrameIndex* getFix(int idx) const;
 	void preprocess(Function* function);
-	void accept(Function* function, std::map<Function*, MFunction*>& funcMap, std::map<GlobalVariable*, GlobalAddress*>& global_address);
+	void accept(Function* function, std::map<Function*, MFunction*>& funcMap,
+	            std::map<GlobalVariable*, GlobalAddress*>& global_address);
 	[[nodiscard]] MModule* module() const;
 	[[nodiscard]] std::string print() const;
 	MOperand* getOperandFor(Value* value, std::map<Value*, MOperand*>& opMap);
@@ -157,6 +159,7 @@ public:
 	{
 		return functions_;
 	}
+
 	~MModule();
 	MModule(const MModule& other) = delete;
 	MModule(MModule&& other) noexcept = delete;

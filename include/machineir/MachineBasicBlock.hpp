@@ -89,7 +89,7 @@ public:
 	                    MBasicBlock* block);
 	void acceptGetElementPtrInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap
 	                             , MBasicBlock* block);
-	void mergePhiCopies(const std::list<MCopy*>& copies);
+	void mergePhiCopies(std::list<MCopy*>& copies);
 	void acceptZextInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptFpToSiInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptSiToFpInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);

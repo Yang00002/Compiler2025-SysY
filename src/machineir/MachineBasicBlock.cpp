@@ -256,7 +256,7 @@ void MBasicBlock::acceptLoadInst(Instruction* instruction, std::map<Value*, MOpe
 {
 	auto regLike = block->function()->getOperandFor(instruction, opMap);
 	auto stackLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
-	auto ret = new MLDR{block, regLike, stackLike, instruction->get_type()->sizeInBitsInArm64()};
+	auto ret = new MLDR{block, regLike, stackLike, u2iNegThrow(instruction->get_type()->sizeInBitsInArm64())};
 	instructions_.emplace_back(ret);
 }
 
@@ -265,7 +265,7 @@ void MBasicBlock::acceptStoreInst(const Instruction* instruction, std::map<Value
 {
 	auto regLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
 	auto stackLike = block->function()->getOperandFor(instruction->get_operand(1), opMap);
-	auto ret = new MSTR{block, regLike, stackLike, instruction->get_operand(0)->get_type()->sizeInBitsInArm64()};
+	auto ret = new MSTR{block, regLike, stackLike, u2iNegThrow(instruction->get_operand(0)->get_type()->sizeInBitsInArm64())};
 	instructions_.emplace_back(ret);
 }
 
@@ -289,7 +289,7 @@ void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOper
 		auto mbb = bmap[bb];
 		auto cp = new MCopy{
 			mbb, block->function()->getOperandFor(val, opMap), block->function()->getOperandFor(phi, opMap),
-			val->get_type()->sizeInBitsInArm64()
+			u2iNegThrow(val->get_type()->sizeInBitsInArm64())
 		};
 		phiMap[mbb].emplace_back(cp);
 	}
@@ -328,7 +328,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 			{
 				auto cp = new MCopy{
 					block, function()->getOperandFor(instruction->get_operand(idx), opMap),
-					Register::getIParameterRegister(ic, module()), arg.get_type()->sizeInBitsInArm64()
+					Register::getIParameterRegister(ic, module()), u2iNegThrow(arg.get_type()->sizeInBitsInArm64())
 				};
 				buffer.emplace_back(cp);
 				++ic;
@@ -337,7 +337,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 		}
 		auto st = new MSTR{
 			block, function()->getOperandFor(instruction->get_operand(idx), opMap),
-			mfunc->getFix(nc), arg.get_type()->sizeInBitsInArm64()
+			mfunc->getFix(nc), u2iNegThrow(arg.get_type()->sizeInBitsInArm64())
 		};
 		instructions_.emplace_back(st);
 		++nc;
@@ -517,8 +517,61 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 	}
 }
 
-void MBasicBlock::mergePhiCopies(const std::list<MCopy*>& copies)
+namespace
 {
+	struct CopyUsage
+	{
+		MCopy* copyToMe_;
+		int usage_;
+	};
+}
+
+void MBasicBlock::mergePhiCopies(std::list<MCopy*>& copies)
+{
+	map<MOperand*, CopyUsage> m;
+	for (auto value : copies)
+	{
+		if (value->def(0) != value->use(0))
+			m.emplace(value->operand(1), CopyUsage{value, 0});
+	}
+	for (auto value : copies)
+	{
+		auto it = m.find(value->operand(0));
+		if (it != m.end()) it->second.usage_++;
+	}
+	copies.clear();
+	list<MOperand*> rm;
+	while (!m.empty())
+	{
+		rm.clear();
+		for (auto [to, cpu] : m)
+		{
+			if (cpu.usage_ == 0)
+			{
+				rm.emplace_back(to);
+				copies.emplace_back(cpu.copyToMe_);
+				auto it = m.find(cpu.copyToMe_->operand(0));
+				if (it != m.end()) it->second.usage_--;
+			}
+		}
+		if (rm.empty())
+		{
+			auto it = m.begin();
+			auto to = it->first;
+			auto& cpu = it->second;
+			auto from = cpu.copyToMe_->operand(0);
+			auto& fcpu = m[from];
+			assert(fcpu.usage_ == 1);
+			fcpu.usage_--;
+			auto toR = dynamic_cast<VirtualRegister*>(to);
+			assert(toR != nullptr);
+			auto vr = VirtualRegister::copy(function_, toR);
+			cpu.copyToMe_->replace(from, vr, function_);
+			copies.emplace_back(new MCopy{this, from, vr, vr->size()});
+		}
+		else for (auto i : rm) m.erase(i);
+	}
+
 	if (instructions_.empty())
 	{
 		for (auto& cp : copies)

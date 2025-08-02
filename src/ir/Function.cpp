@@ -9,7 +9,7 @@
 #include "System.hpp"
 
 Function::Function(FuncType* ty, const std::string& name, Module* parent, const bool is_lib)
-	: Value(ty, name), is_lib_(is_lib), parent_(parent), seq_cnt_(0)
+	: Value(ty, name), parent_(parent), seq_cnt_(0), is_lib_(is_lib)
 {
 	// num_args_ = ty->getNumParams();
 	parent->add_function(this);

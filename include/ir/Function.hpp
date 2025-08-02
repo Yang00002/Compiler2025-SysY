@@ -54,8 +54,6 @@ public:
 
 	Value* ret_alloca_;
 
-	// 是否是库函数, 以对函数参数进行不同的处理
-	bool is_lib_;
 
 	static float opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap);
 
@@ -64,6 +62,10 @@ private:
 	std::list<Argument> arguments_;
 	Module* parent_;
 	int seq_cnt_; // print use
+public:
+
+	// 是否是库函数, 以对函数参数进行不同的处理
+	bool is_lib_;
 };
 
 // Argument of Function, does not contain actual value

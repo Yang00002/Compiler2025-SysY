@@ -23,9 +23,10 @@ public:
 	GlobalVariable& operator=(GlobalVariable&& other) = delete;
 
 private:
-	bool is_const_;
 	// *
 	PlainTensor<ConstantValue>* init_val_ = nullptr;
+
+	bool is_const_;
 
 public:
 	// 创建全局常量, 自动将类型变为指针类型(尽管输出类型并非指针)

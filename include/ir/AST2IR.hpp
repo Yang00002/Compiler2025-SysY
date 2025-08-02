@@ -141,7 +141,6 @@ private:
 
 	// 用于辅助构建 IR
 	Function* _functionBelong = nullptr;
-	int _globalInitIdx = 0;
 	// 对 bool 的处理:
 	// 若某节点孩子是 bool 类型, 其预先创建 false/true 块, 并连接好它们.
 	// 在之前的基本块, 孩子创建 br 指令; 然后定位到之后基本块插入其它命令.
@@ -150,6 +149,7 @@ private:
 	std::vector<BasicBlock*> _while_nexts;
 	std::vector<BasicBlock*> _while_conds;
 
+	int _globalInitIdx = 0;
 
 	// 根据形状 shape 将 index 转换为结构化的数组索引. paddings: 前面填充 0 的个数
 	[[nodiscard]] std::vector<Value*> index(const std::vector<int>& shape, int idx, int paddings = 0) const;

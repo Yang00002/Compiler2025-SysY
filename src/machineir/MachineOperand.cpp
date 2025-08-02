@@ -121,7 +121,7 @@ int RegisterLike::uid() const
 }
 
 VirtualRegister::VirtualRegister(int id, bool ireg_t_freg_f, int size) : id_(id),
-	ireg_t_freg_f_(ireg_t_freg_f), size_(static_cast<short>(size))
+	size_(size), ireg_t_freg_f_(ireg_t_freg_f)
 {
 }
 
@@ -322,7 +322,7 @@ std::string GlobalAddress::print()
 	return "global:" + name_;
 }
 
-FrameIndex::FrameIndex(MFunction* func, int idx, int size, bool stack_t_fix_f) : func_(func), size_(size),
+FrameIndex::FrameIndex(MFunction* func, int idx, long long size, bool stack_t_fix_f) : func_(func), size_(size),
 	index_(idx), stack_t_fix_f_(stack_t_fix_f), spilledFrame_(false)
 {
 }

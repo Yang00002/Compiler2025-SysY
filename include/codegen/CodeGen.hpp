@@ -31,11 +31,13 @@ class CodeGen
 	static std::string objectTypeDeclare(const std::string& name);
 	static std::string functionTypeDeclare(const std::string& name);
 	static std::string align(int dataSize, bool glob);
+	static std::string align(long long dataSize, bool glob);
 	static std::string global(const std::string& globName);
 	static std::string label(const std::string& name);
 	static std::string word(const std::vector<ConstantValue>* v);
 	static std::string zero(int count);
 	static std::string size(const std::string& globName, int bytes);
+	static std::string size(const std::string& globName, long long bytes);
 	void append(const std::string& txt);
 	void append(const std::list<std::string>& txt);
 	static std::list<std::string> makeGlobal(const GlobalAddress* address);
@@ -47,14 +49,14 @@ class CodeGen
 	static std::list<std::string> fmul(const Register* to, const Register* l, const Register* r);
 	static std::list<std::string> fdiv(const Register* to, const Register* l, const Register* r);
 	static std::list<std::string> stp(const Register* a, const Register* b, const Register* c, int offset, int len);
-	std::list<std::string> str(const Register* a, const Register* c, int offset, int len);
+	std::list<std::string> str(const Register* a, const Register* c, long long offset, int len);
 	std::list<std::string> str(const MOperand* regLike, const MOperand* stackLike, int len);
 	// 将操作数转换为特定类型寄存器(如果类型不一样就进行复制), 可能会占用临时寄存器, 需要释放
 	const Register* op2reg(const MOperand* op, int len, bool useIntReg, std::list<std::string>& appendSlot);
 	// 将操作数转换为寄存器(忽略它的类型, 默认是放到整型寄存器, 但是如果是其它类型也不转换), 可能会占用临时寄存器, 需要释放
 	const Register* op2reg(const MOperand* op, int len, std::list<std::string>& appendSlot);
 	static std::list<std::string> ldp(const Register* a, const Register* b, const Register* c, int offset, int len);
-	std::list<std::string> ldr(const Register* a, const Register* baseOffsetReg, int offset, int len);
+	std::list<std::string> ldr(const Register* a, const Register* baseOffsetReg, long long offset, int len);
 	std::list<std::string> ldr(const MOperand* a, const MOperand* stackLike, int len);
 	std::list<std::string> ld1(const Register* stackLike, int count, int offset);
 	std::list<std::string> ld1(const MOperand* stackLike, int count, int offset);
@@ -118,8 +120,8 @@ class CodeGen
 	static const char* genMemcpy();
 	static const char* genMemclr();
 	static void merge(std::list<std::string>& l, const std::list<std::string>& r);
-	static bool canLSInOneSPMove(const std::vector<std::pair<Register*, int>>& offsets);
-	int frameOffset(const FrameIndex* index, bool isStore, std::list<std::string>& appendSlot);
+	static bool canLSInOneSPMove(const std::vector<std::pair<Register*, long long>>& offsets);
+	long long  frameOffset(const FrameIndex* index, bool isStore, std::list<std::string>& appendSlot);
 	[[nodiscard]] Register* sp() const;
 	const MOperand* opbuffer[2] = {};
 	bool ipcd_[2] = {};

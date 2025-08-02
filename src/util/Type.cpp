@@ -144,7 +144,7 @@ Type::Type(const TypeIDs& id)
 	_basic_type = id;
 }
 
-int Type::sizeInBitsInArm64()
+long long Type::sizeInBitsInArm64()
 {
 	return basicTypeSizeInBitesInArm64(_basic_type);
 }
@@ -272,7 +272,7 @@ ArrayType::ArrayType(const TypeIDs& contained, const bool inParameter, const std
 	_arrayDims = dims;
 }
 
-int ArrayType::sizeInBitsInArm64()
+long long ArrayType::sizeInBitsInArm64()
 {
 	return _size;
 }
@@ -322,7 +322,7 @@ const std::vector<int>& ArrayType::dimensions() const
 
 int ArrayType::elementCount() const
 {
-	return _size / basicTypeSizeInBitesInArm64(_contained);
+	return u2iNegThrow(_size / static_cast<long long>(basicTypeSizeInBitesInArm64(_contained)));
 }
 
 ArrayType* ArrayType::toFuncParameter() const

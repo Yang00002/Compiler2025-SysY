@@ -57,18 +57,20 @@ public:
 
 class VirtualRegister final : public RegisterLike
 {
+public:
+	MOperand* replacePrefer_ = nullptr; // 被 spill 时优先进行替换而非分配栈帧
+private:
 	int id_;
+	int size_;
 	bool ireg_t_freg_f_;
 
 public:
 	bool spilled = false;
 
 private:
-	short size_;
 	explicit VirtualRegister(int id, bool ireg_t_freg_f, int size);
 
 public:
-	MOperand* replacePrefer_ = nullptr; // 被 spill 时优先进行替换而非分配栈帧
 	[[nodiscard]] int size() const
 	{
 		return size_;
@@ -186,11 +188,11 @@ class GlobalAddress final : public MOperand
 {
 	friend class CodeGen;
 	friend class MModule;
-	size_t size_;
-	int index_;
-	bool const_;
+	long long size_;
 	PlainTensor<ConstantValue>* data_;
 	std::string name_;
+	int index_;
+	bool const_;
 	explicit GlobalAddress(MModule* module, GlobalVariable* var);
 
 public:
@@ -206,15 +208,15 @@ class FrameIndex final : public MOperand
 {
 	friend class MFunction;
 	MFunction* func_;
-	int size_;
+	long long size_;
+	long long offset_ = 0;
 	int index_;
-	int offset_ = 0;
 	bool stack_t_fix_f_;
 	friend class MModule;
-	explicit FrameIndex(MFunction* func, int idx, int size, bool stack_t_fix_f);
+	explicit FrameIndex(MFunction* func, int idx, long long size, bool stack_t_fix_f);
 
 public:
-	[[nodiscard]] int offset() const
+	[[nodiscard]] long long offset() const
 	{
 		return offset_;
 	}
@@ -234,12 +236,12 @@ public:
 		return spilledFrame_;
 	}
 
-	void set_offset(int offset)
+	void set_offset(long long offset)
 	{
 		offset_ = offset;
 	}
 
-	[[nodiscard]] int size() const
+	[[nodiscard]] long long size() const
 	{
 		return size_;
 	}
@@ -249,7 +251,7 @@ public:
 		return !stack_t_fix_f_;
 	}
 
-	void set_size(int size)
+	void set_size(long long size)
 	{
 		size_ = size;
 	}

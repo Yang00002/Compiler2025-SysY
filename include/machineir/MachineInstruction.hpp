@@ -135,8 +135,8 @@ public:
 
 class MMathInst final : public MInstruction
 {
-	Instruction::OpID op_;
 	int width_;
+	Instruction::OpID op_;
 
 public:
 	[[nodiscard]] Instruction::OpID op() const

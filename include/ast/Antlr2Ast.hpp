@@ -29,13 +29,13 @@ class Antlr2AstVisitor final : SysYBaseVisitor
 	std::vector<HaveScope*> _structConstraint;
 	// 结构约束, 目前的循环节点. 用于 break 等
 	std::stack<ASTWhile*> _whileConstraint;
-	// 逻辑约束, 表达式是否允许使用 ! 运算
-	bool _allowLogic = false;
 	// 目前所在函数
 	ASTFuncDecl* _currentFunction = nullptr;
 
 	std::queue<ASTNode*> returnSlot_;
 	Type* typeReturnSlot_ = nullptr;
+	// 逻辑约束, 表达式是否允许使用 ! 运算
+	bool _allowLogic = false;
 
 	// 插入符号. 尝试在 _structConstraint 最右侧插入符号, 若重名则返回 false; 否则插入并返回 true.
 	bool pushScope(ASTDecl* decl) const;

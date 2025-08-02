@@ -143,8 +143,8 @@ public:
 	void replaceAllOperandMatchs(const Value* from, Value* to);
 
 private:
-	OpID op_id_;
 	BasicBlock* parent_;
+	OpID op_id_;
 };
 
 template <typename Inst>
