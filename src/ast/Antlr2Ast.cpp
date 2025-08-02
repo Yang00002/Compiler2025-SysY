@@ -1137,7 +1137,6 @@ std::any Antlr2AstVisitor::visitAddExp(SysYParser::AddExpContext* context)
 		POP;
 		return static_cast<ASTExpression*>(lm);
 	}
-	exit(-1);
 	const auto ln = dynamic_cast<ASTNeg*>(l);
 	const auto rn = dynamic_cast<ASTNeg*>(r);
 	const bool nl = ln != nullptr;
