@@ -67,7 +67,7 @@ FrameIndex* MFunction::allocaFix(const Value* value)
 	auto arg = dynamic_cast<const Argument*>(value);
 	assert(arg);
 	assert(arg->get_parent()->get_name() == name());
-	FrameIndex* index = new FrameIndex{this, u2iNegThrow(fix_.size()),  value->get_type()->sizeInBitsInArm64(), false};
+	FrameIndex* index = new FrameIndex{this, u2iNegThrow(fix_.size()), value->get_type()->sizeInBitsInArm64(), false};
 	fix_.emplace_back(index);
 	return index;
 }
@@ -374,6 +374,31 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 
 namespace
 {
+	MBasicBlock* fdBlock(unordered_map<MBasicBlock*, MBasicBlock*>& bbm, MBasicBlock* bb)
+	{
+		auto fd = bbm.find(bb);
+		if (fd == bbm.end()) return bb;
+		auto get = fdBlock(bbm, fd->second);
+		fd->second = get;
+		return get;
+	}
+}
+
+void MFunction::removeEmptyBBs()
+{
+	unordered_map<MBasicBlock*, MBasicBlock*> bbm;
+	for (auto bb : blocks_)
+		if (bb->instructions_.empty())
+			bbm.emplace(bb, bb->next_);
+	for (auto [i,j] : bbm)
+	{
+		auto rp = fdBlock(bbm, i);
+		replaceAllOperands(BlockAddress::get(i), BlockAddress::get(rp));
+	}
+}
+
+namespace
+{
 	struct FrameScore
 	{
 		FrameIndex* frame_;
@@ -389,8 +414,8 @@ namespace
 	{
 		if (s > alignTo16NeedBytes) return ((of + 15) >> 4) << 4;
 		if (s > 8) s = 8;
-		const static long long u[9] = { 0, 0, 1, 3, 3, 7, 7, 7, 7 };
-		const static long long t[9] = { 0, 0, 1, 2, 2, 3, 3, 3, 3 };
+		const static long long u[9] = {0, 0, 1, 3, 3, 7, 7, 7, 7};
+		const static long long t[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 		return ((of + u[s]) >> t[s]) << t[s];
 	}
 
@@ -435,7 +460,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	long long of = 0;
 	for (auto i : stack_)
 	{
-		auto s = logicalRightShift(i->size(),3);
+		auto s = logicalRightShift(i->size(), 3);
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
 	}

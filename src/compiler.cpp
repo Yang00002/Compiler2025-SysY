@@ -22,6 +22,7 @@
 #include "PassManager.hpp"
 #include "SCCP.hpp"
 #include <ARM_codegen.hpp>
+#include "BBRank.hpp"
 
 #include "Ast.hpp"
 #include "GraphColoring.hpp"
@@ -214,6 +215,7 @@ void compiler(std::string infile, std::string outfile) {
     pm->add_pass<DeadCode>();
   pm->add_pass<CriticalEdgeERemove>();
   pm->add_pass<CmpCombine>();
+  pm->add_pass<BBRank>();
   pm->run();
   delete pm;
 

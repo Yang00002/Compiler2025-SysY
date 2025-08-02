@@ -245,6 +245,7 @@ std::list<std::string> CodeGen::makeGlobal(const GlobalAddress* address)
 
 std::list<std::string> CodeGen::makeFunction(MFunction* function)
 {
+	function->removeEmptyBBs();
 	list<string> l;
 	l.emplace_back(global(function->name_));
 	l.emplace_back(functionTypeDeclare(function->name_));
