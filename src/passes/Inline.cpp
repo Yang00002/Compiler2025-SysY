@@ -5,7 +5,7 @@
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "BBRank.hpp"
 #include "Config.hpp"
 #include "Type.hpp"
@@ -109,14 +109,12 @@ void Inline::run()
 		funcVisited_.erase(f_);
 		runOnFunc();
 	}
-	/*
-	 auto& rmf = removedFunc_;
+	auto& rmf = removedFunc_;
 	m_->get_functions().remove_if([&rmf](Function* f)
 	{
 		return rmf.count(f);
 	});
-	 */
-	//for (auto i : removedFunc_) delete i;
+	for (auto i : removedFunc_) delete i;
 	POP;
 	PASS_SUFFIX;
 	LOG(color::cyan("Inline Done"));
@@ -540,7 +538,7 @@ void Inline::mergeFunc()
 					delete insts.remove(begin);
 					break;
 				}
-				nod->replace_all_use_with(getOrDefault(valMap,ret->get_operand(0)));
+				nod->replace_all_use_with(getOrDefault(valMap, ret->get_operand(0)));
 				delete insts.remove(begin);
 				break;
 			}
