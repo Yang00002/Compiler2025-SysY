@@ -133,6 +133,7 @@ public:
 	[[nodiscard]] std::string print() const;
 	MOperand* getOperandFor(Value* value, std::map<Value*, MOperand*>& opMap);
 	void spill(VirtualRegister* vreg, LiveMessage* message);
+	bool removeEmptyBBs();
 	void rankFrameIndexesAndCalculateOffsets();
 	void replaceAllOperands(MOperand* from, MOperand* to);
 	void replaceAllOperands(std::unordered_map<FrameIndex*, FrameIndex*>& rpm);

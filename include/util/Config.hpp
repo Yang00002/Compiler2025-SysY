@@ -48,3 +48,5 @@ extern bool useStack;
 extern bool o1Optimization;
 // 进行运行前检查, 检测目标架构的某些功能是否符合预期
 extern bool testArchi;
+// 当函数的指令数(无跳转)小于等于该值时(包括 ret), 它会被内联
+extern int funcInlineGate;

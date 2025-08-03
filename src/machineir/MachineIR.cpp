@@ -67,7 +67,7 @@ FrameIndex* MFunction::allocaFix(const Value* value)
 	auto arg = dynamic_cast<const Argument*>(value);
 	assert(arg);
 	assert(arg->get_parent()->get_name() == name());
-	FrameIndex* index = new FrameIndex{this, u2iNegThrow(fix_.size()),  value->get_type()->sizeInBitsInArm64(), false};
+	FrameIndex* index = new FrameIndex{this, u2iNegThrow(fix_.size()), value->get_type()->sizeInBitsInArm64(), false};
 	fix_.emplace_back(index);
 	return index;
 }
@@ -374,6 +374,107 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 
 namespace
 {
+	Instruction::OpID reverseOp(Instruction::OpID op)
+	{
+		// ReSharper disable once CppDefaultCaseNotHandledInSwitchStatement
+		// ReSharper disable once CppIncompleteSwitchStatement
+		switch (op) // NOLINT(clang-diagnostic-switch)
+		{
+		case Instruction::ge: return Instruction::lt;
+		case Instruction::gt: return Instruction::le;
+		case Instruction::le: return Instruction::gt;
+		case Instruction::lt: return Instruction::ge;
+		case Instruction::eq: return Instruction::ne;
+		case Instruction::ne: return Instruction::eq;
+		}
+		throw runtime_error("invalid op");
+	}
+	MBasicBlock* fdBlock(unordered_map<MBasicBlock*, MBasicBlock*>& bbm, MBasicBlock* bb)
+	{
+		auto fd = bbm.find(bb);
+		if (fd == bbm.end()) return bb;
+		auto get = fdBlock(bbm, fd->second);
+		fd->second = get;
+		return get;
+	}
+}
+
+bool MFunction::removeEmptyBBs()
+{
+	unordered_map<MBasicBlock*, MBasicBlock*> bbm;
+	MBasicBlock* preBB = nullptr;
+	for (auto bb : blocks_)
+	{
+		if (bb->instructions_.empty())
+			bbm.emplace(bb, bb->next_);
+		else
+		{
+			if (preBB != nullptr) preBB->next_ = bb;
+			preBB = bb;
+		}
+	}
+	for (auto [i,j] : bbm)
+	{
+		auto rp = fdBlock(bbm, i);
+		replaceAllOperands(BlockAddress::get(i), BlockAddress::get(rp));
+	}
+	bool again = false;
+	for (auto bb : blocks_)
+	{
+		if (!bb->instructions_.empty() && bb->next_)
+		{
+			auto addr = BlockAddress::get(bb->next_);
+			auto& ed = bb->instructions_.back();
+			if (dynamic_cast<MB*>(ed))
+			{
+				if (ed->operand(0) == addr)
+				{
+					auto op = ed->operand(0);
+					removeUse(op, ed);
+					delete ed;
+					bb->instructions_.pop_back();
+					if (bb->instructions_.empty()) again = true;
+				}
+				else
+				{
+					if (bb->instructions_.size() >= 2)
+					{
+						auto ed2 = bb->instructions_[bb->instructions_.size() - 2];
+						auto bcc = dynamic_cast<MBcc*>(ed2);
+						if (bcc && bcc->operand(0) == addr)
+						{
+							bcc->op_ = reverseOp(bcc->op_);
+							bcc->replace(addr, ed->operand(0),this);
+							removeUse(ed->operand(0), ed);
+							delete ed;
+							bb->instructions_.pop_back();
+							if (bb->instructions_.empty()) again = true;
+						}
+					}
+				}
+			}
+			else if (dynamic_cast<MBcc*>(ed))
+			{
+				if (ed->operand(0) == addr)
+				{
+					auto op = ed->operand(0);
+					removeUse(op, ed);
+					delete ed;
+					bb->instructions_.pop_back();
+					auto e2 = bb->instructions_.back();
+					assert(dynamic_cast<MCMP*>(e2));
+					for (auto op2 : e2->operands()) removeUse(op2, e2);
+					delete e2;
+					if (bb->instructions_.empty()) again = true;
+				}
+			}
+		}
+	}
+	return again;
+}
+
+namespace
+{
 	struct FrameScore
 	{
 		FrameIndex* frame_;
@@ -389,8 +490,8 @@ namespace
 	{
 		if (s > alignTo16NeedBytes) return ((of + 15) >> 4) << 4;
 		if (s > 8) s = 8;
-		const static long long u[9] = { 0, 0, 1, 3, 3, 7, 7, 7, 7 };
-		const static long long t[9] = { 0, 0, 1, 2, 2, 3, 3, 3, 3 };
+		const static long long u[9] = {0, 0, 1, 3, 3, 7, 7, 7, 7};
+		const static long long t[9] = {0, 0, 1, 2, 2, 3, 3, 3, 3};
 		return ((of + u[s]) >> t[s]) << t[s];
 	}
 
@@ -435,7 +536,7 @@ void MFunction::rankFrameIndexesAndCalculateOffsets()
 	long long of = 0;
 	for (auto i : stack_)
 	{
-		auto s = logicalRightShift(i->size(),3);
+		auto s = logicalRightShift(i->size(), 3);
 		i->offset_ = upAlignTo(of, s);
 		of = i->offset_ + s;
 	}

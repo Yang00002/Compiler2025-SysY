@@ -8,9 +8,9 @@
 
 using namespace std;
 
-void CriticalEdgeERemove::run()
+void CriticalEdgeRemove::run()
 {
-	LOG(color::cyan("Run CriticalEdgeERemove Pass"));
+	LOG(color::cyan("Run CriticalEdgeRemove Pass"));
 	PUSH;
 	for (auto& func : m_->get_functions())
 	{
@@ -47,9 +47,9 @@ void CriticalEdgeERemove::run()
 	}
 	POP;
 	PASS_SUFFIX;
-	LOG(color::cyan("CriticalEdgeERemove Done"));
+	LOG(color::cyan("CriticalEdgeRemove Done"));
 }
 
-CriticalEdgeERemove::CriticalEdgeERemove(Module* m): Pass(m)
+CriticalEdgeRemove::CriticalEdgeRemove(Module* m): Pass(m)
 {
 }

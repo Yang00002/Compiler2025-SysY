@@ -192,6 +192,10 @@ public:
 	[[nodiscard]] int size() const;
 
 	/**
+	 * 清楚所有指令(并不删除指令)
+	 */
+	void clear();
+	/**
 	 * 返回指令列表末尾指令
 	 * @return 如果非空返回指令(可能是 phi/alloca 或普通指令)，否则返回 nullptr, 
 	 */

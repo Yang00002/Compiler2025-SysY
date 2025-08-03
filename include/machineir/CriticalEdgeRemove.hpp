@@ -4,10 +4,10 @@
 /**
  * 转换 MachineIR 前置 Pass, 插入额外基本块, 消除关键边
  */
-class CriticalEdgeERemove final : public Pass
+class CriticalEdgeRemove final : public Pass
 {
 public:
 	void run() override;
 
-	explicit CriticalEdgeERemove(Module* m);
+	explicit CriticalEdgeRemove(Module* m);
 };

@@ -245,6 +245,9 @@ std::list<std::string> CodeGen::makeGlobal(const GlobalAddress* address)
 
 std::list<std::string> CodeGen::makeFunction(MFunction* function)
 {
+	while (function->removeEmptyBBs())
+	{
+	}
 	list<string> l;
 	l.emplace_back(global(function->name_));
 	l.emplace_back(functionTypeDeclare(function->name_));
@@ -280,7 +283,8 @@ std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
 		{
 			for (int i = lc & 1; i < lc; i += 2)
 			{
-				merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second), 64));
+				merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second),
+				             64));
 			}
 		}
 		if (rc & 1) merge(l, str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64));
@@ -288,7 +292,8 @@ std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
 		{
 			for (int i = rc & 1; i < rc; i += 2)
 			{
-				merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(), u2iNegThrow(calleeSaved[lc + i].second),
+				merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
+				             u2iNegThrow(calleeSaved[lc + i].second),
 				             64));
 			}
 		}
@@ -302,7 +307,8 @@ std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
 	{
 		for (int i = lc & 1; i < lc; i += 2)
 		{
-			merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second - nextOffset), 64));
+			merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(),
+			             u2iNegThrow(calleeSaved[i].second - nextOffset), 64));
 		}
 	}
 	if (rc & 1) merge(l, str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64));
@@ -1694,15 +1700,32 @@ Register* CodeGen::sp() const
 
 Register* CodeGen::getIP()
 {
-	if (ipcd_[0] == false)
+	ip16_ = !ip16_;
+	if (ip16_)
 	{
-		ipcd_[0] = true;
-		return Register::getIIP0(m_);
+		if (ipcd_[0] == false)
+		{
+			ipcd_[0] = true;
+			return Register::getIIP0(m_);
+		}
+		if (ipcd_[1] == false)
+		{
+			ipcd_[1] = true;
+			return Register::getIIP1(m_);
+		}
 	}
-	if (ipcd_[1] == false)
+	else
 	{
-		ipcd_[1] = true;
-		return Register::getIIP1(m_);
+		if (ipcd_[1] == false)
+		{
+			ipcd_[1] = true;
+			return Register::getIIP1(m_);
+		}
+		if (ipcd_[0] == false)
+		{
+			ipcd_[0] = true;
+			return Register::getIIP0(m_);
+		}
 	}
 	return nullptr;
 }
@@ -1714,15 +1737,32 @@ Register* CodeGen::getIPOfType(bool flt)
 
 Register* CodeGen::getFIP()
 {
-	if (fipcd_[0] == false)
+	fip16_ = !fip16_;
+	if (fip16_)
 	{
-		fipcd_[0] = true;
-		return Register::getFIP0(m_);
+		if (fipcd_[0] == false)
+		{
+			fipcd_[0] = true;
+			return Register::getFIP0(m_);
+		}
+		if (fipcd_[1] == false)
+		{
+			fipcd_[1] = true;
+			return Register::getFIP1(m_);
+		}
 	}
-	if (fipcd_[1] == false)
+	else
 	{
-		fipcd_[1] = true;
-		return Register::getFIP1(m_);
+		if (fipcd_[1] == false)
+		{
+			fipcd_[1] = true;
+			return Register::getFIP1(m_);
+		}
+		if (fipcd_[0] == false)
+		{
+			fipcd_[0] = true;
+			return Register::getFIP0(m_);
+		}
 	}
 	return nullptr;
 }

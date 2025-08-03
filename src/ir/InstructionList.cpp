@@ -212,6 +212,19 @@ int InstructionList::size() const
 	return phi_alloca_size_ + common_inst_size_;
 }
 
+void InstructionList::clear()
+{
+	while (end_node_->next != end_node_)
+	{
+		const auto toDel = end_node_->next;
+		end_node_->next = toDel->next;
+		delete toDel;
+	}
+	common_inst_begin_ = end_node_;
+	phi_alloca_size_ = 0;
+	common_inst_size_ = 0;
+}
+
 Instruction* InstructionList::back() const
 {
 	return end_node_->pre->instruction;

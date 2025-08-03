@@ -126,6 +126,8 @@ class CodeGen
 	const MOperand* opbuffer[2] = {};
 	bool ipcd_[2] = {};
 	bool fipcd_[2] = {};
+	bool ip16_ = false;
+	bool fip16_ = false;
 	Register* getIP();
 	Register* getIPOfType(bool flt);
 	Register* getFIP();

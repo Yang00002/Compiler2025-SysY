@@ -23,6 +23,17 @@ Instruction::Instruction(Type* ty, OpID id, BasicBlock* parent)
 	}
 }
 
+namespace
+{
+	Value* getOrDefault(std::unordered_map<Value*, Value*>& m, Value* t)
+	{
+		auto fd = m.find(t);
+		if (fd == m.end()) return t;
+		return fd->second;
+	}
+}
+
+
 Function* Instruction::get_function() const { return parent_->get_parent(); }
 
 Module* Instruction::get_module() const { return parent_->get_module(); }
@@ -56,6 +67,20 @@ IBinaryInst::IBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
 		"IBinaryInst operands are not both i32");
 	add_operand(v1);
 	add_operand(v2);
+}
+
+Instruction* IBinaryInst::copy(BasicBlock* parent)
+{
+	return new IBinaryInst{get_instr_type(), get_operand(0), get_operand(1), parent};
+}
+
+Instruction* IBinaryInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new IBinaryInst{
+		get_instr_type(), getOrDefault(valMap, get_operand(0)), getOrDefault(valMap, get_operand(1)), nullptr
+	};
+	valMap[this] = ret;
+	return ret;
 }
 
 IBinaryInst* IBinaryInst::create_add(Value* v1, Value* v2, BasicBlock* bb)
@@ -92,6 +117,20 @@ FBinaryInst::FBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
 	add_operand(v2);
 }
 
+Instruction* FBinaryInst::copy(BasicBlock* parent)
+{
+	return new FBinaryInst{get_instr_type(), get_operand(0), get_operand(1), parent};
+}
+
+Instruction* FBinaryInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new FBinaryInst{
+		get_instr_type(), getOrDefault(valMap, get_operand(0)), getOrDefault(valMap, get_operand(1)), nullptr
+	};
+	valMap[this] = ret;
+	return ret;
+}
+
 FBinaryInst* FBinaryInst::create_fadd(Value* v1, Value* v2, BasicBlock* bb)
 {
 	return create(fadd, v1, v2, bb);
@@ -120,6 +159,20 @@ ICmpInst::ICmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb)
 		"CmpInst operands are not both i32");
 	add_operand(lhs);
 	add_operand(rhs);
+}
+
+Instruction* ICmpInst::copy(BasicBlock* parent)
+{
+	return new ICmpInst{get_instr_type(), get_operand(0), get_operand(1), parent};
+}
+
+Instruction* ICmpInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new ICmpInst{
+		get_instr_type(), getOrDefault(valMap, get_operand(0)), getOrDefault(valMap, get_operand(1)), nullptr
+	};
+	valMap[this] = ret;
+	return ret;
 }
 
 ICmpInst* ICmpInst::create_ge(Value* v1, Value* v2, BasicBlock* bb)
@@ -162,6 +215,20 @@ FCmpInst::FCmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb)
 	add_operand(rhs);
 }
 
+Instruction* FCmpInst::copy(BasicBlock* parent)
+{
+	return new FCmpInst{get_instr_type(), get_operand(0), get_operand(1), parent};
+}
+
+Instruction* FCmpInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new FCmpInst{
+		get_instr_type(), getOrDefault(valMap, get_operand(0)), getOrDefault(valMap, get_operand(1)), nullptr
+	};
+	valMap[this] = ret;
+	return ret;
+}
+
 MemCpyInst::MemCpyInst(Value* from, Value* to, int size, BasicBlock* bb) : BaseInst<MemCpyInst>(VOID, memcpy_, bb)
 {
 	auto t1 = from->get_type();
@@ -173,6 +240,19 @@ MemCpyInst::MemCpyInst(Value* from, Value* to, int size, BasicBlock* bb) : BaseI
 	add_operand(from);
 	add_operand(to);
 	length_ = size;
+}
+
+Instruction* MemCpyInst::copy(BasicBlock* parent)
+{
+	return new MemCpyInst{get_operand(0), get_operand(1), length_, parent};
+}
+
+Instruction* MemCpyInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto inst = new MemCpyInst{
+		getOrDefault(valMap, get_operand(0)), getOrDefault(valMap, get_operand(1)), length_, nullptr
+	};
+	return inst;
 }
 
 MemCpyInst* MemCpyInst::create_memcpy(Value* from, Value* to, int size, BasicBlock* bb)
@@ -191,6 +271,17 @@ MemClearInst::MemClearInst(Value* target, int size, BasicBlock* bb) : BaseInst<M
 	length_ = size;
 }
 
+Instruction* MemClearInst::copy(BasicBlock* parent)
+{
+	return new MemClearInst{get_operand(0), length_, parent};
+}
+
+Instruction* MemClearInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new MemClearInst{getOrDefault(valMap, get_operand(0)), length_, nullptr};
+	return ret;
+}
+
 MemClearInst* MemClearInst::create_memclear(Value* target, int size, BasicBlock* bb)
 {
 	return create(target, size, bb);
@@ -207,6 +298,18 @@ Nump2CharpInst::Nump2CharpInst(Value* val, BasicBlock* bb) : BaseInst<Nump2Charp
 	add_operand(val);
 }
 
+Instruction* Nump2CharpInst::copy(BasicBlock* parent)
+{
+	return new Nump2CharpInst{get_operand(0), parent};
+}
+
+Instruction* Nump2CharpInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new Nump2CharpInst{getOrDefault(valMap, get_operand(0)), nullptr};
+	valMap[this] = ret;
+	return ret;
+}
+
 Nump2CharpInst* Nump2CharpInst::create_nump2charp(Value* val, BasicBlock* bb)
 {
 	return create(val, bb);
@@ -216,6 +319,18 @@ GlobalFixInst::GlobalFixInst(GlobalVariable* val, BasicBlock* bb) : BaseInst<Glo
 	val->get_type(), global_fix, bb)
 {
 	add_operand(val);
+}
+
+Instruction* GlobalFixInst::copy(BasicBlock* parent)
+{
+	return new GlobalFixInst{dynamic_cast<GlobalVariable*>(get_operand(0)), parent};
+}
+
+Instruction* GlobalFixInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new GlobalFixInst{dynamic_cast<GlobalVariable*>(get_operand(0)), nullptr};
+	valMap[this] = ret;
+	return ret;
 }
 
 GlobalFixInst* GlobalFixInst::create_global_fix(GlobalVariable* val, BasicBlock* bb)
@@ -268,6 +383,25 @@ CallInst::CallInst(Function* func, const std::vector<Value*>& args, BasicBlock* 
 			"CallInst: Wrong arg type");
 		add_operand(args[i]);
 	}
+}
+
+Instruction* CallInst::copy(BasicBlock* parent)
+{
+	std::vector<Value*> args;
+	args.resize(get_operands().size() - 1);
+	for (int i = 0, size = u2iNegThrow(get_operands().size()); i < size; i++) args[i] = get_operand(i + 1);
+	return new CallInst{dynamic_cast<Function*>(get_operand(0)), args, parent};
+}
+
+Instruction* CallInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	std::vector<Value*> args;
+	args.resize(get_operands().size() - 1);
+	for (int i = 0, size = u2iNegThrow(get_operands().size()); i < size; i++)
+		args[i] = getOrDefault(valMap, get_operand(i + 1));
+	auto ret = new CallInst{dynamic_cast<Function*>(get_operand(0)), args, nullptr};
+	valMap[this] = ret;
+	return ret;
 }
 
 CallInst* CallInst::create_call(Function* func, const std::vector<Value*>& args,
@@ -331,6 +465,15 @@ BranchInst::~BranchInst()
 	}
 }
 
+Instruction* BranchInst::copy(BasicBlock* parent)
+{
+	return nullptr;
+}
+
+Instruction* BranchInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	return nullptr;
+}
 
 BranchInst* BranchInst::create_cond_br(Value* cond, BasicBlock* if_true,
                                        BasicBlock* if_false, BasicBlock* bb)
@@ -360,6 +503,18 @@ ReturnInst::ReturnInst(Value* val, BasicBlock* bb)
 	}
 }
 
+Instruction* ReturnInst::copy(BasicBlock* parent)
+{
+	if (get_operands().size() == 1)
+		return new ReturnInst{get_operand(0), parent};
+	return new ReturnInst{nullptr, parent};
+}
+
+Instruction* ReturnInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	return nullptr;
+}
+
 ReturnInst* ReturnInst::create_ret(Value* val, BasicBlock* bb)
 {
 	return create(val, bb);
@@ -383,6 +538,25 @@ GetElementPtrInst::GetElementPtrInst(Value* ptr, const std::vector<Value*>& idxs
 		assert(idx->get_type() == INT && "Index is not integer");
 		add_operand(idx);
 	}
+}
+
+Instruction* GetElementPtrInst::copy(BasicBlock* parent)
+{
+	std::vector<Value*> args;
+	args.resize(get_operands().size() - 1);
+	for (int i = 0, size = u2iNegThrow(get_operands().size()); i < size; i++) args[i] = get_operand(i + 1);
+	return new GetElementPtrInst{get_operand(0), args, parent};
+}
+
+Instruction* GetElementPtrInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	std::vector<Value*> args;
+	args.resize(get_operands().size() - 1);
+	for (int i = 0, size = u2iNegThrow(get_operands().size()); i < size; i++)
+		args[i] = getOrDefault(valMap, get_operand(i + 1));
+	auto ret = new GetElementPtrInst{getOrDefault(valMap, get_operand(0)), args, nullptr};
+	valMap[this] = ret;
+	return ret;
 }
 
 Type* GetElementPtrInst::get_element_type(const Value* ptr,
@@ -436,6 +610,17 @@ StoreInst::StoreInst(Value* val, Value* ptr, BasicBlock* bb)
 	add_operand(ptr);
 }
 
+Instruction* StoreInst::copy(BasicBlock* parent)
+{
+	return new StoreInst{get_operand(0), get_operand(1), parent};
+}
+
+Instruction* StoreInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new StoreInst{getOrDefault(valMap, get_operand(0)), getOrDefault(valMap, get_operand(1)), nullptr};
+	return ret;
+}
+
 StoreInst* StoreInst::create_store(Value* val, Value* ptr, BasicBlock* bb)
 {
 	return create(val, ptr, bb);
@@ -454,6 +639,18 @@ LoadInst::LoadInst(Value* ptr, BasicBlock* bb)
 	add_operand(ptr);
 }
 
+Instruction* LoadInst::copy(BasicBlock* parent)
+{
+	return new LoadInst{get_operand(0), parent};
+}
+
+Instruction* LoadInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new LoadInst{getOrDefault(valMap, get_operand(0)), nullptr};
+	valMap[this] = ret;
+	return ret;
+}
+
 LoadInst* LoadInst::create_load(Value* ptr, BasicBlock* bb)
 {
 	return create(ptr, bb);
@@ -468,6 +665,16 @@ AllocaInst::AllocaInst(Type* ty, BasicBlock* bb)
 	assert(std::find(allowed_alloc_type.begin(), allowed_alloc_type.end(),
 			ty->getTypeID()) != allowed_alloc_type.end() &&
 		"Not allowed type for alloca");
+}
+
+Instruction* AllocaInst::copy(BasicBlock* parent)
+{
+	return new AllocaInst{get_alloca_type(), parent};
+}
+
+Instruction* AllocaInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	return nullptr;
 }
 
 AllocaInst* AllocaInst::create_alloca(Type* ty, BasicBlock* bb)
@@ -489,6 +696,18 @@ ZextInst::ZextInst(Value* val, Type* ty, BasicBlock* bb)
 	add_operand(val);
 }
 
+Instruction* ZextInst::copy(BasicBlock* parent)
+{
+	return new ZextInst{get_operand(0), get_type(), parent};
+}
+
+Instruction* ZextInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new ZextInst{getOrDefault(valMap, get_operand(0)), get_type(), nullptr};
+	valMap[this] = ret;
+	return ret;
+}
+
 ZextInst* ZextInst::create_zext_to_i32(Value* val, BasicBlock* bb)
 {
 	return create(val, INT, bb);
@@ -502,6 +721,18 @@ FpToSiInst::FpToSiInst(Value* val, Type* ty, BasicBlock* bb)
 	assert(ty == INT &&
 		"FpToSiInst destination type is not integer");
 	add_operand(val);
+}
+
+Instruction* FpToSiInst::copy(BasicBlock* parent)
+{
+	return new FpToSiInst{get_operand(0), get_type(), parent};
+}
+
+Instruction* FpToSiInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new FpToSiInst{getOrDefault(valMap, get_operand(0)), get_type(), nullptr};
+	valMap[this] = ret;
+	return ret;
 }
 
 FpToSiInst* FpToSiInst::create_fptosi(Value* val, Type* ty, BasicBlock* bb)
@@ -523,6 +754,18 @@ SiToFpInst::SiToFpInst(Value* val, Type* ty, BasicBlock* bb)
 	add_operand(val);
 }
 
+Instruction* SiToFpInst::copy(BasicBlock* parent)
+{
+	return new SiToFpInst{get_operand(0), get_type(), parent};
+}
+
+Instruction* SiToFpInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	auto ret = new SiToFpInst{getOrDefault(valMap, get_operand(0)), get_type(), nullptr};
+	valMap[this] = ret;
+	return ret;
+}
+
 SiToFpInst* SiToFpInst::create_sitofp(Value* val, BasicBlock* bb)
 {
 	return create(val, FLOAT, bb);
@@ -541,6 +784,23 @@ PhiInst::PhiInst(Type* ty, const std::vector<Value*>& vals,
 		add_operand(val_bbs[i]);
 	}
 	this->set_parent(bb);
+}
+
+Instruction* PhiInst::copy(BasicBlock* parent)
+{
+	std::vector<Value*> vals;
+	std::vector<BasicBlock*> val_bbs;
+	for (auto [v,b] : get_phi_pairs())
+	{
+		vals.emplace_back(v);
+		val_bbs.emplace_back(b);
+	}
+	return new PhiInst{get_type(), vals, val_bbs, parent};
+}
+
+Instruction* PhiInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	return nullptr;
 }
 
 PhiInst* PhiInst::create_phi(Type* ty, BasicBlock* bb,

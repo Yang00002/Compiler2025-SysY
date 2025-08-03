@@ -80,6 +80,8 @@ public:
    * @param parent 如果 parent != nullptr, 自动插入 basicblock
    */
 	Instruction(Type* ty, OpID id, BasicBlock* parent = nullptr);
+	virtual Instruction* copy(BasicBlock* parent) = 0;
+	virtual Instruction* copy(std::unordered_map<Value*, Value*>& valMap) = 0;
 	~Instruction() override = default;
 
 	// 指令所属基本块
@@ -170,6 +172,8 @@ class IBinaryInst : public BaseInst<IBinaryInst>
 	IBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static IBinaryInst* create_add(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_sub(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_mul(Value* v1, Value* v2, BasicBlock* bb);
@@ -186,6 +190,8 @@ class FBinaryInst : public BaseInst<FBinaryInst>
 	FBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static FBinaryInst* create_fadd(Value* v1, Value* v2, BasicBlock* bb);
 	static FBinaryInst* create_fsub(Value* v1, Value* v2, BasicBlock* bb);
 	static FBinaryInst* create_fmul(Value* v1, Value* v2, BasicBlock* bb);
@@ -201,6 +207,8 @@ class ICmpInst : public BaseInst<ICmpInst>
 	ICmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static ICmpInst* create_ge(Value* v1, Value* v2, BasicBlock* bb);
 	static ICmpInst* create_gt(Value* v1, Value* v2, BasicBlock* bb);
 	static ICmpInst* create_le(Value* v1, Value* v2, BasicBlock* bb);
@@ -218,6 +226,8 @@ class FCmpInst : public BaseInst<FCmpInst>
 	FCmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	bool needStore = false;
 	static FCmpInst* create_fge(Value* v1, Value* v2, BasicBlock* bb);
 	static FCmpInst* create_fgt(Value* v1, Value* v2, BasicBlock* bb);
@@ -237,6 +247,8 @@ protected:
 	CallInst(Function* func, const std::vector<Value*>& args, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static CallInst* create_call(Function* func, const std::vector<Value*>& args,
 	                             BasicBlock* bb);
 	[[nodiscard]] FuncType* get_function_type() const;
@@ -253,6 +265,8 @@ class BranchInst : public BaseInst<BranchInst>
 	~BranchInst() override;
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	BranchInst(const BranchInst&) = delete;
 	BranchInst(BranchInst&&) = delete;
 	BranchInst& operator=(const BranchInst&) = delete;
@@ -273,6 +287,8 @@ class ReturnInst : public BaseInst<ReturnInst>
 	ReturnInst(Value* val, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static ReturnInst* create_ret(Value* val, BasicBlock* bb);
 	static ReturnInst* create_void_ret(BasicBlock* bb);
 	[[nodiscard]] bool is_void_ret() const;
@@ -287,6 +303,8 @@ class GetElementPtrInst : public BaseInst<GetElementPtrInst>
 	GetElementPtrInst(Value* ptr, const std::vector<Value*>& idxs, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static Type* get_element_type(const Value* ptr, const std::vector<Value*>& idxs);
 	static GetElementPtrInst* create_gep(Value* ptr, const std::vector<Value*>& idxs,
 	                                     BasicBlock* bb);
@@ -302,6 +320,8 @@ class StoreInst : public BaseInst<StoreInst>
 	StoreInst(Value* val, Value* ptr, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static StoreInst* create_store(Value* val, Value* ptr, BasicBlock* bb);
 
 	[[nodiscard]] Value* get_rval() const { return this->get_operand(0); }
@@ -321,6 +341,8 @@ class MemCpyInst : public BaseInst<MemCpyInst>
 	int length_;
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static MemCpyInst* create_memcpy(Value* from, Value* to, int size, BasicBlock* bb);
 
 	[[nodiscard]] Value* get_from() const { return this->get_operand(0); }
@@ -341,6 +363,8 @@ class MemClearInst : public BaseInst<MemClearInst>
 	int length_;
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static MemClearInst* create_memclear(Value* target, int size, BasicBlock* bb);
 
 	[[nodiscard]] Value* get_target() const { return this->get_operand(0); }
@@ -357,6 +381,8 @@ class Nump2CharpInst : public BaseInst<Nump2CharpInst>
 	Nump2CharpInst(Value* val, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static Nump2CharpInst* create_nump2charp(Value* val, BasicBlock* bb);
 
 	[[nodiscard]] Value* get_val() const { return this->get_operand(0); }
@@ -374,6 +400,8 @@ class GlobalFixInst : public BaseInst<GlobalFixInst>
 	GlobalFixInst(GlobalVariable* val, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static GlobalFixInst* create_global_fix(GlobalVariable* val, BasicBlock* bb);
 
 	[[nodiscard]] GlobalVariable* get_var() const;
@@ -389,6 +417,8 @@ class LoadInst : public BaseInst<LoadInst>
 	LoadInst(Value* ptr, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static LoadInst* create_load(Value* ptr, BasicBlock* bb);
 
 	[[nodiscard]] Value* get_lval() const { return this->get_operand(0); }
@@ -404,6 +434,8 @@ class AllocaInst : public BaseInst<AllocaInst>
 	AllocaInst(Type* ty, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static AllocaInst* create_alloca(Type* ty, BasicBlock* bb);
 
 	[[nodiscard]] Type* get_alloca_type() const;
@@ -418,6 +450,8 @@ class ZextInst : public BaseInst<ZextInst>
 	ZextInst(Value* val, Type* ty, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static ZextInst* create_zext_to_i32(Value* val, BasicBlock* bb);
 
 	[[nodiscard]] Type* get_dest_type() const { return get_type(); }
@@ -432,6 +466,8 @@ class FpToSiInst : public BaseInst<FpToSiInst>
 	FpToSiInst(Value* val, Type* ty, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static FpToSiInst* create_fptosi(Value* val, Type* ty, BasicBlock* bb);
 	static FpToSiInst* create_fptosi_to_i32(Value* val, BasicBlock* bb);
 
@@ -447,6 +483,8 @@ class SiToFpInst : public BaseInst<SiToFpInst>
 	SiToFpInst(Value* val, Type* ty, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static SiToFpInst* create_sitofp(Value* val, BasicBlock* bb);
 
 	[[nodiscard]] Type* get_dest_type() const { return get_type(); }
@@ -462,6 +500,8 @@ class PhiInst : public BaseInst<PhiInst>
 	        const std::vector<BasicBlock*>& val_bbs, BasicBlock* bb);
 
 public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static PhiInst* create_phi(Type* ty, BasicBlock* bb,
 	                           const std::vector<Value*>& vals = {},
 	                           const std::vector<BasicBlock*>& val_bbs = {});
@@ -470,6 +510,18 @@ public:
 	{
 		this->add_operand(val);
 		this->add_operand(pre_bb);
+	}
+
+	Value* get_phi_val(const BasicBlock* from) const
+	{
+		for (int i = 0, size = this->get_num_operand(); i < size; i += 2)
+		{
+			if (this->get_operand(i + 1) == from)
+			{
+				return this->get_operand(i);
+			}
+		}
+		return nullptr;
 	}
 
 	void remove_phi_operand(const Value* pre_bb)
