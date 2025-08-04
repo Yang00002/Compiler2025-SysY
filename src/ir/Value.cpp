@@ -21,6 +21,11 @@ bool Value::set_name(const std::string& name)
 	return false;
 }
 
+void Value::force_set_name(const std::string& name)
+{
+	name_ = name;
+}
+
 void Value::add_use(User* user, int arg_no)
 {
 	use_list_.emplace_back(user, arg_no);

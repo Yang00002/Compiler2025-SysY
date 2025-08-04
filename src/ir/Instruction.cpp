@@ -12,6 +12,11 @@
 #include <string>
 #include <vector>
 
+#define OPEN_ASSERT 0
+#include <unordered_set>
+
+#include "Util.hpp"
+
 using namespace Types;
 
 Instruction::Instruction(Type* ty, OpID id, BasicBlock* parent)
@@ -397,7 +402,7 @@ Instruction* CallInst::copy(std::unordered_map<Value*, Value*>& valMap)
 {
 	std::vector<Value*> args;
 	args.resize(get_operands().size() - 1);
-	for (int i = 0, size = u2iNegThrow(get_operands().size()); i < size; i++)
+	for (int i = 0, size = u2iNegThrow(get_operands().size()) - 1; i < size; i++)
 		args[i] = getOrDefault(valMap, get_operand(i + 1));
 	auto ret = new CallInst{dynamic_cast<Function*>(get_operand(0)), args, nullptr};
 	valMap[this] = ret;
@@ -779,6 +784,7 @@ PhiInst::PhiInst(Type* ty, const std::vector<Value*>& vals,
 	int size = u2iNegThrow(vals.size());
 	for (int i = 0; i < size; i++)
 	{
+		ASSERT(val_bbs[i]);
 		assert(ty == vals[i]->get_type() && "Bad type for phi");
 		add_operand(vals[i]);
 		add_operand(val_bbs[i]);
@@ -808,4 +814,53 @@ PhiInst* PhiInst::create_phi(Type* ty, BasicBlock* bb,
                              const std::vector<BasicBlock*>& val_bbs)
 {
 	return create(ty, vals, val_bbs, bb);
+}
+
+void PhiInst::add_phi_pair_operand(Value* val, BasicBlock* pre_bb)
+{
+	ASSERT(val != nullptr);
+	ASSERT(pre_bb != nullptr);
+	this->add_operand(val);
+	this->add_operand(pre_bb);
+}
+
+
+void PhiInst::remove_phi_operand(const Value* pre_bb)
+{
+	ASSERT(allOpNotNull());
+	for (int i = 0; i < this->get_num_operand(); i += 2)
+	{
+		if (this->get_operand(i + 1) == pre_bb)
+		{
+			this->remove_operand(i);
+			this->remove_operand(i);
+			return;
+		}
+	}
+	ASSERT(allOpNotNull());
+}
+
+void PhiInst::remove_phi_operandIfIn(const std::unordered_set<BasicBlock*>& in)
+{
+	int opc = get_num_operand();
+	for (int i = opc - 1; i >= 0; i -= 2)
+	{
+		auto bb = dynamic_cast<BasicBlock*>(get_operand(i));
+		if (in.count(bb))
+		{
+			remove_operand(i);
+			remove_operand(i - 1);
+		}
+	}
+}
+
+void PhiInst::remove_phi_operand(const Value* pre_bb, int opId)
+{
+	ASSERT(allOpNotNull());
+	if (get_operand(opId) == pre_bb)
+	{
+		this->remove_operand(opId);
+		this->remove_operand(opId - 1);
+	}
+	ASSERT(allOpNotNull());
 }

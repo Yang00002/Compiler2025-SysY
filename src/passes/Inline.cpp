@@ -142,6 +142,7 @@ void Inline::collectNodes()
 	{
 		auto n = new IBBNode{nullptr, nullptr, nullptr, i, {abc}, {abc}, 0, 0, bc};
 		nodes_.emplace(i, n);
+		i->force_set_name("label_" + std::to_string(bc));
 		allNodes_[bc++] = n;
 		waitlist_->add(n);
 	}
@@ -171,11 +172,14 @@ void Inline::mergeBlocks()
 			{
 				merge(pre, next);
 				next->discard();
+				done_->remove(pre);
+				waitlist_->add(pre);
 			}
 		}
 	}
 	done2WaitList();
 	POP;
+	PASS_SUFFIX;
 }
 
 void Inline::mergeReturns()
@@ -230,6 +234,7 @@ void Inline::mergeReturns()
 	}
 	done2WaitList();
 	POP;
+	PASS_SUFFIX;
 }
 
 void Inline::mergeBranchs()
@@ -279,6 +284,7 @@ void Inline::mergeBranchs()
 				auto preNode = node(pre);
 				if (preNode->nc_ == 1 || !preNode->haveNext(nextNode))
 				{
+					assert(preNode->block_ != nullptr);
 					auto& insts = preNode->block_->get_instructions();
 					auto br = dynamic_cast<BranchInst*>(insts.back());
 					assert(br != nullptr);
@@ -343,8 +349,8 @@ void Inline::mergeBranchs()
 					auto phi = dynamic_cast<PhiInst*>(p);
 					assert(phi != nullptr);
 					phi->remove_phi_operand(branch->block_);
-					removeEdge(branch, nextNode);
 				}
+				removeEdge(branch, nextNode);
 			}
 			f_->remove(branch->block_);
 			branch->block_ = nullptr;
@@ -431,7 +437,7 @@ void Inline::selectBranchNodes()
 	{
 		auto n = waitlist_->pop();
 		auto& insts = n->block_->get_instructions();
-		if (insts.size() == 1 && dynamic_cast<BranchInst*>(insts.back()))
+		if (insts.size() == 1 && dynamic_cast<BranchInst*>(insts.back()) && n->pc_ > 0)
 		{
 			LOG(color::pink("Branch Node ") + n->block_->get_name());
 			return_->add(n);

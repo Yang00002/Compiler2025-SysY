@@ -6,7 +6,10 @@
 #include "MachineLoopDetection.hpp"
 #include "MachineOperand.hpp"
 
+#define OPEN_ASSERT 0
 #define DEBUG 0
+#include <iostream>
+
 #include "Util.hpp"
 
 using namespace std;
@@ -16,14 +19,29 @@ std::string BlockLayout::BBNode::print() const
 {
 	int count = 0;
 	string ret;
-	for (auto i : block_)
+	auto bb = block_;
+	while (bb != nullptr)
 	{
-		ret += to_string(i->id()) + " ";
+		ret += to_string(bb->id_) + " ";
+		bb = bb->next_;
 		count++;
 	}
 	if (!ret.empty())
 		ret.pop_back();
 	return to_string(count) + "{" + ret + "}";
+}
+
+namespace
+{
+	bool checkFunc(MFunction* f)
+	{
+		int idx = 0;
+		for (auto i : f->blocks())
+		{
+			ASSERT(i->id() == idx++);
+		}
+		return true;
+	}
 }
 
 void BlockLayout::runOnFunc()
@@ -32,6 +50,7 @@ void BlockLayout::runOnFunc()
 	PUSH;
 	detect.run_on_func(f_);
 	blockCount_ = u2iNegThrow(f_->blocks().size());
+	ASSERT(checkFunc(f_));
 	collectBlocks();
 	auto& loops = detect.get_loops();
 	if (!loops.empty())
@@ -43,14 +62,25 @@ void BlockLayout::runOnFunc()
 	auto nodes = DynamicBitset{blockCount_};
 	nodes.rangeSet(0, blockCount_);
 	runOnNodes(nodes);
+	nodes.reset();
 	auto n2 = blocks_[0]->block_;
-	assert(f_->blocks().size() == n2.size());
+	vector<MBasicBlock*> v2;
 	int idx = 0;
-	for (auto i : n2)
+	while (n2 != nullptr)
 	{
-		f_->blocks()[idx] = i;
-		i->id_ = idx++;
+		v2.emplace_back(n2);
+		nodes.set(n2->id_);
+		n2->id_ = idx++;
+		n2 = n2->next_;
 	}
+	for (int i = 0; i < blockCount_; i++)
+	{
+		if (!nodes.test(i))
+		{
+			delete f_->blocks()[i];
+		}
+	}
+	f_->blocks() = v2;
 	POP;
 }
 
@@ -90,10 +120,7 @@ std::string BlockLayout::logNodes(const DynamicBitset& nodes) const
 		ret.pop_back();
 		ret.pop_back();
 	}
-	else return ret;
-	int size = 0;
-	for (auto i : nodes) size += u2iNegThrow(blocks_[i]->block_.size());
-	return to_string(size) + ":  " + ret;
+	return ret;
 }
 
 void BlockLayout::runOnNodes(DynamicBitset& nodes)
@@ -102,8 +129,7 @@ void BlockLayout::runOnNodes(DynamicBitset& nodes)
 	{
 		if (blocks_[i]->parent_ != nullptr)
 		{
-			assert(blocks_[i]->block_.empty());
-			assert(nodes.test(block(i)->id_));
+			// ASSERT(nodes.test(block(i)->id_));
 			nodes.reset(i);
 		}
 	}
@@ -113,14 +139,14 @@ void BlockLayout::runOnNodes(DynamicBitset& nodes)
 
 	for (auto i : nodes)
 	{
-		assert(block(i) == blocks_[i]);
+		ASSERT(block(i) == blocks_[i]);
 		auto n = blocks_[i];
 		for (auto next : n->next_)
 		{
 			if (nodes.test(next))
 			{
 				auto hash = edgeHash(i, next);
-				auto sb = blocks_[next]->block_.back()->suc_bbs().empty() ? INT_MIN : 0;
+				auto sb = blocks_[next]->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
 				workList_.emplace(i, next, costMap_[hash], n->size_ + blocks_[next]->size_ + sb);
 			}
 		}
@@ -154,7 +180,7 @@ void BlockLayout::collectBlocks()
 		int size = 0;
 		for (auto j : i->instructions()) size += j->str->lines();
 		size += i->needBranchCount();
-		auto node = new BBNode{{i}, {blockCount_}, {blockCount_}, nullptr, 0, 0, size, id++};
+		auto node = new BBNode{i, {blockCount_}, {blockCount_}, nullptr, nullptr,0, size, id++};
 		blocks_[i->id()] = node;
 	}
 	for (auto i : f_->blocks())
@@ -165,7 +191,7 @@ void BlockLayout::collectBlocks()
 			auto next = *suc.begin();
 			auto bl = block(i);
 			auto br = block(next);
-			auto sb = br->block_.back()->suc_bbs().empty() ? INT_MIN : 0;
+			auto sb = br->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
 			addEdge(bl, br, 0, bl->size_ + br->size_ + sb);
 		}
 		else if (suc.size() == 2)
@@ -174,7 +200,7 @@ void BlockLayout::collectBlocks()
 			for (auto next : suc)
 			{
 				auto br = block(next);
-				auto sb = br->block_.back()->suc_bbs().empty() ? INT_MIN : 0;
+				auto sb = br->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
 				addEdge(bl, br, 1, bl->size_ + br->size_ + sb);
 			}
 		}
@@ -193,14 +219,14 @@ BlockLayout::BBNode* BlockLayout::block(int bb) const
 
 void BlockLayout::removeEdge(BBNode* from, BBNode* to)
 {
-	if (from->next_.resetAndGet(to->id_)) from->nc_--;
-	if (to->pre_.resetAndGet(from->id_)) to->pc_--;
+	from->next_.reset(to->id_);
+	to->pre_.reset(from->id_);
 }
 
 void BlockLayout::addEdge(BBNode* from, BBNode* to, int cost, int length) const
 {
-	if (from->next_.setAndGet(to->id_)) from->nc_++;
-	if (to->pre_.setAndGet(from->id_)) to->pc_++;
+	from->next_.set(to->id_);
+	to->pre_.set(from->id_);
 	int hash = edgeHash(from->id_, to->id_);
 	costMap_[hash] = cost;
 	lengthMap_[hash] = length;
@@ -247,8 +273,8 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 	};
 	removeEdge(from, to);
 	removeEdge(to, from);
-	auto l = from->block_.back();
-	auto r = to->block_.front();
+	auto l = from->child()->block_;
+	auto r = to->block_;
 	if (r->empty() && r->next_ != nullptr) r = r->next_;
 	l->next_ = r;
 
@@ -271,17 +297,17 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 	}
 	int nn = l->needBranchCount() - pn;
 
-	auto fe = to->block_.back()->suc_bbs().empty() ? INT_MIN : 0;
+	auto fe = to->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
 	for (auto i : from->next_)
 	{
-		auto sb = blocks_[i]->block_.back()->suc_bbs().empty() ? INT_MIN : 0;
+		auto sb = blocks_[i]->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
 		int hash = edgeHash(from->id_, i);
 		add2map(from->id_, i, costMap_[hash] + to->size_ + nn,
 		        from->size_ + to->size_ + blocks_[i]->size_ + sb);
 	}
 	for (auto i : to->next_)
 	{
-		auto sb = blocks_[i]->block_.back()->suc_bbs().empty() ? INT_MIN : 0;
+		auto sb = blocks_[i]->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
 		int hash = edgeHash(to->id_, i);
 		add2map(from->id_, i,
 		        costMap_[hash], from->size_ + to->size_ + blocks_[i]->size_ + sb);
@@ -292,7 +318,7 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 		int hash = edgeHash(i, from->id_);
 		add2map(i, from->id_, costMap_[hash], from->size_ + to->size_ + blocks_[i]->size_ + fe);
 	}
-	bool isEntry = from->block_.front() == f_->blocks()[0];
+	bool isEntry = from->block_ == f_->blocks()[0];
 	for (auto i : to->pre_)
 	{
 		if (!isEntry)
@@ -302,8 +328,8 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 		}
 		removeEdge(blocks_[i], to);
 	}
-	from->block_.splice(from->block_.end(), to->block_);
 	to->parent_ = from;
+	from->child_ = to;
 	for (auto [i,j] : added)
 	{
 		addEdge(blocks_[i.first], blocks_[i.second], j.c_, j.l_);

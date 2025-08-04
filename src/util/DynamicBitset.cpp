@@ -2,6 +2,7 @@
 #include "Type.hpp"
 #include "CountLZ.hpp"
 #include <cstring>
+#include <iostream>
 
 using namespace std;
 
@@ -135,14 +136,12 @@ void DynamicBitset::rangeSet(int f, int t)
 	auto offt = OFFSETOFBITS(t);
 	if (ullf == ullt)
 	{
-		auto a = UPONES(offf);
-		auto b = UPZEROS(offt);
 		data_[ullf] |= UPONES(offf) & UPZEROS(offt);
 		return;
 	}
 	data_[ullf] |= UPONES(offf);
 	auto range = ullt - ullf - 1;
-	if (range > 0) memset(data_ + ullf + 1, 0XFF, range << 6);
+	if (range > 0) memset(data_ + ullf + 1, 0XFF, range << 3);
 	data_[ullt] |= UPZEROS(offt);
 }
 

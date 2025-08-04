@@ -66,3 +66,15 @@ GAP
 #define PASS_SUFFIX
 #endif
 #endif
+
+
+#ifndef OPEN_ASSERT
+#define OPEN_ASSERT 0
+#endif
+
+#if OPEN_ASSERT == 1
+#define ASSERT(a) assert(a)
+#endif
+#if OPEN_ASSERT != 1
+#define ASSERT(a) 
+#endif

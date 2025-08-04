@@ -26,9 +26,7 @@ void SCCP::run()
 			continue;
 		run(f);
 	}
-	GAP;
-	LOG(m_->print());
-	GAP;
+	PASS_SUFFIX;
 	LOG(color::blue("SCCP Done"));
 }
 
@@ -95,7 +93,7 @@ void SCCP::run(Function* f)
 
 Constant* SCCP::constFold(const Instruction* i, const Constant* op1, const Constant* op2) const
 {
-	switch (i->get_instr_type())  // NOLINT(clang-diagnostic-switch-enum)
+	switch (i->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 	{
 		case Instruction::add:
 			return Constant::create(m_, op1->getIntConstant() + op2->getIntConstant());
@@ -146,7 +144,7 @@ Constant* SCCP::constFold(const Instruction* i, const Constant* op1, const Const
 
 Constant* SCCP::constFold(const Instruction* i, const Constant* op) const
 {
-	switch (i->get_instr_type())  // NOLINT(clang-diagnostic-switch-enum)
+	switch (i->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 	{
 		case Instruction::zext:
 			return Constant::create(m_, op->getIntConstant());
@@ -174,15 +172,17 @@ void SCCP::replace_with_constant(Function* f)
 		}
 	}
 	auto c = del_.size();
-	
-    if (c != 0){
-		LOG(color::cyan("Replaced "+std::to_string(c)+" use(s) with constant(s)"));
-    }
 
-    for (auto d : del_){
+	if (c != 0)
+	{
+		LOG(color::cyan("Replaced "+std::to_string(c)+" use(s) with constant(s)"));
+	}
+
+	for (auto d : del_)
+	{
 		d->get_parent()->erase_instr(d);
-        delete d;
-    }
+		delete d;
+	}
 
 	// 处理条件跳转
 	for (auto b : f->get_basic_blocks())
@@ -203,19 +203,21 @@ void SCCP::replace_with_constant(Function* f)
 	}
 }
 
-void SCCP::convert_cond_br(Instruction* i, BasicBlock* target, const BasicBlock* invalid)
+void SCCP::convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* invalid)
 {
 	LOG(color::cyan("Visiting branch: ")+i->print());
 	auto br = dynamic_cast<BranchInst*>(i);
-	// auto bb = br->get_parent();
 	br->remove_all_operands();
 	br->add_operand(target);
-	//if (target == invalid)
-	//	return;
-	/* 此处删除前驱/后继有bug
+	auto bb = br->get_parent();
+	if (target == invalid) return;
 	bb->remove_succ_basic_block(invalid);
 	invalid->remove_pre_basic_block(bb);
-	*/
+	for (auto phi : invalid->get_instructions().phi_and_allocas())
+	{
+		auto p = dynamic_cast<PhiInst*>(phi);
+		p->remove_phi_operand(bb);
+	}
 }
 
 void SCCPVisitor::visit(Instruction* i)
@@ -261,7 +263,7 @@ void SCCPVisitor::visit_fold(Instruction* i)
 	for (auto op : i->get_operands())
 	{
 		auto status = val_map.get(op);
-		LOG("current status: "+cur_.print()+" | "+color::yellow((op->get_name()=="" ? op->print() : op->get_name()))
+		LOG("current status: "+cur_.print()+" | "+color::yellow((op->get_name().empty() ? op->print() : op->get_name()))
 			+" is "+ status.print());
 		cur_ &= status;
 		if (status.not_const())
@@ -273,15 +275,15 @@ void SCCPVisitor::visit_fold(Instruction* i)
 	LOG(color::green(i->get_name())+" is "+ cur_.print());
 }
 
-void SCCPVisitor::visit_phi(const PhiInst* i)
+void SCCPVisitor::visit_phi(PhiInst* i)
 {
-	LOG(color::cyan("Visiting Phi: ")+i->print());
+	LOG(color::cyan("Visiting Phi: ")+ i->print());
 	cur_ = {ValStatus::INIT, nullptr};
 	for (int j = 1; j < i->get_num_operand(); j += 2)
 	{
 		auto op = i->get_operand(j - 1);
 		auto status = val_map.get(op);
-		LOG("current status: "+cur_.print()+" | "+color::yellow((op->get_name()=="" ? op->print() : op->get_name()))
+		LOG("current status: "+cur_.print()+" | "+color::yellow((op->get_name().empty() ? op->print() : op->get_name()))
 			+" is "+ status.print());
 		cur_ &= status;
 		if (status.not_const())

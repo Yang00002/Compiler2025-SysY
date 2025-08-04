@@ -18,12 +18,12 @@ class BlockLayout final : public MachinePass
 
 	struct BBNode
 	{
-		std::list<MBasicBlock*> block_;
+		MBasicBlock* block_;
 		DynamicBitset next_;
 		DynamicBitset pre_;
 		BBNode* parent_;
+		BBNode* child_;
 		int nc_;
-		int pc_;
 		int size_;
 		int id_;
 
@@ -35,9 +35,12 @@ class BlockLayout final : public MachinePass
 			return p;
 		}
 
-		MBasicBlock* block()
+		BBNode* child()
 		{
-			return parent()->block_.front();
+			if (child_ == nullptr) return this;
+			auto p = child_->child();
+			child_ = p;
+			return p;
 		}
 
 		[[nodiscard]] std::string print() const;

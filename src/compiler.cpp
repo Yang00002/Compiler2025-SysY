@@ -6,6 +6,7 @@
 #include <Antlr2Ast.hpp>
 
 #include "Arithmetic.hpp"
+#include "BlockLayout.hpp"
 #include "CmpCombine.hpp"
 #include "CodeGen.hpp"
 #include "Config.hpp"
@@ -13,19 +14,22 @@
 #include "CriticalEdgeRemove.hpp"
 #include "DeadCode.hpp"
 #include "EmptyAntlrVisitor.hpp"
+#include "FrameOffset.hpp"
 #include "GCM.hpp"
 #include "GVN.hpp"
+#include "Inline.hpp"
 #include "LICM.hpp"
-#include "MachineIR.hpp"
+#include "MachineModule.hpp"
 #include "Mem2Reg.hpp"
 #include "Module.hpp"
 #include "PassManager.hpp"
+#include "Print.hpp"
+#include "RegisterAllocate.hpp"
+#include "ReturnMerge.hpp"
 #include "SCCP.hpp"
 #include <ARM_codegen.hpp>
-#include "BBRank.hpp"
 
 #include "Ast.hpp"
-#include "GraphColoring.hpp"
 #include "System.hpp"
 #include <CharStream.h>
 #include <cstdlib>
@@ -132,15 +136,17 @@ void ir(std::string infile, std::string outfile) {
     PassManager *pm = new PassManager{m};
     pm->add_pass<Mem2Reg>();
     pm->add_pass<DeadCode>();
-    //pm->add_pass<Arithmetic>();
-   // pm->add_pass<SCCP>();
-   // pm->add_pass<DeadCode>();
+    // pm->add_pass<Arithmetic>();
+    // pm->add_pass<SCCP>();
+    // pm->add_pass<DeadCode>();
     pm->add_pass<LoopInvariantCodeMotion>();
     pm->add_pass<DeadCode>();
-   // pm->add_pass<GVN>();
-   // pm->add_pass<Arithmetic>();
-   // pm->add_pass<GlobalCodeMotion>();
-    //pm->add_pass<DeadCode>();
+    pm->add_pass<Print>();
+    pm->add_pass<Inline>();
+    pm->add_pass<GVN>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<GlobalCodeMotion>();
+    pm->add_pass<DeadCode>();
     pm->run();
     delete pm;
   }
@@ -202,39 +208,42 @@ void compiler(std::string infile, std::string outfile) {
     // Optimization Pass
     pm->add_pass<Mem2Reg>();
     pm->add_pass<DeadCode>();
-    // pm->add_pass<Arithmetic>(); 内存泄漏
-    // pm->add_pass<SCCP>(); 内存泄漏
-    // pm->add_pass<DeadCode>();
-     pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<SCCP>();
     pm->add_pass<DeadCode>();
-    // pm->add_pass<GVN>(); 内存泄漏
-    // pm->add_pass<Arithmetic>(); 内存泄漏
-    // pm->add_pass<GlobalCodeMotion>();
-    // pm->add_pass<DeadCode>();
+    pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Print>();
+    pm->add_pass<Inline>();
+    pm->add_pass<GVN>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<GlobalCodeMotion>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Inline>();
   } else
     pm->add_pass<DeadCode>();
-  pm->add_pass<CriticalEdgeERemove>();
+  pm->add_pass<CriticalEdgeRemove>();
   pm->add_pass<CmpCombine>();
-  pm->add_pass<BBRank>();
   pm->run();
-  delete pm;
 
   auto mir = new MModule();
   mir->accept(m);
   delete m;
 
-  GraphColorSolver *solver = new GraphColorSolver{mir};
-  solver->run();
-  delete solver;
+  MachinePassManager *mng = new MachinePassManager{mir};
 
-  CodeGen *cg = new CodeGen{mir};
-  cg->run();
+  mng->add_pass<RegisterAllocate>();
+  mng->add_pass<FrameOffset>();
+  mng->add_pass<CodeGen>();
+  mng->add_pass<ReturnMerge>();
+  mng->add_pass<BlockLayout>();
+  mng->run();
+  delete mng;
 
   std::ofstream output_file(outfile);
-  output_file << cg->print();
+  output_file << mir;
   output_file.close();
 
-  delete cg;
   delete mir;
 }
 

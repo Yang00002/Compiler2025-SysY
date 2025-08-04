@@ -33,6 +33,7 @@ public:
 	[[nodiscard]] const std::list<Use>& get_use_list() const;
 	// 设置名称
 	bool set_name(const std::string& name);
+	void force_set_name(const std::string& name);
 	/**
 	 * 标记该值在某处被使用
 	 * @param user 使用者

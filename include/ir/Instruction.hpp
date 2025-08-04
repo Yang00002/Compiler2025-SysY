@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstdint>
+#include <unordered_set>
+
 #include "Value.hpp"
 #include "BasicBlock.hpp"
 
@@ -506,11 +508,7 @@ public:
 	                           const std::vector<Value*>& vals = {},
 	                           const std::vector<BasicBlock*>& val_bbs = {});
 
-	void add_phi_pair_operand(Value* val, BasicBlock* pre_bb)
-	{
-		this->add_operand(val);
-		this->add_operand(pre_bb);
-	}
+	void add_phi_pair_operand(Value* val, BasicBlock* pre_bb);
 
 	Value* get_phi_val(const BasicBlock* from) const
 	{
@@ -524,32 +522,29 @@ public:
 		return nullptr;
 	}
 
-	void remove_phi_operand(const Value* pre_bb)
+	[[nodiscard]] bool allOpNotNull() const
 	{
-		for (int i = 0; i < static_cast<int>(this->get_num_operand()); i += 2)
-		{
-			if (this->get_operand(i + 1) == pre_bb)
-			{
-				this->remove_operand(i);
-				this->remove_operand(i);
-				return;
-			}
-		}
+		for (auto i : get_operands()) if (i == nullptr) return false;
+		return true;
 	}
 
-	void remove_phi_operand(const Value* pre_bb, int opId)
+	[[nodiscard]] static bool allOpNotNull(User* val)
 	{
-		if (get_operand(opId) == pre_bb)
-		{
-			this->remove_operand(opId);
-			this->remove_operand(opId - 1);
-		}
+		auto usr = dynamic_cast<PhiInst*>(val);
+		if (usr != nullptr)
+			for (auto i : val->get_operands()) if (i == nullptr) return false;
+		return true;
 	}
+
+	void remove_phi_operand(const Value* pre_bb);
+	void remove_phi_operandIfIn(const std::unordered_set<BasicBlock*>& in);
+
+	void remove_phi_operand(const Value* pre_bb, int opId);
 
 	[[nodiscard]] std::vector<std::pair<Value*, BasicBlock*>> get_phi_pairs() const
 	{
 		std::vector<std::pair<Value*, BasicBlock*>> res;
-		for (int i = 0; i < static_cast<int>(get_num_operand()); i += 2)
+		for (int i = 0; i < get_num_operand(); i += 2)
 		{
 			res.emplace_back(this->get_operand(i), dynamic_cast<BasicBlock*>(this->get_operand(i + 1)));
 		}

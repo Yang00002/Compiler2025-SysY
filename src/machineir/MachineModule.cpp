@@ -275,7 +275,7 @@ std::ostream& operator<<(std::ostream& os, const MModule* module)
 			}
 		}
 		if (f->funcSuffix_) os << f->funcSuffix_;
-		os << f->sizeSuffix_;
+		os << f->sizeSuffix_ << '\n';
 	}
 	if (module->moduleSuffix_) os << module->moduleSuffix_;
 	return os;

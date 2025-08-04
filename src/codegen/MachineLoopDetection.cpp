@@ -9,7 +9,7 @@
 
 #include "MachineFunction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Type.hpp"
 #include "Util.hpp"
 

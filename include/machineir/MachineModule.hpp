@@ -6,6 +6,11 @@
 
 class CodeString;
 class Module;
+class MFunction;
+class GlobalAddress;
+class FuncAddress;
+class Immediate;
+class Register;
 
 class MModule
 {
