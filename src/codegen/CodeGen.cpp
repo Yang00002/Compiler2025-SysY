@@ -6,8 +6,9 @@
 #include "Config.hpp"
 #include "MachineBasicBlock.hpp"
 #include "MachineInstruction.hpp"
-#include "MachineIR.hpp"
+#include "MachineFunction.hpp"
 #include "MachineOperand.hpp"
+#include "CodeString.hpp"
 
 #define DEBUG 0
 #include <iomanip>
@@ -143,49 +144,6 @@ namespace
 }
 
 
-std::string CodeGen::section(const std::string& secName)
-{
-	return "\t." + secName;
-}
-
-std::string CodeGen::objectTypeDeclare(const std::string& name)
-{
-	return "\t.type " + name + ", @object";
-}
-
-std::string CodeGen::functionTypeDeclare(const std::string& name)
-{
-	return "\t.type " + name + ", @function";
-}
-
-std::string CodeGen::align(int dataSize, bool glob)
-{
-	if ((dataSize > alignTo16NeedBytes) || (glob && dataSize > 8)) return "\t.align 4";
-	if (dataSize > 4) return "\t.align 3";
-	if (dataSize > 2) return "\t.align 2";
-	if (dataSize > 1) return "\t.align 1";
-	return "\t.align 0";
-}
-
-std::string CodeGen::align(long long dataSize, bool glob)
-{
-	if ((dataSize > alignTo16NeedBytes) || (glob && dataSize > 8)) return "\t.align 4";
-	if (dataSize > 4) return "\t.align 3";
-	if (dataSize > 2) return "\t.align 2";
-	if (dataSize > 1) return "\t.align 1";
-	return "\t.align 0";
-}
-
-std::string CodeGen::global(const std::string& globName)
-{
-	return "\t.globl " + globName;
-}
-
-std::string CodeGen::label(const std::string& name)
-{
-	return name + ":";
-}
-
 std::string CodeGen::word(const std::vector<ConstantValue>* v)
 {
 	string ret = "\t.word ";
@@ -213,254 +171,234 @@ std::string CodeGen::size(const std::string& globName, long long bytes)
 	return "\t.size " + globName + ", " + to_string(bytes);
 }
 
-void CodeGen::append(const std::string& txt)
-{
-	txt_.emplace_back(txt);
-}
-
-void CodeGen::append(const std::list<std::string>& txt)
-{
-	for (auto& basic_string : txt) txt_.emplace_back(basic_string);
-}
-
-std::list<std::string> CodeGen::makeGlobal(const GlobalAddress* address)
+void CodeGen::makeGlobal(const GlobalAddress* address) const
 {
 	auto allSize = logicalRightShift(address->size_, 3);
-	list<string> l;
-	l.emplace_back(align(allSize, true));
-	l.emplace_back(global(address->name_));
-	l.emplace_back(objectTypeDeclare(address->name_));
-	l.emplace_back(label(address->name_));
+	m_->modulePrefix_->addAlign(allSize, true);
+	m_->modulePrefix_->addGlobal(address->name_);
+	m_->modulePrefix_->objectTypeDeclare(address->name_);
+	m_->modulePrefix_->addLabel(address->name_);
 	auto init = address->data_;
 	for (int i = 0, segCount = init->segmentCount(); i < segCount; i++)
 	{
 		auto [iv, dc] = init->segment(i);
 		if (dc == 0)
-			l.emplace_back(word(iv));
-		else l.emplace_back(zero(dc << 2));
+			m_->modulePrefix_->addCommonStr(word(iv));
+		else m_->modulePrefix_->addCommonStr(zero(dc << 2));
 	}
-	l.emplace_back(size(address->name_, allSize));
-	return l;
+	m_->modulePrefix_->addCommonStr(size(address->name_, allSize));
 }
 
-std::list<std::string> CodeGen::makeFunction(MFunction* function)
+void CodeGen::makeFunction()
 {
-	while (function->removeEmptyBBs())
+	for (auto i : func_->blocks_) i->blockPrefix_ = new CodeString{};
+	func_->funcPrefix_ = new CodeString{};
+	func_->funcSuffix_ = new CodeString{};
+	func_->funcPrefix_->addGlobal(func_->name_);
+	func_->funcPrefix_->functionTypeDeclare(func_->name_);
+	func_->funcPrefix_->addLabel(func_->name_);
+	functionPrefix();
+	functionSuffix();
+	for (auto bb : func_->blocks())
 	{
-	}
-	list<string> l;
-	l.emplace_back(global(function->name_));
-	l.emplace_back(functionTypeDeclare(function->name_));
-	l.emplace_back(label(function->name_));
-	merge(l, functionPrefix(function));
-	for (auto bb : function->blocks())
-	{
-		if (!function->useList()[BlockAddress::get(bb)].empty())
-			l.emplace_back(label(bb->name()));
 		for (auto inst : bb->instructions())
-			merge(l, makeInstruction(inst));
+			makeInstruction(inst);
 	}
-	l.emplace_back(functionSize(function->name()));
-	return l;
+	func_->sizeSuffix_ = functionSize(func_->name());
 }
 
-std::list<std::string> CodeGen::functionPrefix(const MFunction* function)
+void CodeGen::functionPrefix()
 {
-	std::list<std::string> l;
 	int lc = 0;
 	int rc = 0;
-	auto& calleeSaved = function->callee_saved();
+	auto& calleeSaved = func_->callee_saved();
 	for (auto [i,j] : calleeSaved)
 	{
 		if (i->isIntegerRegister()) lc++;
 		else rc++;
 	}
+	auto toStr = func_->blocks_[0]->blockPrefix_;
 	if (canLSInOneSPMove(calleeSaved))
 	{
-		merge(l, sub64(sp(), sp(), function->stack_move_offset()));
-		if (lc & 1) merge(l, str(calleeSaved[0].first, sp(), calleeSaved[0].second, 64));
+		sub64(sp(), sp(), func_->stack_move_offset(), toStr);
+		if (lc & 1) str(calleeSaved[0].first, sp(), calleeSaved[0].second, 64, toStr);
 		if (lc >= 2)
 		{
 			for (int i = lc & 1; i < lc; i += 2)
 			{
-				merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second),
-				             64));
+				stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second),
+				    64, toStr);
 			}
 		}
-		if (rc & 1) merge(l, str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64));
+		if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64, toStr);
 		if (rc >= 2)
 		{
 			for (int i = rc & 1; i < rc; i += 2)
 			{
-				merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
-				             u2iNegThrow(calleeSaved[lc + i].second),
-				             64));
+				stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
+				    u2iNegThrow(calleeSaved[lc + i].second),
+				    64, toStr);
 			}
 		}
-		return l;
+		return;
 	}
-	long long minOffset = upAlignTo16(function->stack_move_offset() - calleeSaved[0].second);
-	long long nextOffset = function->stack_move_offset() - minOffset;
-	merge(l, sub64(sp(), sp(), minOffset));
-	if (lc & 1) merge(l, str(calleeSaved[0].first, sp(), calleeSaved[0].second - nextOffset, 64));
+	long long minOffset = upAlignTo16(func_->stack_move_offset() - calleeSaved[0].second);
+	long long nextOffset = func_->stack_move_offset() - minOffset;
+	sub64(sp(), sp(), minOffset, toStr);
+	if (lc & 1) str(calleeSaved[0].first, sp(), calleeSaved[0].second - nextOffset, 64, toStr);
 	if (lc >= 2)
 	{
 		for (int i = lc & 1; i < lc; i += 2)
 		{
-			merge(l, stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(),
-			             u2iNegThrow(calleeSaved[i].second - nextOffset), 64));
+			stp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(),
+			    u2iNegThrow(calleeSaved[i].second - nextOffset), 64, toStr);
 		}
 	}
-	if (rc & 1) merge(l, str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64));
+	if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64, toStr);
 	if (rc >= 2)
 	{
 		for (int i = rc & 1; i < rc; i += 2)
 		{
-			merge(l, stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
-			             u2iNegThrow(calleeSaved[lc + i].second - nextOffset), 64));
+			stp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
+			    u2iNegThrow(calleeSaved[lc + i].second - nextOffset), 64, toStr);
 		}
 	}
-	merge(l, sub64(sp(), sp(), nextOffset));
-	return l;
+	sub64(sp(), sp(), nextOffset, toStr);
 }
 
-std::list<std::string> CodeGen::functionSuffix(const MFunction* function)
+void CodeGen::functionSuffix()
 {
-	std::list<std::string> l;
 	int lc = 0;
 	int rc = 0;
-	auto& calleeSaved = function->callee_saved();
+	auto& calleeSaved = func_->callee_saved();
 	for (auto [i,j] : calleeSaved)
 	{
 		if (i->isIntegerRegister()) lc++;
 		else rc++;
 	}
+	auto toStr = func_->funcSuffix_;
 	if (canLSInOneSPMove(calleeSaved))
 	{
 		if (rc >= 2)
 		{
 			for (int i = rc - 2; i >= 0; i -= 2)
 			{
-				merge(l, ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
-				             u2iNegThrow(calleeSaved[lc + i].second),
-				             64));
+				ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
+				    u2iNegThrow(calleeSaved[lc + i].second),
+				    64, toStr);
 			}
 		}
-		if (rc & 1) merge(l, ldr(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64));
+		if (rc & 1) ldr(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64, toStr);
 		if (lc >= 2)
 		{
 			for (int i = lc - 2; i >= 0; i -= 2)
 			{
-				merge(l, ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second),
-				             64));
+				ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(), u2iNegThrow(calleeSaved[i].second),
+				    64, toStr);
 			}
 		}
-		if (lc & 1) merge(l, ldr(calleeSaved[0].first, sp(), calleeSaved[0].second, 64));
-		merge(l, add64(sp(), sp(), function->stack_move_offset()));
-		return l;
+		if (lc & 1)ldr(calleeSaved[0].first, sp(), calleeSaved[0].second, 64, toStr);
+		add64(sp(), sp(), func_->stack_move_offset(), toStr);
+		return;
 	}
-	long long minOffset = upAlignTo16(function->stack_move_offset() - calleeSaved[0].second);
-	long long nextOffset = function->stack_move_offset() - minOffset;
-	merge(l, add64(sp(), sp(), nextOffset));
+	long long minOffset = upAlignTo16(func_->stack_move_offset() - calleeSaved[0].second);
+	long long nextOffset = func_->stack_move_offset() - minOffset;
+	add64(sp(), sp(), nextOffset, toStr);
 	if (rc >= 2)
 	{
 		for (int i = rc - 2; i >= 0; i -= 2)
 		{
-			merge(l, ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
-			             u2iNegThrow(calleeSaved[lc + i].second - nextOffset), 64));
+			ldp(calleeSaved[lc + i].first, calleeSaved[lc + i + 1].first, sp(),
+			    u2iNegThrow(calleeSaved[lc + i].second - nextOffset), 64, toStr);
 		}
 	}
-	if (rc & 1) merge(l, ldr(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64));
+	if (rc & 1) ldr(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64, toStr);
 	if (lc >= 2)
 	{
 		for (int i = lc - 2; i >= 0; i -= 2)
 		{
-			merge(l, ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(),
-			             u2iNegThrow(calleeSaved[i].second - nextOffset), 64));
+			ldp(calleeSaved[i].first, calleeSaved[i + 1].first, sp(),
+			    u2iNegThrow(calleeSaved[i].second - nextOffset), 64, toStr);
 		}
 	}
-	if (lc & 1) merge(l, ldr(calleeSaved[0].first, sp(), calleeSaved[0].second - nextOffset, 64));
-	merge(l, add64(sp(), sp(), minOffset));
-	return l;
+	if (lc & 1) ldr(calleeSaved[0].first, sp(), calleeSaved[0].second - nextOffset, 64, toStr);
+	add64(sp(), sp(), minOffset, toStr);
 }
 
-list<std::string> CodeGen::add(const Register* to, const Register* l, const Register* r, int len)
+void CodeGen::add(const Register* to, const Register* l, const Register* r, int len, CodeString* toStr)
 {
-	return {instruction("ADD", regName(to, len), regName(l, len), regName(r, len))};
+	toStr->addInstruction("ADD", regName(to, len), regName(l, len), regName(r, len));
 }
 
-std::list<std::string> CodeGen::fadd(const Register* to, const Register* l, const Register* r)
+void CodeGen::fadd(const Register* to, const Register* l, const Register* r, CodeString* toStr)
 {
-	return {instruction("FADD", regName(to, 32), regName(l, 32), regName(r, 32))};
+	return toStr->addInstruction("FADD", regName(to, 32), regName(l, 32), regName(r, 32));
 }
 
-std::list<std::string> CodeGen::fmul(const Register* to, const Register* l, const Register* r)
+void CodeGen::fmul(const Register* to, const Register* l, const Register* r, CodeString* toStr)
 {
-	return {instruction("FMUL", regName(to, 32), regName(l, 32), regName(r, 32))};
+	return toStr->addInstruction("FMUL", regName(to, 32), regName(l, 32), regName(r, 32));
 }
 
-std::list<std::string> CodeGen::fdiv(const Register* to, const Register* l, const Register* r)
+void CodeGen::fdiv(const Register* to, const Register* l, const Register* r, CodeString* toStr)
 {
-	return {instruction("FDIV", regName(to, 32), regName(l, 32), regName(r, 32))};
+	return toStr->addInstruction("FDIV", regName(to, 32), regName(l, 32), regName(r, 32));
 }
 
-std::list<std::string> CodeGen::stp(const Register* a, const Register* b, const Register* c, int offset, int len)
+void CodeGen::stp(const Register* a, const Register* b, const Register* c, int offset, int len, CodeString* toStr)
 {
 	assert(len == 32 || len == 64);
 	assert(len == 32 ? inImm7L2(offset) : inImm7L3(offset));
-	return {instruction("STP", regName(a, len), regName(b, len), regDataOffset(c, offset))};
+	return toStr->addInstruction("STP", regName(a, len), regName(b, len), regDataOffset(c, offset));
 }
 
-std::list<std::string> CodeGen::str(const Register* a, const Register* c, long long offset, int len)
+void CodeGen::str(const Register* a, const Register* c, long long offset, int len, CodeString* toStr)
 {
 	assert(len == 32 || len == 64 || len == 128);
 	assert(len == 32 ? align4(offset) : align8(offset));
-	if (inImm9(offset)) return {instruction("STR", regName(a, len), regDataOffset(c, u2iNegThrow(offset)))};
+	if (inImm9(offset)) return toStr->addInstruction("STR", regName(a, len), regDataOffset(c, u2iNegThrow(offset)));
 	long long absOff = offset < 0 ? -offset : offset;
 	int maxMov = m_countr_zero(ll2ullKeepBits(absOff));
 	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
 	if (maxMov > lenLevel) maxMov = lenLevel;
 	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
 	auto reg = getIP();
-	list<string> ret;
-	merge(ret, makeI64Immediate(offset, reg));
-	ret.emplace_back(instruction("STR", regName(a, len), regDataRegLSLOffset(c, reg, maxMov)));
+	makeI64Immediate(offset, reg, toStr);
+	toStr->addInstruction("STR", regName(a, len), regDataRegLSLOffset(c, reg, maxMov));
 	releaseIP(reg);
-	return ret;
 }
 
-std::list<std::string> CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len)
+void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, CodeString* toStr)
 {
-	list<string> ret;
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
-		const Register* l = op2reg(regLike, len, ret);
-		merge(ret, str(l, i, 0, len));
+		const Register* l = op2reg(regLike, len, toStr);
+		str(l, i, 0, len, toStr);
 		releaseIP(l);
-		return ret;
+		return;
 	}
 	assert(dynamic_cast<const Immediate*>(stackLike) == nullptr);
 	if (const GlobalAddress* i = dynamic_cast<const GlobalAddress*>(stackLike); i != nullptr)
 	{
-		const Register* l = op2reg(regLike, len, ret);
-		auto r = op2reg(i, 64, ret);
-		merge(ret, str(l, r, 0, len));
+		const Register* l = op2reg(regLike, len, toStr);
+		auto r = op2reg(i, 64, toStr);
+		str(l, r, 0, len, toStr);
 		releaseIP(l);
 		releaseIP(r);
-		return ret;
+		return;
 	}
 	if (const FrameIndex* i = dynamic_cast<const FrameIndex*>(stackLike); i != nullptr)
 	{
-		auto offset = frameOffset(i, true, ret);
-		const Register* l = op2reg(regLike, len, ret);
-		merge(ret, str(l, sp(), offset, len));
+		auto offset = frameOffset(i, true, toStr);
+		const Register* l = op2reg(regLike, len, toStr);
+		str(l, sp(), offset, len, toStr);
 		releaseIP(l);
-		return ret;
+		return;
 	}
 	throw runtime_error("unexpected");
 }
 
-const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, std::list<std::string>& appendSlot)
+const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, CodeString* toStr)
 {
 	if (const Register* fromr = dynamic_cast<const Register*>(op); fromr != nullptr)
 	{
@@ -472,18 +410,18 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, std
 		if (fromr->isIntegerRegister() != useIntReg)
 		{
 			auto reg = getIP();
-			merge(appendSlot, copy(reg, fromr, len));
+			copy(reg, fromr, len, toStr);
 			return reg;
 		}
 		return fromr;
 	}
 	assert(len == 32 || len == 64);
 	auto r = useIntReg ? getIP() : getFIP();
-	merge(appendSlot, copy(r, op, len));
+	copy(r, op, len, toStr);
 	return r;
 }
 
-const Register* CodeGen::op2reg(const MOperand* op, int len, std::list<std::string>& appendSlot)
+const Register* CodeGen::op2reg(const MOperand* op, int len, CodeString* appendSlot)
 {
 	if (const Register* fromr = dynamic_cast<const Register*>(op); fromr != nullptr)
 	{
@@ -496,85 +434,83 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, std::list<std::stri
 	}
 	assert(len == 32 || len == 64);
 	auto r = getIP();
-	merge(appendSlot, copy(r, op, len));
+	copy(r, op, len, appendSlot);
 	return r;
 }
 
-std::list<std::string> CodeGen::ldp(const Register* a, const Register* b, const Register* c, int offset, int len)
+void CodeGen::ldp(const Register* a, const Register* b, const Register* c, int offset, int len, CodeString* toStr)
 {
 	assert(len == 32 || len == 64);
 	assert(len == 32 ? inImm7L2(offset) : inImm7L3(offset));
-	return {instruction("LDP", regName(a, len), regName(b, len), regDataOffset(c, offset))};
+	return toStr->addInstruction("LDP", regName(a, len), regName(b, len), regDataOffset(c, offset));
 }
 
-std::list<std::string> CodeGen::ldr(const Register* a, const Register* baseOffsetReg, long long offset, int len)
+void CodeGen::ldr(const Register* a, const Register* baseOffsetReg, long long offset, int len, CodeString* toStr)
 {
 	assert(len == 32 || len == 64 || len == 128);
 	assert(len == 32 ? align4(offset) : align8(offset));
-	if (inImm9(offset)) return {instruction("LDR", regName(a, len), regDataOffset(baseOffsetReg, u2iNegThrow(offset)))};
+	if (inImm9(offset))
+		return toStr->addInstruction("LDR", regName(a, len),
+		                             regDataOffset(baseOffsetReg, u2iNegThrow(offset)));
 	long long absOff = offset < 0 ? -offset : offset;
 	int maxMov = m_countr_zero(ll2ullKeepBits(absOff));
 	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
 	if (maxMov > lenLevel) maxMov = lenLevel;
 	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
 	auto reg = getIP();
-	list<string> ret;
-	merge(ret, makeI64Immediate(offset, reg));
-	ret.emplace_back(instruction("LDR", regName(a, len), regDataRegLSLOffset(baseOffsetReg, reg, maxMov))); // NOLINT(readability-suspicious-call-argument)
+	makeI64Immediate(offset, reg, toStr);
+	toStr->addInstruction("LDR", regName(a, len), regDataRegLSLOffset(baseOffsetReg, reg, maxMov)); // NOLINT(readability-suspicious-call-argument)
 	releaseIP(reg);
-	return ret;
 }
 
-std::list<std::string> CodeGen::ldr(const MOperand* a, const MOperand* stackLike, int len)
+void CodeGen::ldr(const MOperand* a, const MOperand* stackLike, int len, CodeString* toStr)
 {
 	list<string> ret;
 	auto l = dynamic_cast<const Register*>(a);
 	assert(l != nullptr);
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
-		merge(ret, ldr(l, i, 0, len));
-		return ret;
+		ldr(l, i, 0, len, toStr);
+		return;
 	}
 	assert(dynamic_cast<const Immediate*>(stackLike) == nullptr);
 	if (const GlobalAddress* i = dynamic_cast<const GlobalAddress*>(stackLike); i != nullptr)
 	{
-		auto r = op2reg(i, 64, ret);
-		merge(ret, ldr(l, r, 0, len));
+		auto r = op2reg(i, 64, toStr);
+		ldr(l, r, 0, len, toStr);
 		releaseIP(r);
-		return ret;
+		return;
 	}
 	if (const FrameIndex* i = dynamic_cast<const FrameIndex*>(stackLike); i != nullptr)
 	{
-		auto offset = frameOffset(i, false, ret);
-		merge(ret, ldr(l, sp(), offset, len));
-		return ret;
+		auto offset = frameOffset(i, false, toStr);
+		ldr(l, sp(), offset, len, toStr);
+		return;
 	}
 	throw runtime_error("unexpected");
 }
 
-std::list<std::string> CodeGen::ld1(const MOperand* stackLike, int count, int offset)
+void CodeGen::ld1(const MOperand* stackLike, int count, int offset, CodeString* toStr)
 {
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
-		return ld1(i, count, offset);
+		return ld1(i, count, offset, toStr);
 	}
 	throw runtime_error("unexpected");
 }
 
-std::list<std::string> CodeGen::clearV(int count)
+void CodeGen::clearV(int count, CodeString* toStr)
 {
-	list<std::string> ret;
 	for (int i = 0; i < count; i++)
 	{
 		auto reg = "V" + to_string(i) + ".16B";
-		ret.emplace_back(instruction("EOR", reg, reg, reg));
+		toStr->addInstruction("EOR", reg, reg, reg);
 	}
-	return {ret};
 }
 
-std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand* l, const MOperand* r,
-                                         Instruction::OpID op,
-                                         int len)
+void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand* l, const MOperand* r,
+                       Instruction::OpID op,
+                       int len, CodeString* toStr)
 {
 	auto target = dynamic_cast<const Register*>(t);
 	assert(op >= Instruction::add && op <= Instruction::fdiv);
@@ -586,7 +522,10 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	if (immR && immR->isZero(flt, len))
 	{
 		if (op == Instruction::sdiv || op == Instruction::srem || op == Instruction::fdiv)
-			return copy(t, zeroRegister(), len);
+		{
+			copy(t, zeroRegister(), len, toStr);
+			return;
+		}
 	}
 	if (immL && immR)
 	{
@@ -616,7 +555,8 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 					default:
 						throw runtime_error("unexpected");
 				}
-				return makeI32Immediate(i, target);
+				makeI32Immediate(i, target, toStr);
+				return;
 			}
 			long long i;
 			switch (op) // NOLINT(clang-diagnostic-switch-enum)
@@ -639,7 +579,8 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 				default:
 					throw runtime_error("unexpected");
 			}
-			return makeI64Immediate(i, target);
+			makeI64Immediate(i, target, toStr);
+			return;
 		}
 		float f;
 		switch (op) // NOLINT(clang-diagnostic-switch-enum)
@@ -659,7 +600,8 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 			default:
 				throw runtime_error("unexpected");
 		}
-		return makeF32Immediate(f, target);
+		makeF32Immediate(f, target, toStr);
+		return;
 	}
 	if (immL && !immR)
 	{
@@ -677,20 +619,23 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 		{
 			if (op == Instruction::add || op == Instruction::fadd)
 			{
-				return copy(target, r, len);
+				copy(target, r, len, toStr);
+				return;
 			}
 			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem || op == Instruction::fmul
 			    ||
 			    op == Instruction::fdiv)
 			{
-				return copy(target, zeroRegister(), len);
+				copy(target, zeroRegister(), len, toStr);
+				return;
 			}
 		}
 		if (immL->isNotFloatOne(flt, len))
 		{
 			if (op == Instruction::mul)
 			{
-				return copy(target, r, len);
+				copy(target, r, len, toStr);
+				return;
 			}
 		}
 	}
@@ -700,22 +645,23 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 		{
 			if (op == Instruction::add || op == Instruction::fadd)
 			{
-				return copy(target, l, len);
+				copy(target, l, len, toStr);
+				return;
 			}
 			if (op == Instruction::mul || op == Instruction::fmul)
 			{
-				return copy(target, zeroRegister(), len);
+				copy(target, zeroRegister(), len, toStr);
+				return;
 			}
 		}
 		if (immR->isNotFloatOne(flt, len))
 		{
 			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem)
 			{
-				return copy(target, l, len);
+				return copy(target, l, len, toStr);
 			}
 		}
 	}
-	list<string> ret;
 	auto regL = dynamic_cast<const Register*>(l);
 	auto regR = dynamic_cast<const Register*>(r);
 	if (flt)
@@ -723,13 +669,13 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 		if (immL)
 		{
 			regL = getFIP();
-			merge(ret, makeF32Immediate(immL->asFloat(), regL));
+			makeF32Immediate(immL->asFloat(), regL, toStr);
 			immL = nullptr;
 		}
 		else if (immR)
 		{
 			regR = getFIP();
-			merge(ret, makeF32Immediate(immR->asFloat(), regR));
+			makeF32Immediate(immR->asFloat(), regR, toStr);
 			immR = nullptr;
 		}
 	}
@@ -739,36 +685,36 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	{
 		releaseIP(regL);
 		releaseIP(regR);
-		return {};
+		return;
 	}
 	if (flt)
 	{
 		switch (op) // NOLINT(clang-diagnostic-switch-enum)
 		{
 			case Instruction::fadd:
-				merge(ret, fadd(target, regL, regR));
+				fadd(target, regL, regR, toStr);
 				break;
 			case Instruction::fsub:
-				merge(ret, fsub(target, regL, regR));
+				fsub(target, regL, regR, toStr);
 				break;
 			case Instruction::fmul:
-				merge(ret, fmul(target, regL, regR));
+				fmul(target, regL, regR, toStr);
 				break;
 			case Instruction::fdiv:
-				merge(ret, fdiv(target, regL, regR));
+				fdiv(target, regL, regR, toStr);
 				break;
 			default:
 				throw runtime_error("unexpected");
 		}
 		releaseIP(regL);
 		releaseIP(regR);
-		return ret;
+		return;
 	}
 	auto fl = dynamic_cast<const FrameIndex*>(l);
 	auto fr = dynamic_cast<const FrameIndex*>(r);
 	if (fl && immR)
 	{
-		long long offset = frameOffset(fl, false, ret);
+		long long offset = frameOffset(fl, false, toStr);
 		immR = Immediate::getImmediate(immR->as64BitsInt() + offset, m_);
 		r = immR;
 		regL = sp();
@@ -777,7 +723,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	}
 	if (fr && immL)
 	{
-		long long offset = frameOffset(fr, false, ret);
+		long long offset = frameOffset(fr, false, toStr);
 		immL = Immediate::getImmediate(immL->as64BitsInt() + offset, m_);
 		l = immL;
 		r = sp();
@@ -785,7 +731,7 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 	}
 	if (!regL)
 	{
-		regL = op2reg(l, len, true, ret);
+		regL = op2reg(l, len, true, toStr);
 		fl = nullptr;
 	}
 	if (immR && (op == Instruction::add || op == Instruction::sub))
@@ -793,29 +739,28 @@ std::list<std::string> CodeGen::mathInst(const MMathInst* inst, const MOperand* 
 		if (op == Instruction::add)
 		{
 			if (len == 32)
-				merge(ret, add32(target, regL, immR->asInt()));
-			else merge(ret, add64(target, regL, immR->as64BitsInt()));
+				add32(target, regL, immR->asInt(), toStr);
+			else add64(target, regL, immR->as64BitsInt(), toStr);
 			releaseIP(regL);
-			return ret;
+			return;
 		}
 		if (len == 32)
-			merge(ret, sub32(target, regL, immR->asInt()));
-		else merge(ret, sub64(target, regL, immR->as64BitsInt()));
+			sub32(target, regL, immR->asInt(), toStr);
+		else sub64(target, regL, immR->as64BitsInt(), toStr);
 		releaseIP(regL);
-		return ret;
+		return;
 	}
-	regR = op2reg(r, len, true, ret);
+	regR = op2reg(r, len, true, toStr);
 	fr = nullptr;
-	merge(ret, mathRRInst(target, regL, regR, op, len));
+	mathRRInst(target, regL, regR, op, len, toStr);
 	releaseIP(regL);
 	releaseIP(regR);
-	return ret;
 }
 
-std::list<std::string> CodeGen::ld1(const Register* stackLike, int count, int offset)
+void CodeGen::ld1(const Register* stackLike, int count, int offset, CodeString* toStr)
 {
-	if (count == 1) return ldr(floatRegister(0), stackLike, 128);
-	string ret = "\tLD1 {";
+	if (count == 1) return ldr(floatRegister(0), stackLike, 128, toStr);
+	string ret = "LD1 {";
 	for (int i = 0; i < count; i++)
 		ret += "V" + to_string(i) + ".16B,";
 	ret.pop_back();
@@ -825,64 +770,72 @@ std::list<std::string> CodeGen::ld1(const Register* stackLike, int count, int of
 	{
 		ret += ", " + immediate(offset);
 	}
-	return {ret};
+	toStr->addInstruction(ret);
 }
 
-std::list<std::string> CodeGen::st1(const MOperand* stackLike, int count, int offset)
+void CodeGen::st1(const MOperand* stackLike, int count, int offset, CodeString* toStr)
 {
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
-		return st1(i, count, offset);
+		return st1(i, count, offset, toStr);
 	}
 	throw runtime_error("unexpected");
 }
 
-std::list<std::string> CodeGen::add32(const Register* to, const Register* l, int imm)
+void CodeGen::add32(const Register* to, const Register* l, int imm, CodeString* toStr)
 {
-	if (imm < 0) return sub32(to, l, -imm);
-	if (imm == 0) return copy(to, l, 32);
+	if (imm < 0) return sub32(to, l, -imm, toStr);
+	if (imm == 0) return copy(to, l, 32, toStr);
 	if (inUImm12(imm))
-		return {instruction("ADD", regName(to, 32), regName(l, 32), immediate(imm))};
+		return toStr->addInstruction("ADD", regName(to, 32), regName(l, 32), immediate(imm));
 	if (inUImm12L12(imm))
-		return {instruction("ADD", regName(to, 32), regName(l, 32), immediate(imm >> 12), leftShift12())};
+		return toStr->addInstruction("ADD", regName(to, 32), regName(l, 32), immediate(imm >> 12), leftShift12());
 	if (inUImm24(imm))
 	{
-		auto ret = add32(to, l, imm & 4095);
-		merge(ret, add32(to, to, imm & 16773120));
-		return ret;
+		add32(to, l, imm & 4095, toStr);
+		add32(to, to, imm & 16773120, toStr);
+		return;
 	}
 	auto reg = getIP();
-	auto ret = makeI32Immediate(imm, reg);
-	merge(ret, add(to, l, reg, 32));
+	makeI32Immediate(imm, reg, toStr);
+	add(to, l, reg, 32, toStr);
 	releaseIP(reg);
-	return ret;
 }
 
-std::list<std::string> CodeGen::add64(const Register* to, const Register* l, long long imm)
+void CodeGen::add64(const Register* to, const Register* l, long long imm, CodeString* toStr)
 {
-	if (imm < 0) return sub64(to, l, -imm);
-	if (imm == 0) return copy(to, l, 64);
+	if (imm < 0)
+	{
+		sub64(to, l, -imm, toStr);
+		return;
+	}
+	if (imm == 0) { copy(to, l, 64, toStr); }
 	if (inUImm12(imm))
-		return {instruction("ADD", regName(to, 64), regName(l, 64), immediate(imm))};
+	{
+		toStr->addInstruction("ADD", regName(to, 64), regName(l, 64), immediate(imm));
+		return;
+	}
 	if (inUImm12L12(imm))
-		return {instruction("ADD", regName(to, 64), regName(l, 64), immediate(imm >> 12), leftShift12())};
+	{
+		toStr->addInstruction("ADD", regName(to, 64), regName(l, 64), immediate(imm >> 12), leftShift12());
+		return;
+	}
 	if (inUImm24(imm))
 	{
-		auto ret = add64(to, l, imm & 4095);
-		merge(ret, add64(to, to, imm & 16773120));
-		return ret;
+		add64(to, l, imm & 4095, toStr);
+		add64(to, to, imm & 16773120, toStr);
+		return;
 	}
 	auto reg = getIP();
-	auto ret = makeI64Immediate(imm, reg);
-	merge(ret, add(to, l, reg, 64));
+	makeI64Immediate(imm, reg, toStr);
+	add(to, l, reg, 64, toStr);
 	releaseIP(reg);
-	return ret;
 }
 
-std::list<std::string> CodeGen::st1(const Register* stackLike, int count, int offset)
+void CodeGen::st1(const Register* stackLike, int count, int offset, CodeString* toStr)
 {
-	if (count == 1) return str(floatRegister(0), stackLike, 128);
-	string ret = "\tST1 {";
+	if (count == 1) return str(floatRegister(0), stackLike, 128, toStr);
+	string ret = "ST1 {";
 	for (int i = 0; i < count; i++)
 		ret += "V" + to_string(i) + ".16B,";
 	ret.pop_back();
@@ -892,7 +845,7 @@ std::list<std::string> CodeGen::st1(const Register* stackLike, int count, int of
 	{
 		ret += ", " + immediate(offset);
 	}
-	return {ret};
+	toStr->addInstruction(ret);
 }
 
 // X = A + IMM
@@ -905,79 +858,71 @@ std::list<std::string> CodeGen::st1(const Register* stackLike, int count, int of
 // X = A + IMM0
 // X = X + IMM1 LSL
 
-std::list<std::string> CodeGen::sub64(const Register* to, const Register* l, long long imm)
+void CodeGen::sub64(const Register* to, const Register* l, long long imm, CodeString* toStr)
 {
-	if (imm < 0) return add64(to, l, -imm);
-	if (imm == 0) return copy(to, l, 64);
+	if (imm < 0)
+	{
+		add64(to, l, -imm, toStr);
+		return;
+	}
+	if (imm == 0)
+	{
+		copy(to, l, 64, toStr);
+		return;
+	}
 	if (inUImm12(imm))
-		return {instruction("SUB", regName(to, 64), regName(l, 64), immediate(imm))};
+	{
+		toStr->addInstruction("SUB", regName(to, 64), regName(l, 64), immediate(imm));
+		return;
+	}
 	if (inUImm12L12(imm))
-		return {instruction("SUB", regName(to, 64), regName(l, 64), immediate(imm >> 12), leftShift12())};
+	{
+		toStr->addInstruction("SUB", regName(to, 64), regName(l, 64), immediate(imm >> 12), leftShift12());
+		return;
+	}
 	if (inUImm24(imm))
 	{
-		auto ret = sub64(to, l, imm & 4095);
-		merge(ret, sub64(to, to, imm & 16773120));
-		return ret;
+		sub64(to, l, imm & 4095, toStr);
+		sub64(to, to, imm & 16773120, toStr);
+		return;
 	}
 	auto reg = getIP();
-	auto ret = makeI64Immediate(imm, reg);
-	merge(ret, sub(to, l, reg, 64));
+	makeI64Immediate(imm, reg, toStr);
+	sub(to, l, reg, 64, toStr);
 	releaseIP(reg);
-	return ret;
 }
 
-std::list<std::string> CodeGen::call(const MOperand* address)
+void CodeGen::call(const MOperand* address, CodeString* toStr)
 {
 	auto f = dynamic_cast<const FuncAddress*>(address);
 	assert(f != nullptr);
-	list<string> ret = {instruction("BL", f->function()->name())};
+	toStr->addInstruction("BL", f->function()->name());
 	if (func2Call_ != nullptr)
 	{
 		assert(f->function() == func2Call_);
-		merge(ret, add64(sp(), sp(), func2Call_->fix_move_offset()));
+		add64(sp(), sp(), func2Call_->fix_move_offset(), toStr);
 		func2Call_ = nullptr;
 	}
-	return ret;
 }
 
-std::list<std::string> CodeGen::ret()
+void CodeGen::ret(CodeString* toStr)
 {
-	auto ret = functionSuffix(func_);
-	ret.emplace_back("\tRET");
-	return ret;
+	toStr->addInstruction("RET");
 }
 
-std::list<std::string> CodeGen::bcc(const MOperand* to, Instruction::OpID cond)
+void CodeGen::cset(const MOperand* to, Instruction::OpID cond, CodeString* toStr)
 {
 	if (cond == Instruction::add)
-		return branch(to);
+		return makeI32Immediate(1, dynamic_cast<const Register*>(to), toStr);
 	if (cond == Instruction::sub)
-		return {};
-	auto bb = dynamic_cast<const BlockAddress*>(to);
-	assert(bb != nullptr);
-	return {instruction("B." + condName(cond), bb->block()->name())};
-}
-
-std::list<std::string> CodeGen::branch(const MOperand* to)
-{
-	auto bb = dynamic_cast<const BlockAddress*>(to);
-	assert(bb != nullptr);
-	return {instruction("B", bb->block()->name())};
-}
-
-std::list<std::string> CodeGen::cset(const MOperand* to, Instruction::OpID cond)
-{
-	if (cond == Instruction::add)
-		return makeI32Immediate(1, dynamic_cast<const Register*>(to));
-	if (cond == Instruction::sub)
-		return makeI32Immediate(0, dynamic_cast<const Register*>(to));
+		return makeI32Immediate(0, dynamic_cast<const Register*>(to), toStr);
 	auto bb = dynamic_cast<const Register*>(to);
 	assert(bb != nullptr);
-	return {instruction("CSET", regName(bb, 32), condName(cond))};
+	return toStr->addInstruction("CSET", regName(bb, 32), condName(cond));
 }
 
 
-std::list<std::string> CodeGen::extend32To64(const MOperand* from, const MOperand* to)
+void CodeGen::extend32To64(const MOperand* from, const MOperand* to, CodeString* toStr)
 {
 	auto f = dynamic_cast<const Register*>(from);
 	auto t = dynamic_cast<const Register*>(to);
@@ -985,13 +930,13 @@ std::list<std::string> CodeGen::extend32To64(const MOperand* from, const MOperan
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
 		long long i = imm->asInt();
-		return makeI64Immediate(i, t);
+		return makeI64Immediate(i, t, toStr);
 	}
 	assert(f);
-	return {instruction("SXTW", regName(t, 64), regName(f, 32))};
+	return toStr->addInstruction("SXTW", regName(t, 64), regName(f, 32));
 }
 
-std::list<std::string> CodeGen::f2i(const MOperand* from, const MOperand* to)
+void CodeGen::f2i(const MOperand* from, const MOperand* to, CodeString* toStr)
 {
 	auto f = dynamic_cast<const Register*>(from);
 	auto t = dynamic_cast<const Register*>(to);
@@ -999,13 +944,13 @@ std::list<std::string> CodeGen::f2i(const MOperand* from, const MOperand* to)
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
 		int i = static_cast<int>(imm->asFloat());
-		return makeI32Immediate(i, t);
+		return makeI32Immediate(i, t, toStr);
 	}
 	assert(f);
-	return {instruction("FCVTZS", regName(t, 32), regName(f, 32))};
+	return toStr->addInstruction("FCVTZS", regName(t, 32), regName(f, 32));
 }
 
-std::list<std::string> CodeGen::i2f(const MOperand* from, const MOperand* to)
+void CodeGen::i2f(const MOperand* from, const MOperand* to, CodeString* toStr)
 {
 	auto f = dynamic_cast<const Register*>(from);
 	auto t = dynamic_cast<const Register*>(to);
@@ -1013,13 +958,13 @@ std::list<std::string> CodeGen::i2f(const MOperand* from, const MOperand* to)
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
 		float i = static_cast<float>(imm->asInt());
-		return makeF32Immediate(i, t);
+		return makeF32Immediate(i, t, toStr);
 	}
 	assert(f);
-	return {instruction("SCVTF", regName(t, 32), regName(f, 32))};
+	return toStr->addInstruction("SCVTF", regName(t, 32), regName(f, 32));
 }
 
-std::list<std::string> CodeGen::compare(const MCMP* inst, const MOperand* l, const MOperand* r, bool flt)
+void CodeGen::compare(const MCMP* inst, const MOperand* l, const MOperand* r, bool flt, CodeString* toStr)
 {
 	auto lm = dynamic_cast<const Immediate*>(l);
 	auto rm = dynamic_cast<const Immediate*>(r);
@@ -1034,66 +979,100 @@ std::list<std::string> CodeGen::compare(const MCMP* inst, const MOperand* l, con
 			bool b = lm->asFloat() > rm->asFloat();
 			bool e = lm->asFloat() == rm->asFloat();
 			if (b)
-				decideCond(inst->tiedWith_, 1);
+			{
+				if (inst->tiedB_)
+					decideCond(inst->tiedB_, 1);
+				if (inst->tiedC_)
+					decideCond(inst->tiedC_, 1);
+			}
 			else if (e)
-				decideCond(inst->tiedWith_, 0);
-			else decideCond(inst->tiedWith_, -1);
-			return {};
+			{
+				if (inst->tiedB_)
+					decideCond(inst->tiedB_, 0);
+				if (inst->tiedC_)
+					decideCond(inst->tiedC_, 0);
+			}
+			else
+			{
+				if (inst->tiedB_)
+					decideCond(inst->tiedB_, -1);
+				if (inst->tiedC_)
+					decideCond(inst->tiedC_, -1);
+			}
+			return;
 		}
 		if (lm && lm->isZero(true, 32))
 		{
 			reverseCmpOp(inst);
-			return {instruction("FCMP", regName(rr, 32), immediate(0))};
+			toStr->addInstruction("FCMP", regName(rr, 32), immediate(0));
+			return;
 		}
 		if (rm && rm->isZero(true, 32))
-			return {instruction("FCMP", regName(lr, 32), immediate(0))};
-		list<string> ret;
-		lr = op2reg(l, 32, false, ret);
-		rr = op2reg(r, 32, false, ret);
-		ret.emplace_back(instruction("FCMP", regName(lr, 32), regName(rr, 32)));
+		{
+			toStr->addInstruction("FCMP", regName(lr, 32), immediate(0));
+			return;
+		}
+		lr = op2reg(l, 32, false, toStr);
+		rr = op2reg(r, 32, false, toStr);
+		toStr->addInstruction("FCMP", regName(lr, 32), regName(rr, 32));
 		releaseIP(lr);
 		releaseIP(rr);
-		return ret;
+		return;
 	}
 	if (lm && rm)
 	{
 		bool b = lm->asInt() > rm->asInt();
 		bool e = lm->asInt() == rm->asInt();
 		if (b)
-			decideCond(inst->tiedWith_, 1);
+		{
+			if (inst->tiedB_)
+				decideCond(inst->tiedB_, 1);
+			if (inst->tiedC_)
+				decideCond(inst->tiedC_, 1);
+		}
 		else if (e)
-			decideCond(inst->tiedWith_, 0);
-		else decideCond(inst->tiedWith_, -1);
-		return {};
+		{
+			if (inst->tiedB_)
+				decideCond(inst->tiedB_, 0);
+			if (inst->tiedC_)
+				decideCond(inst->tiedC_, 0);
+		}
+		else
+		{
+			if (inst->tiedB_)
+				decideCond(inst->tiedB_, -1);
+			if (inst->tiedC_)
+				decideCond(inst->tiedC_, -1);
+		}
+		return;
 	}
 	if (lm && (inUImm12(lm->asInt()) || inUImm12L12(lm->asInt())))
 	{
 		reverseCmpOp(inst);
-		return {instruction("CMP", regName(rr, 32), immediate(lm->asInt()))};
+		toStr->addInstruction("CMP", regName(rr, 32), immediate(lm->asInt()));
+		return;
 	}
 	if (rm && (inUImm12(rm->asInt()) || inUImm12L12(rm->asInt())))
-		return {instruction("CMP", regName(lr, 32), immediate(rm->asInt()))};
-	list<string> ret;
-	lr = op2reg(l, 32, true, ret);
-	rr = op2reg(r, 32, true, ret);
-	ret.emplace_back(instruction("CMP", regName(lr, 32), regName(rr, 32)));
+	{
+		toStr->addInstruction("CMP", regName(lr, 32), immediate(rm->asInt()));
+		return;
+	}
+	lr = op2reg(l, 32, true, toStr);
+	rr = op2reg(r, 32, true, toStr);
+	toStr->addInstruction("CMP", regName(lr, 32), regName(rr, 32));
 	releaseIP(lr);
 	releaseIP(rr);
-	return ret;
 }
-
 
 void CodeGen::reverseCmpOp(const MCMP* inst)
 {
-	auto next = inst->tiedWith_;
-	assert(next != nullptr);
-	auto cset = dynamic_cast<MCSET*>(next);
+	auto cset = inst->tiedC_;
 	if (cset != nullptr)
 	{
 		cset->op_ = lrShiftOp(cset->op_);
 		return;
 	}
-	auto bcc = dynamic_cast<MBcc*>(next);
+	auto bcc = inst->tiedB_;
 	if (bcc != nullptr)
 	{
 		bcc->op_ = lrShiftOp(bcc->op_);
@@ -1102,176 +1081,162 @@ void CodeGen::reverseCmpOp(const MCMP* inst)
 	assert(false);
 }
 
-std::list<std::string> CodeGen::sub32(const Register* to, const Register* l, int imm)
+void CodeGen::sub32(const Register* to, const Register* l, int imm, CodeString* toStr)
 {
-	if (imm < 0) return add32(to, l, -imm);
-	if (imm == 0) return copy(to, l, 32);
+	if (imm < 0) return add32(to, l, -imm, toStr);
+	if (imm == 0) return copy(to, l, 32, toStr);
 	if (inUImm12(imm))
-		return {instruction("SUB", regName(to, 32), regName(l, 32), immediate(imm))};
+		return toStr->addInstruction("SUB", regName(to, 32), regName(l, 32), immediate(imm));
 	if (inUImm12L12(imm))
-		return {instruction("SUB", regName(to, 32), regName(l, 32), immediate(imm >> 12), leftShift12())};
+		return toStr->addInstruction("SUB", regName(to, 32), regName(l, 32), immediate(imm >> 12), leftShift12());
 	if (inUImm24(imm))
 	{
-		auto ret = sub32(to, l, imm & 4095);
-		merge(ret, sub32(to, to, imm & 16773120));
-		return ret;
+		sub32(to, l, imm & 4095, toStr);
+		sub32(to, to, imm & 16773120, toStr);
+		return;
 	}
 	auto reg = getIP();
-	auto ret = makeI32Immediate(imm, reg);
-	merge(ret, sub(to, l, reg, 32));
+	makeI32Immediate(imm, reg, toStr);
+	sub(to, l, reg, 32, toStr);
 	releaseIP(reg);
-	return ret;
 }
 
-std::list<std::string> CodeGen::sub(const Register* to, const Register* l, const Register* r, int len)
+void CodeGen::sub(const Register* to, const Register* l, const Register* r, int len, CodeString* toStr)
 {
-	return {instruction("SUB", regName(to, len), regName(l, len), regName(r, len))};
+	toStr->addInstruction("SUB", regName(to, len), regName(l, len), regName(r, len));
 }
 
-std::list<std::string> CodeGen::mathRRInst(const Register* to, const Register* l, const Register* r,
-                                           Instruction::OpID op, int len)
+void CodeGen::mathRRInst(const Register* to, const Register* l, const Register* r,
+                         Instruction::OpID op, int len, CodeString* toStr)
 {
 	switch (op) // NOLINT(clang-diagnostic-switch-enum)
 	{
-		case Instruction::add: return add(to, l, r, len);
-		case Instruction::sub: return sub(to, l, r, len);
-		case Instruction::mul: return {instruction("MUL", regName(to, len), regName(l, len), regName(r, len))};
-		case Instruction::sdiv: return {instruction("SDIV", regName(to, len), regName(l, len), regName(r, len))};
+		case Instruction::add: return add(to, l, r, len, toStr);
+		case Instruction::sub: return sub(to, l, r, len, toStr);
+		case Instruction::mul: return toStr->addInstruction("MUL", regName(to, len), regName(l, len), regName(r, len));
+		case Instruction::sdiv: return toStr->
+				addInstruction("SDIV", regName(to, len), regName(l, len), regName(r, len));
 		case Instruction::srem:
 			{
 				auto ip = getIP();
-				list ret = {
-					instruction("SDIV", regName(ip, len), regName(l, len),
-					            regName(r, len))
-				};
-				ret.emplace_back(instruction("MSUB", regName(to, len), regName(ip, len),
-				                             regName(r, len),
-				                             regName(l, len)));
+				toStr->addInstruction("SDIV", regName(ip, len), regName(l, len),
+				                      regName(r, len));
+				toStr->addInstruction("MSUB", regName(to, len), regName(ip, len),
+				                      regName(r, len),
+				                      regName(l, len));
 				releaseIP(ip);
-				return ret;
+				return;
 			}
 		default: break;
 	}
 	throw runtime_error("unexpected");
 }
 
-std::list<std::string> CodeGen::fsub(const Register* to, const Register* l, const Register* r)
+void CodeGen::fsub(const Register* to, const Register* l, const Register* r, CodeString* toStr)
 {
-	return {instruction("FSUB", regName(to, 32), regName(l, 32), regName(r, 32))};
+	return toStr->addInstruction("FSUB", regName(to, 32), regName(l, 32), regName(r, 32));
 }
 
-std::list<std::string> CodeGen::copy(const Register* to, const Register* from, int len)
+void CodeGen::copy(const Register* to, const Register* from, int len, CodeString* toStr)
 {
-	if (to == from) return {};
+	if (to == from) return;
 	if (to->isIntegerRegister() && from->isIntegerRegister())
-		return {instruction("MOV", regName(to, len), regName(from, len))};
+		return toStr->addInstruction("MOV", regName(to, len), regName(from, len));
 	assert(len == 32);
-	return {instruction("FMOV", regName(to, len), regName(from, len))};
+	return toStr->addInstruction("FMOV", regName(to, len), regName(from, len));
 }
 
-std::list<std::string> CodeGen::copy(const Register* to, const Immediate* from, int len)
+void CodeGen::copy(const Register* to, const Immediate* from, int len, CodeString* toStr)
 {
 	if (to->isIntegerRegister())
 	{
-		if (len == 32) return makeI32Immediate(from->asInt(), to);
-		return makeI64Immediate(from->as64BitsInt(), to);
+		if (len == 32) return makeI32Immediate(from->asInt(), to, toStr);
+		return makeI64Immediate(from->as64BitsInt(), to, toStr);
 	}
-	return makeF32Immediate(from->asFloat(), to);
+	makeF32Immediate(from->asFloat(), to, toStr);
 }
 
-std::list<std::string> CodeGen::copy(const MOperand* to, const MOperand* from, int len)
+void CodeGen::copy(const MOperand* to, const MOperand* from, int len, CodeString* toStr)
 {
 	assert(len == 32 || len == 64);
 	auto tor = dynamic_cast<const Register*>(to);
 	assert(tor);
 	if (const Register* fromr = dynamic_cast<const Register*>(from); fromr != nullptr)
-		return copy(tor, fromr, len);
+	{
+		copy(tor, fromr, len, toStr);
+		return;
+	}
 	if (const Immediate* fromr = dynamic_cast<const Immediate*>(from); fromr != nullptr)
-		return copy(tor, fromr, len);
+	{
+		copy(tor, fromr, len, toStr);
+		return;
+	}
 	if (const GlobalAddress* fromr = dynamic_cast<const GlobalAddress*>(from); fromr != nullptr)
-		return copy(tor, fromr, len);
+	{
+		copy(tor, fromr, len, toStr);
+		return;
+	}
 	if (const FrameIndex* fromr = dynamic_cast<const FrameIndex*>(from); fromr != nullptr)
-		return copy(tor, fromr, len);
+	{
+		copy(tor, fromr, len, toStr);
+		return;
+	}
 	throw runtime_error("unexpected");
 }
 
-std::list<std::string> CodeGen::copy(const Register* to, const GlobalAddress* from, int len)
+void CodeGen::copy(const Register* to, const GlobalAddress* from, int len, CodeString* toStr)
 {
 	assert(len == 64);
-	return {instruction("LDR", regName(to, 64), "=" + from->name_)};
+	return toStr->addInstruction("LDR", regName(to, 64), "=" + from->name_);
 }
 
-std::list<std::string> CodeGen::copy(const Register* to, const FrameIndex* from, int len)
+void CodeGen::copy(const Register* to, const FrameIndex* from, int len, CodeString* toStr)
 {
 	list<string> ret;
-	auto offset = frameOffset(from, false, ret);
-	merge(ret, add64(to, sp(), offset));
-	return ret;
+	auto offset = frameOffset(from, false, toStr);
+	add64(to, sp(), offset, toStr);
 }
 
-std::list<std::string> CodeGen::makeInstruction(MInstruction* instruction)
+void CodeGen::makeInstruction(MInstruction* instruction)
 {
-	list<string> l;
+	instruction->str = new CodeString{};
+	auto toStr = instruction->str;
 	RUN(l.emplace_back(color::green("# " + instruction->print())));
 	if (auto i = dynamic_cast<MCopy*>(instruction); i != nullptr)
-		merge(l, copy(instruction->operands()[1], instruction->operands()[0], (i->copy_len())));
+		copy(instruction->operands()[1], instruction->operands()[0], (i->copy_len()), toStr);
 	else if (auto i2 = dynamic_cast<MSTR*>(instruction); i2 != nullptr)
-		merge(l, str(instruction->operands()[0], instruction->operands()[1], (i2->width())));
+		str(instruction->operands()[0], instruction->operands()[1], (i2->width()), toStr);
 	else if (auto i3 = dynamic_cast<MLDR*>(instruction); i3 != nullptr)
-		merge(l, ldr(instruction->operands()[0], instruction->operands()[1], (i3->width())));
+		ldr(instruction->operands()[0], instruction->operands()[1], (i3->width()), toStr);
 	else if (auto i4 = dynamic_cast<MST1V16B*>(instruction); i4 != nullptr)
-		merge(l, st1(instruction->operands()[0], i4->storeCount_, i4->offset_));
+		st1(instruction->operands()[0], i4->storeCount_, i4->offset_, toStr);
 	else if (auto i5 = dynamic_cast<MLD1V16B*>(instruction); i5 != nullptr)
-		merge(l, ld1(instruction->operands()[0], i5->loadCount_, i5->offset_));
+		ld1(instruction->operands()[0], i5->loadCount_, i5->offset_, toStr);
 	else if (auto i6 = dynamic_cast<MST1ZTV16B*>(instruction); i6 != nullptr)
-		merge(l, clearV(i6->loadCount_));
+		clearV(i6->loadCount_, toStr);
 	else if (auto i7 = dynamic_cast<MMathInst*>(instruction); i7 != nullptr)
-		merge(l, mathInst(i7, instruction->operands()[0], instruction->operands()[1], instruction->operands()[2],
-		                  i7->op(),
-		                  (i7->width())));
+		mathInst(i7, instruction->operands()[0], instruction->operands()[1], instruction->operands()[2],
+		         i7->op(),
+		         (i7->width()), toStr);
 	else if (auto i8 = dynamic_cast<MBL*>(instruction); i8 != nullptr)
-		merge(l, call(instruction->operands()[0]));
+		call(instruction->operands()[0], toStr);
 	else if (auto i9 = dynamic_cast<MRet*>(instruction); i9 != nullptr)
-		merge(l, ret());
-	else if (auto i10 = dynamic_cast<MBcc*>(instruction); i10 != nullptr)
-		merge(l, bcc(i10->operands()[0], i10->op()));
-	else if (auto i11 = dynamic_cast<MB*>(instruction); i11 != nullptr)
-		merge(l, branch(i11->operands()[0]));
+		ret(toStr);
 	else if (auto i12 = dynamic_cast<MCMP*>(instruction); i12 != nullptr)
-		merge(l, compare(i12, i12->operands()[0], i12->operands()[1], !i12->itff_));
+		compare(i12, i12->operands()[0], i12->operands()[1], !i12->itff_, toStr);
 	else if (auto i13 = dynamic_cast<MCSET*>(instruction); i13 != nullptr)
-		merge(l, cset(i13->operands()[0], i13->op_));
+		cset(i13->operands()[0], i13->op_, toStr);
 	else if (auto i14 = dynamic_cast<MFCVTZS*>(instruction); i14 != nullptr)
-		merge(l, f2i(i14->operands()[1], i14->operands()[0]));
+		f2i(i14->operands()[1], i14->operands()[0], toStr);
 	else if (auto i15 = dynamic_cast<MSCVTF*>(instruction); i15 != nullptr)
-		merge(l, i2f(i15->operands()[1], i15->operands()[0]));
+		i2f(i15->operands()[1], i15->operands()[0], toStr);
 	else if (auto i16 = dynamic_cast<MSXTW*>(instruction); i16 != nullptr)
-		merge(l, extend32To64(i16->operands()[0], i16->operands()[1]));
+		extend32To64(i16->operands()[0], i16->operands()[1], toStr);
+	else if (auto i10 = dynamic_cast<MB*>(instruction); i10 != nullptr)
+	{
+	}
 	else
 		assert(false);
-	return l;
-}
-
-std::string CodeGen::instruction(const std::string& name, const std::string& op1, const std::string& op2,
-                                 const std::string& op3)
-{
-	return "\t" + name + " " + op1 + ", " + op2 + ", " + op3;
-}
-
-std::string CodeGen::instruction(const std::string& name, const std::string& op1, const std::string& op2,
-                                 const std::string& op3, const std::string& op4)
-{
-	return "\t" + name + " " + op1 + ", " + op2 + ", " + op3 + ", " + op4;
-}
-
-std::string CodeGen::instruction(const std::string& name, const std::string& op1, const std::string& op2)
-{
-	return "\t" + name + " " + op1 + ", " + op2;
-}
-
-std::string CodeGen::instruction(const std::string& name, const std::string& op1)
-{
-	return "\t" + name + " " + op1;
 }
 
 std::string CodeGen::regName(const Register* reg, int len)
@@ -1327,10 +1292,10 @@ Register* CodeGen::floatRegister(int i) const
 	return m_->fregs_[i];
 }
 
-void CodeGen::decideCond(MInstruction* instruction, int cond)
+void CodeGen::decideCond(MInstruction* instruction, int cond) const
 {
 	Instruction::OpID op;
-	auto b = dynamic_cast<MBcc*>(instruction);
+	auto b = dynamic_cast<MB*>(instruction);
 	auto cset = dynamic_cast<MCSET*>(instruction);
 	if (b != nullptr) op = b->op_;
 	else
@@ -1376,7 +1341,11 @@ void CodeGen::decideCond(MInstruction* instruction, int cond)
 	op = Instruction::add;
 	if (!ok) op = Instruction::sub;
 	if (b == nullptr) cset->op_ = op;
-	else b->op_ = op;
+	else
+	{
+		if (!ok) b->removeL();
+		else b->removeR();
+	}
 }
 
 
@@ -1391,16 +1360,16 @@ Register* CodeGen::zeroRegister() const
 }
 
 
-std::list<std::string> CodeGen::makeI64Immediate(long long i, const Register* placeIn)
+void CodeGen::makeI64Immediate(long long i, const Register* placeIn, CodeString* toStr)
 {
-	if (i == 0) return copy(placeIn, zeroRegister(), 32);
+	if (i == 0) return copy(placeIn, zeroRegister(), 32, toStr);
 	if (useZRRegisterAsCommonRegister)
 	{
 		if (i > 0)
 		{
-			if (inUImm12(i) || inUImm12L12(i)) return add32(placeIn, zeroRegister(), static_cast<int>(i));
+			if (inUImm12(i) || inUImm12L12(i)) return add32(placeIn, zeroRegister(), static_cast<int>(i), toStr);
 		}
-		else if (inUImm12(-i) || inUImm12L12(-i)) return sub32(placeIn, zeroRegister(), static_cast<int>(-i));
+		else if (inUImm12(-i) || inUImm12L12(-i)) return sub32(placeIn, zeroRegister(), static_cast<int>(-i), toStr);
 	}
 	unsigned a[4] = {
 		static_cast<unsigned>(ll2ullKeepBits((i >> 48) & 65535)),
@@ -1420,44 +1389,42 @@ std::list<std::string> CodeGen::makeI64Immediate(long long i, const Register* pl
 	int count = 4 - (uz ? zc : nc);
 	if (count > useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan)
 	{
-		return {instruction("LDR", regName(placeIn, 64), poolImmediate(i))};
+		return toStr->addInstruction("LDR", regName(placeIn, 64), poolImmediate(i));
 	}
-	list<string> l;
 	if (uz)
 	{
-		l.emplace_back(instruction("MOVZ", regName(placeIn, 64), immediate(a[3])));
+		toStr->addInstruction("MOVZ", regName(placeIn, 64), immediate(a[3]));
 		for (int t = 2; t > -1; t--)
 		{
 			if (a[t] != 0u)
-				l.emplace_back(instruction("MOVK", regName(placeIn, 64),
-				                           immediate(a[t]), leftShift(offset[t])));
+				toStr->addInstruction("MOVK", regName(placeIn, 64),
+				                      immediate(a[t]), leftShift(offset[t]));
 		}
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(placeIn, 64), immediate((~a[3]) & 65535u)));
+		toStr->addInstruction("MOVN", regName(placeIn, 64), immediate((~a[3]) & 65535u));
 		for (int t = 2; t > -1; t--)
 		{
 			if (a[t] != 65535u)
-				l.emplace_back(instruction("MOVK", regName(placeIn, 64),
-				                           immediate(a[t]), leftShift(offset[t])));
+				toStr->addInstruction("MOVK", regName(placeIn, 64),
+				                      immediate(a[t]), leftShift(offset[t]));
 		}
 	}
-	return l;
 }
 
-std::list<std::string> CodeGen::makeI32Immediate(int i, const Register* placeIn)
+void CodeGen::makeI32Immediate(int i, const Register* placeIn, CodeString* toStr)
 {
-	if (i == 0) return copy(placeIn, zeroRegister(), 32);
+	if (i == 0) return copy(placeIn, zeroRegister(), 32, toStr);
 	if (useZRRegisterAsCommonRegister)
 	{
 		if (i > 0)
 		{
-			if (inUImm12(i) || inUImm12L12(i)) return add32(placeIn, zeroRegister(), i);
+			if (inUImm12(i) || inUImm12L12(i)) return add32(placeIn, zeroRegister(), i, toStr);
 		}
 		else
 		{
-			if (inUImm12(-i) || inUImm12L12(-i)) return sub32(placeIn, zeroRegister(), -i);
+			if (inUImm12(-i) || inUImm12L12(-i)) return sub32(placeIn, zeroRegister(), -i, toStr);
 		}
 	}
 	unsigned a[2] = {
@@ -1472,32 +1439,30 @@ std::list<std::string> CodeGen::makeI32Immediate(int i, const Register* placeIn)
 	int count = 2 - (uz ? zc : nc);
 	if (count > useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan)
 	{
-		return {instruction("LDR", regName(placeIn, 32), poolImmediate(i))};
+		return toStr->addInstruction("LDR", regName(placeIn, 32), poolImmediate(i));
 	}
-	list<string> l;
 	if (uz)
 	{
-		l.emplace_back(instruction("MOVZ", regName(placeIn, 32), immediate(a[1])));
+		toStr->addInstruction("MOVZ", regName(placeIn, 32), immediate(a[1]));
 		if (a[0] != 0u)
-			l.emplace_back(instruction("MOVK", regName(placeIn, 32),
-			                           immediate(a[0]), leftShift(offset[0])));
+			toStr->addInstruction("MOVK", regName(placeIn, 32),
+			                      immediate(a[0]), leftShift(offset[0]));
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(placeIn, 32), immediate(~a[1] & 65535u)));
+		toStr->addInstruction("MOVN", regName(placeIn, 32), immediate(~a[1] & 65535u));
 		if (a[0] != 65535u)
-			l.emplace_back(instruction("MOVK", regName(placeIn, 32),
-			                           immediate(a[0]), leftShift(offset[0])));
+			toStr->addInstruction("MOVK", regName(placeIn, 32),
+			                      immediate(a[0]), leftShift(offset[0]));
 	}
-	return l;
 }
 
-std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeIn)
+void CodeGen::makeF32Immediate(float i, const Register* placeIn, CodeString* toStr)
 {
 	unsigned u = 0;
 	memcpy(&u, &i, sizeof(float));
 	if (floatMovSupport(u))
-		return {instruction("FMOV", regName(placeIn, 32), fimmediate(i))};
+		return toStr->addInstruction("FMOV", regName(placeIn, 32), fimmediate(i));
 	unsigned a[2] = {
 		((u >> 16u) & 65535u), (u & 65535u)
 	};
@@ -1508,11 +1473,11 @@ std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeI
 	{
 		if (cu > 0)
 		{
-			if (inUImm12(cu) || inUImm12L12(cu)) return add32(placeIn, zeroRegister(), cu);
+			if (inUImm12(cu) || inUImm12L12(cu)) return add32(placeIn, zeroRegister(), cu, toStr);
 		}
 		else
 		{
-			if (inUImm12(-cu) || inUImm12L12(-cu)) return sub32(placeIn, zeroRegister(), -cu);
+			if (inUImm12(-cu) || inUImm12L12(-cu)) return sub32(placeIn, zeroRegister(), -cu, toStr);
 		}
 	}
 
@@ -1525,40 +1490,40 @@ std::list<std::string> CodeGen::makeF32Immediate(float i, const Register* placeI
 	int count = 2 - (uz ? zc : nc);
 	if (count > useLDRInsteadOfMov2CreateFloatWhenMovCountBiggerThan)
 	{
-		return {instruction("LDR", regName(placeIn, 32), poolImmediate(u))};
+		return toStr->addInstruction("LDR", regName(placeIn, 32), poolImmediate(u));
 	}
 	auto reg = getIP();
-	list<string> l;
 	if (uz)
 	{
-		l.emplace_back(instruction("MOVZ", regName(reg, 32), immediate(a[1])));
+		toStr->addInstruction("MOVZ", regName(reg, 32), immediate(a[1]));
 		if (a[0] != 0u)
-			l.emplace_back(instruction("MOVK", regName(reg, 32),
-			                           immediate(a[0]), leftShift(offset[0])));
+			toStr->addInstruction("MOVK", regName(reg, 32),
+			                      immediate(a[0]), leftShift(offset[0]));
 	}
 	else
 	{
-		l.emplace_back(instruction("MOVN", regName(reg, 32), immediate(~a[1] & 65535u)));
+		toStr->addInstruction("MOVN", regName(reg, 32), immediate(~a[1] & 65535u));
 		if (a[0] != 65535u)
-			l.emplace_back(instruction("MOVK", regName(reg, 32),
-			                           immediate(a[0]), leftShift(offset[0])));
+			toStr->addInstruction("MOVK", regName(reg, 32),
+			                      immediate(a[0]), leftShift(offset[0]));
 	}
-	merge(l, copy(placeIn, reg, 32));
+	copy(placeIn, reg, 32, toStr);
 	releaseIP(reg);
-	return l;
 }
 
-std::list<std::string> CodeGen::makeImmediate(const Immediate* i, bool flt, int len, const Register* placeIn)
+void CodeGen::makeImmediate(const Immediate* i, bool flt, int len, const Register* placeIn, CodeString* toStr)
 {
 	assert(len == 32 || len == 64);
 	if (flt)
 	{
 		assert(len == 32);
 		assert(placeIn->isIntegerRegister() == false);
-		return makeF32Immediate(i->asFloat(), placeIn);
+		return makeF32Immediate(i->asFloat(), placeIn, toStr);
 	}
 	assert(placeIn->isIntegerRegister());
-	return len == 32 ? makeI32Immediate(i->asInt(), placeIn) : makeI64Immediate(i->as64BitsInt(), placeIn);
+	return len == 32
+		       ? makeI32Immediate(i->asInt(), placeIn, toStr)
+		       : makeI64Immediate(i->as64BitsInt(), placeIn, toStr);
 }
 
 std::string CodeGen::leftShift12()
@@ -1646,11 +1611,6 @@ __memclr__4:
 	.size __memclr__, .-__memclr__)123";
 }
 
-void CodeGen::merge(std::list<std::string>& l, const std::list<std::string>& r)
-{
-	for (const auto& basic_string : r) l.emplace_back(basic_string);
-}
-
 bool CodeGen::canLSInOneSPMove(const std::vector<pair<Register*, long long>>& offsets)
 {
 	if (offsets.empty()) return true;
@@ -1671,7 +1631,7 @@ bool CodeGen::canLSInOneSPMove(const std::vector<pair<Register*, long long>>& of
 // 区分不同的参数栈帧: caller 永远不会往自己的参数栈帧存值, 只会往 callee 的栈帧存值
 
 // 获得 FrameIndex 在当前语境偏移, 如必要, 插入函数调用前的 SP 移动
-long long CodeGen::frameOffset(const FrameIndex* index, bool isStore, list<string>& appendSlot)
+long long CodeGen::frameOffset(const FrameIndex* index, bool isStore, CodeString* appendSlot)
 {
 	if (func2Call_)
 	{
@@ -1685,7 +1645,7 @@ long long CodeGen::frameOffset(const FrameIndex* index, bool isStore, list<strin
 	}
 	if (!index->stack_t_fix_f() && isStore)
 	{
-		merge(appendSlot, sub64(sp(), sp(), index->func()->fix_move_offset()));
+		sub64(sp(), sp(), index->func()->fix_move_offset(), appendSlot);
 		func2Call_ = index->func();
 		return frameOffset(index, isStore, appendSlot);
 	}
@@ -1799,34 +1759,34 @@ void CodeGen::releaseBuf(int id)
 	opbuffer[id] = nullptr;
 }
 
-CodeGen::CodeGen(MModule* m): m_(m)
+CodeGen::CodeGen(MModule* m): MachinePass(m)
 {
 }
 
 void CodeGen::run()
 {
+	m_->modulePrefix_ = new CodeString{};
+	m_->moduleSuffix_ = new CodeString{};
 	if (const auto globalConstants = m_->constGlobalAddresses(); !globalConstants.empty())
 	{
-		append(section("section .rodata, \"a\", @progbits"));
+		m_->modulePrefix_->addSection("section .rodata, \"a\", @progbits");
 		for (auto& glob : globalConstants)
-			append(makeGlobal(glob));
+			(makeGlobal(glob));
 	}
 	if (const auto globalZeros = m_->ncZeroGlobalAddresses(); !globalZeros.empty())
 	{
-		append(section("bss"));
+		m_->modulePrefix_->addSection("bss");
 		for (auto& glob : globalZeros)
-			append(makeGlobal(glob));
+			(makeGlobal(glob));
 	}
 	if (const auto globals = m_->ncnzGlobalAddresses(); !globals.empty())
 	{
-		append(section("data"));
+		m_->modulePrefix_->addSection("data");
 		for (auto& glob : globals)
-			append(makeGlobal(glob));
+			(makeGlobal(glob));
 	}
-	append(section("text"));
-	append(align(4, false));
-	for (auto& f : m_->functions())
-		f->rankFrameIndexesAndCalculateOffsets();
+	m_->modulePrefix_->addSection("text");
+	m_->modulePrefix_->addAlign(4, false);
 	bool haveMemcpy = false;
 	bool haveMemclr = false;
 	int cpid = m_->memcpy_->id();
@@ -1834,21 +1794,10 @@ void CodeGen::run()
 	for (auto& f : m_->functions())
 	{
 		func_ = f;
-		append(makeFunction(f));
+		makeFunction();
 		if (!haveMemcpy && f->called().test(cpid)) haveMemcpy = true;
 		if (!haveMemclr && f->called().test(clid)) haveMemclr = true;
 	}
-	if (haveMemcpy) append(genMemcpy());
-	if (haveMemclr) append(genMemclr());
-}
-
-std::string CodeGen::print() const
-{
-	string ret;
-	for (auto& i : txt_)
-	{
-		ret += i;
-		ret += '\n';
-	}
-	return ret;
+	if (haveMemcpy) m_->moduleSuffix_->addCommonStr(genMemcpy());
+	if (haveMemclr)m_->moduleSuffix_->addCommonStr(genMemclr());
 }

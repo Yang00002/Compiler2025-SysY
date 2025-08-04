@@ -3,7 +3,7 @@
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Constant.hpp"
 #include "Util.hpp"
 

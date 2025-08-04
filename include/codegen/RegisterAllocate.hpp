@@ -1,8 +1,9 @@
 #pragma once
 #include "InterfereGraph.hpp"
 #include "LiveMessage.hpp"
+#include "MachinePassManager.hpp"
 
-class GraphColorSolver
+class RegisterAllocate : public MachinePass
 {
 public:
 	[[nodiscard]] LiveMessage* live_message() const
@@ -28,6 +29,6 @@ public:
 		return module_;
 	}
 
-	GraphColorSolver(MModule* module);
-	void run();
+	RegisterAllocate(MModule* module);
+	void run() override;
 };

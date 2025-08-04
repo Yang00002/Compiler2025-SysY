@@ -7,7 +7,7 @@
 #include "Config.hpp"
 #include "Constant.hpp"
 #include "Instruction.hpp"
-#include "MachineIR.hpp"
+#include "MachineFunction.hpp"
 #include "MachineInstruction.hpp"
 #include "MachineOperand.hpp"
 #include "Type.hpp"
@@ -23,22 +23,6 @@ namespace
 		if (instruction->is_fcmp()) return static_cast<Instruction::OpID>(ty - 6);
 		return ty;
 	}
-
-	Instruction::OpID reverseOp(Instruction::OpID op)
-	{
-		// ReSharper disable once CppDefaultCaseNotHandledInSwitchStatement
-		// ReSharper disable once CppIncompleteSwitchStatement
-		switch (op) // NOLINT(clang-diagnostic-switch)
-		{
-			case Instruction::ge: return Instruction::lt;
-			case Instruction::gt: return Instruction::le;
-			case Instruction::le: return Instruction::gt;
-			case Instruction::lt: return Instruction::ge;
-			case Instruction::eq: return Instruction::ne;
-			case Instruction::ne: return Instruction::eq;
-		}
-		throw runtime_error("invalid op");
-	}
 }
 
 
@@ -49,6 +33,7 @@ MBasicBlock::MBasicBlock(std::string name, MFunction* function) : function_(func
 MBasicBlock::~MBasicBlock()
 {
 	for (auto i : instructions_) delete i;
+	delete blockPrefix_;
 }
 
 MBasicBlock* MBasicBlock::createBasicBlock(const std::string& name, MFunction* function)
@@ -162,37 +147,19 @@ void MBasicBlock::acceptBranchInst(Instruction* instruction, std::map<BasicBlock
 		auto f = BlockAddress::get(bmap[dynamic_cast<BasicBlock*>(br->get_operand(2))]);
 		auto op0 = dynamic_cast<Instruction*>(br->get_operand(0));
 		auto inst = dynamic_cast<MCMP*>(block->instructions().back());
+		if (inst == nullptr) inst = dynamic_cast<MCMP*>(block->instructions()[block->instructions().size() - 2]);
 		assert(inst != nullptr);
 		auto op = asCmpGetOp(op0);
-		if (f->block() == next_)
-		{
-			auto cmp = new MBcc{block, op, t};
-			inst->tiedWith_ = cmp;
-			instructions_.emplace_back(cmp);
-		}
-		else if (t->block() == next_)
-		{
-			auto cmp = new MBcc{block, reverseOp(op), f};
-			inst->tiedWith_ = cmp;
-			instructions_.emplace_back(cmp);
-		}
-		else
-		{
-			auto cmp = new MBcc{block, op, t};
-			inst->tiedWith_ = cmp;
-			auto cmp1 = new MB{block, f};
-			instructions_.emplace_back(cmp);
-			instructions_.emplace_back(cmp1);
-		}
+		auto cmp = new MB{block, op, t, f};
+		inst->tiedB_ = cmp;
+		cmp->tiedWith_ = inst;
+		instructions_.emplace_back(cmp);
 	}
 	else
 	{
 		auto t = BlockAddress::get(bmap[dynamic_cast<BasicBlock*>(br->get_operand(0))]);
-		if (t->block() != next_)
-		{
-			auto cmp = new MB{block, t};
-			instructions_.emplace_back(cmp);
-		}
+		auto cmp = new MB{block, t};
+		instructions_.emplace_back(cmp);
 	}
 }
 
@@ -265,7 +232,9 @@ void MBasicBlock::acceptStoreInst(const Instruction* instruction, std::map<Value
 {
 	auto regLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
 	auto stackLike = block->function()->getOperandFor(instruction->get_operand(1), opMap);
-	auto ret = new MSTR{block, regLike, stackLike, u2iNegThrow(instruction->get_operand(0)->get_type()->sizeInBitsInArm64())};
+	auto ret = new MSTR{
+		block, regLike, stackLike, u2iNegThrow(instruction->get_operand(0)->get_type()->sizeInBitsInArm64())
+	};
 	instructions_.emplace_back(ret);
 }
 
@@ -578,7 +547,7 @@ void MBasicBlock::mergePhiCopies(std::list<MCopy*>& copies)
 			instructions_.emplace_back(cp);
 		return;
 	}
-	if (dynamic_cast<MBcc*>(instructions_.back()) != nullptr || dynamic_cast<MB*>(instructions_.back()) != nullptr)
+	if (dynamic_cast<MB*>(instructions_.back()) != nullptr)
 	{
 		auto bcc = instructions_.back();
 		instructions_.pop_back();
@@ -599,7 +568,8 @@ void MBasicBlock::acceptZextInst(Instruction* instruction, std::map<Value*, MOpe
 	auto inst = dynamic_cast<MCMP*>(block->instructions().back());
 	assert(inst != nullptr);
 	auto cmp = new MCSET{block, op, t};
-	inst->tiedWith_ = cmp;
+	inst->tiedC_ = cmp;
+	cmp->tiedWith_ = inst;
 	instructions_.emplace_back(cmp);
 }
 
@@ -708,6 +678,79 @@ void MBasicBlock::acceptCopyInst(Instruction* instruction, std::map<Value*, MOpe
 	auto f = function()->getOperandFor(instruction, opMap);
 	function()->replaceAllOperands(f, t);
 	opMap[instruction] = t;
+}
+
+int MBasicBlock::needBranchCount() const
+{
+	auto b = dynamic_cast<MB*>(instructions_.back());
+	if (b == nullptr) return 0;
+	if (b->isCondBranch())
+	{
+		if (b->block2GoR() == next_) return 1;
+		return 2;
+	}
+	if (b->block2GoL() == next_) return 0;
+	return 1;
+}
+
+bool MBasicBlock::empty() const
+{
+	if (needBranchCount() > 0) return false;
+	for (auto i : instructions_) if (i->str->lines() > 0) return false;
+	return true;
+}
+
+void MBasicBlock::removeInst(MInstruction* inst)
+{
+	auto it = instructions_.begin();
+	auto ed = instructions_.end();
+	while (it != ed)
+	{
+		if (*it == inst)
+		{
+			instructions_.erase(it);
+			break;
+		}
+		++it;
+	}
+	for (auto op : inst->operands())
+		function_->removeUse(op, inst);
+	delete inst;
+}
+
+int MBasicBlock::collapseBranch()
+{
+	auto b = dynamic_cast<MB*>(instructions_.back());
+	if (b == nullptr) return 0;
+	auto l = b->block2GoL();
+	auto r = b->block2GoR();
+	if (l != nullptr && l->empty() && l->next_ != nullptr)
+	{
+		assert(l != l->next_);
+		l = l->next_;
+		b->replaceL(l);
+	}
+	if (r != nullptr && r->empty() && r->next_ != nullptr)
+	{
+		assert(r != r->next_);
+		r = r->next_;
+		b->replaceR(r);
+	}
+	int c = 0;
+	if (l == r)
+	{
+		b->removeR();
+		if (b->tiedWith_->tiedC_ == nullptr)
+		{
+			c = b->tiedWith_->str->lines();
+			removeInst(b->tiedWith_);
+			b->tiedWith_ = nullptr;
+		}
+	}
+	if (next_ == nullptr) return 0;
+	if (next_->empty() && next_->next_) next_ = next_->next_;
+	if (r != nullptr && l == next_) b->changeLRBlocks();
+	return c;
 }
 
 MModule* MBasicBlock::module() const

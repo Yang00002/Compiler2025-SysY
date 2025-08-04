@@ -2,14 +2,13 @@
 
 #include <cassert>
 #include <unordered_set>
-#include <climits>
 #include <cfloat>
 
 #include "Config.hpp"
-#include "GraphColoring.hpp"
+#include "RegisterAllocate.hpp"
 #include "MachineBasicBlock.hpp"
 #include "MachineInstruction.hpp"
-#include "MachineIR.hpp"
+#include "MachineFunction.hpp"
 #include "MachineOperand.hpp"
 
 #define DEBUG 0
@@ -18,7 +17,7 @@
 
 #include "Util.hpp"
 
-InterfereGraph::InterfereGraph(GraphColorSolver* parent) : parent_(parent), worklistMoves_(), activeMoves_(),
+InterfereGraph::InterfereGraph(RegisterAllocate* parent) : parent_(parent), worklistMoves_(), activeMoves_(),
                                                            coalescedMoves_(),
                                                            constrainedMoves_(),
                                                            frozenMoves_(),
@@ -822,7 +821,7 @@ void InterfereGraph::makeWorklist()
 }
 
 
-void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiveMessage& flm)
+void calculateFrameInterfereGraph(const RegisterAllocate* parent, const FrameLiveMessage& flm)
 {
 	auto func = parent->currentFunc();
 	int oc = u2iNegThrow(func->stackFrames().size());

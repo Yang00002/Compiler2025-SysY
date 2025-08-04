@@ -50,3 +50,5 @@ extern bool o1Optimization;
 extern bool testArchi;
 // 当函数的指令数(无跳转)小于等于该值时(包括 ret), 它会被内联
 extern int funcInlineGate;
+// 函数的所有函数结束尾声加起来大于等于这个数字, 需要单独开辟一个返回基本块, 而不是将尾声内联到 RET
+extern int epilogShouldMerge;

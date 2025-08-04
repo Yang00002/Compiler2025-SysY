@@ -1,5 +1,5 @@
 #pragma once
-#include "MachineIR.hpp"
+#include "MachineModule.hpp"
 #include "Tensor.hpp"
 
 class ConstantValue;
@@ -216,6 +216,11 @@ class FrameIndex final : public MOperand
 	explicit FrameIndex(MFunction* func, int idx, long long size, bool stack_t_fix_f);
 
 public:
+	void set_index(int index)
+	{
+		index_ = index;
+	}
+
 	[[nodiscard]] long long offset() const
 	{
 		return offset_;

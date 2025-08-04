@@ -7,7 +7,7 @@ using namespace std;
 
 
 #define UPONES(start) static_cast<unsigned long long>(~((1ll << (start)) - 1))
-#define UPZEROS(start) static_cast<unsigned long long>((1 << (start)) - 1)
+#define UPZEROS(start) static_cast<unsigned long long>((1ll << (start)) - 1)
 #define ULLOFBITS(bits) ((bits) >> 6)
 #define OFFSETOFBITS(bits) ((bits) & 63)
 
@@ -81,6 +81,21 @@ bool DynamicBitset::test(int i) const
 	return data_[idx1] & (1ull << idx2);
 }
 
+std::string DynamicBitset::print() const
+{
+	int count = 0;
+	string ret;
+	for (auto i : *this)
+	{
+		ret += to_string(i) + " ";
+		count++;
+	}
+	if (!ret.empty())
+		ret.pop_back();
+	return to_string(count) + "{" + ret + "}";
+}
+
+
 void DynamicBitset::set(int i)
 {
 	assert(i >= 0);
@@ -111,7 +126,7 @@ bool DynamicBitset::resetAndGet(int i)
 	return p != next;
 }
 
-void DynamicBitset::set(int f, int t)
+void DynamicBitset::rangeSet(int f, int t)
 {
 	assert(f >= 0 && t >= 0);
 	auto ullf = ULLOFBITS(f);
@@ -120,6 +135,8 @@ void DynamicBitset::set(int f, int t)
 	auto offt = OFFSETOFBITS(t);
 	if (ullf == ullt)
 	{
+		auto a = UPONES(offf);
+		auto b = UPZEROS(offt);
 		data_[ullf] |= UPONES(offf) & UPZEROS(offt);
 		return;
 	}
@@ -140,6 +157,14 @@ void DynamicBitset::reset(int i)
 void DynamicBitset::reset() const
 {
 	memset(data_, 0, dataSize_ << 3);
+}
+
+void DynamicBitset::reverse() const
+{
+	for (int i = 0; i < dataSize_; i++) data_[i] = ~data_[i];
+	auto ullt = ULLOFBITS(bitlen_);
+	auto offt = OFFSETOFBITS(bitlen_);
+	data_[ullt] &= UPZEROS(offt);
 }
 
 void DynamicBitset::operator|=(const DynamicBitset& bit)
@@ -197,17 +222,6 @@ bool DynamicBitset::include(const DynamicBitset& bit) const
 unsigned DynamicBitset::len() const
 {
 	return bitlen_;
-}
-
-std::string DynamicBitset::print() const
-{
-	std::string ret;
-	for (int i = 0; i < bitlen_; i++)
-	{
-		if (test(i)) ret += to_string(i) + " ";
-	}
-	if (!ret.empty()) ret.pop_back();
-	return ret;
 }
 
 std::string DynamicBitset::print(const std::function<std::string(int)>& sf) const

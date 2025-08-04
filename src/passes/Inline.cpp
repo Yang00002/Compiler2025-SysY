@@ -6,7 +6,6 @@
 #include "Instruction.hpp"
 
 #define DEBUG 0
-#include "BBRank.hpp"
 #include "Config.hpp"
 #include "Type.hpp"
 #include "Util.hpp"
@@ -118,6 +117,14 @@ void Inline::run()
 	POP;
 	PASS_SUFFIX;
 	LOG(color::cyan("Inline Done"));
+}
+
+Inline::~Inline()
+{
+	for (auto i : allNodes_) delete i;
+	delete waitlist_;
+	delete done_;
+	delete return_;
 }
 
 void Inline::collectNodes()
@@ -384,24 +391,25 @@ void Inline::selectReturnNodes(std::unordered_map<Value*, IBBNode*>& nodeMap) co
 {
 	LOG(color::blue("Discover Return Nodes of ") + f_->get_name());
 	PUSH;
+	bool er = f_->get_return_type() == Types::VOID;
 	while (!waitlist_->empty())
 	{
 		auto n = waitlist_->pop();
 		auto& insts = n->block_->get_instructions();
 		if (insts.size() == 1 && dynamic_cast<ReturnInst*>(insts.back()))
 		{
-			auto val = insts.back()->get_operand(0);
+			auto val = er ? nullptr : insts.back()->get_operand(0);
 			auto fd = nodeMap.find(val);
 			if (fd == nodeMap.end())
 			{
-				LOG(color::pink("Return Node ") + n->block_->get_name() + color::pink(" return ") + val->print());
+				LOG(color::pink("Return Node ") + n->block_->get_name() +( er ? "" : (color::pink(" return ") + val->
+					print())));
 				return_->add(n);
 				nodeMap.emplace(val, n);
 			}
 			else
 			{
-				LOG(color::pink("Duplicate Return Node ") + n->block_->get_name() + color::pink(" return ") + val->print
-					());
+				LOG(color::pink("Duplicate Return Node ") + (er ? "" : (color::pink(" return ") + val->print())));
 				auto rp = fd->second;
 				replaceGoTo(n, rp);
 				n->discard();

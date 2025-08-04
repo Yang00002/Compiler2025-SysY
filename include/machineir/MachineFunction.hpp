@@ -6,32 +6,31 @@
 #include <vector>
 #include "DynamicBitset.hpp"
 
-class GlobalAddress;
-class Register;
-class MBL;
-class LiveMessage;
-class MInstruction;
+class CodeString;
 class GlobalVariable;
-class FuncAddress;
-class Module;
-class MOperand;
-class Value;
+class GlobalAddress;
+class LiveMessage;
 class Function;
+class Value;
+class MBL;
+class MInstruction;
+class MOperand;
+class Register;
 class MBasicBlock;
-class MFunction;
-class MModule;
-class BlockAddress;
-class FrameIndex;
-class VirtualRegister;
-class Immediate;
 
 class MFunction
 {
+	friend class FrameOffset;
 	friend class MModule;
 	friend class CodeGen;
 	friend class VirtualRegister;
+	friend class RemoveEmptyBlocks;
 
 public:
+	CodeString* funcPrefix_ = nullptr;
+	CodeString* funcSuffix_ = nullptr;
+	std::string sizeSuffix_;
+
 	[[nodiscard]] const std::string& name() const
 	{
 		return name_;
@@ -134,7 +133,6 @@ public:
 	MOperand* getOperandFor(Value* value, std::map<Value*, MOperand*>& opMap);
 	void spill(VirtualRegister* vreg, LiveMessage* message);
 	bool removeEmptyBBs();
-	void rankFrameIndexesAndCalculateOffsets();
 	void replaceAllOperands(MOperand* from, MOperand* to);
 	void replaceAllOperands(std::unordered_map<FrameIndex*, FrameIndex*>& rpm);
 	void addUse(MOperand* op, MInstruction* ins);
@@ -148,68 +146,4 @@ public:
 	[[nodiscard]] int virtualIRegisterCount() const;
 	[[nodiscard]] int virtualFRegisterCount() const;
 	[[nodiscard]] int virtualRegisterCount() const;
-};
-
-class MModule
-{
-	friend class CodeGen;
-	friend class MFunction;
-
-public:
-	[[nodiscard]] std::vector<MFunction*>& functions()
-	{
-		return functions_;
-	}
-
-	~MModule();
-	MModule(const MModule& other) = delete;
-	MModule(MModule&& other) noexcept = delete;
-	MModule& operator=(const MModule& other) = delete;
-	MModule& operator=(MModule&& other) noexcept = delete;
-
-private:
-	friend class Immediate;
-	friend class VirtualRegister;
-	friend class Register;
-	friend class FuncAddress;
-	friend class GlobalAddress;
-	std::vector<GlobalAddress*> globals_;
-	std::vector<MFunction*> functions_;
-	std::vector<MFunction*> lib_functions_;
-	std::vector<MFunction*> allFuncs_;
-	std::map<MFunction*, FuncAddress*> func_address_;
-	std::map<unsigned long long, Immediate*> imm_cache_;
-	std::vector<Register*> iregs_;
-	std::vector<Register*> fregs_;
-	MFunction* memcpy_;
-	MFunction* memclr_;
-
-public:
-	[[nodiscard]] const std::vector<MFunction*>& all_funcs() const
-	{
-		return allFuncs_;
-	}
-
-	MModule();
-	void accept(Module* module);
-
-	[[nodiscard]] MFunction* memcpyFunc() const
-	{
-		return memcpy_;
-	}
-
-	[[nodiscard]] MFunction* memclrFunc() const
-	{
-		return memclr_;
-	}
-
-	[[nodiscard]] std::string print() const;
-	[[nodiscard]] int IRegisterCount() const;
-	[[nodiscard]] int FRegisterCount() const;
-	[[nodiscard]] int RegisterCount() const;
-	[[nodiscard]] const std::vector<Register*>& IRegs() const;
-	[[nodiscard]] const std::vector<Register*>& FRegs() const;
-	[[nodiscard]] std::vector<GlobalAddress*> constGlobalAddresses() const;
-	[[nodiscard]] std::vector<GlobalAddress*> ncnzGlobalAddresses() const;
-	[[nodiscard]] std::vector<GlobalAddress*> ncZeroGlobalAddresses() const;
 };

@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+class CodeString;
 class FrameIndex;
 class VirtualRegister;
 class Function;
@@ -19,13 +20,17 @@ class MFunction;
 
 class MBasicBlock
 {
+	friend class MachineLoopDetection;
+	friend class BlockLayout;
+	friend class ReturnMerge;
+
 public:
-	[[nodiscard]] const std::set<MBasicBlock*>& pre_bbs() const
+	[[nodiscard]] std::set<MBasicBlock*>& pre_bbs()
 	{
 		return pre_bbs_;
 	}
 
-	[[nodiscard]] const std::set<MBasicBlock*>& suc_bbs() const
+	[[nodiscard]] std::set<MBasicBlock*>& suc_bbs()
 	{
 		return suc_bbs_;
 	}
@@ -52,6 +57,7 @@ public:
 
 private:
 	friend class MFunction;
+	friend class RemoveEmptyBlocks;
 	MFunction* function_;
 	std::string name_;
 	std::vector<MInstruction*> instructions_;
@@ -59,6 +65,7 @@ private:
 	std::set<MBasicBlock*> suc_bbs_;
 	MBasicBlock* next_ = nullptr;
 	int id_ = 0;
+
 
 	MBasicBlock(std::string name, MFunction* function);
 
@@ -70,6 +77,9 @@ public:
 
 	~MBasicBlock();
 	float weight_ = 1;
+
+	CodeString* blockPrefix_ = nullptr;
+
 	static MBasicBlock* createBasicBlock(const std::string& name, MFunction* function);
 	void accept(BasicBlock* block, std::map<Value*, MOperand*>& opMap, std::map<BasicBlock*, MBasicBlock*>& blockMap,
 	            std::map<MBasicBlock*, std::list<MCopy*>>& phiMap, std::map<Function*, MFunction*>& funcMap);
@@ -96,6 +106,10 @@ public:
 	void acceptMemCpyInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptMemClearInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptCopyInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block) const;
+	[[nodiscard]] int needBranchCount() const;
+	[[nodiscard]] bool empty() const;
+	void removeInst(MInstruction* inst);
+	int collapseBranch();
 	[[nodiscard]] MModule* module() const;
 	[[nodiscard]] MFunction* function() const;
 	[[nodiscard]] std::string print(int& sid) const;

@@ -6,6 +6,7 @@
 #include "MachineBasicBlock.hpp"
 #include "MachineOperand.hpp"
 #include "MachineInstruction.hpp"
+#include "MachineFunction.hpp"
 #include "DynamicBitset.hpp"
 
 #define DEBUG 0

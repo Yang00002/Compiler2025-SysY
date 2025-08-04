@@ -1,9 +1,12 @@
 #pragma once
 #include <vector>
 
+#include "CodeString.hpp"
 #include "Instruction.hpp"
 
 
+class MCMP;
+class MCSET;
 class MMSUB;
 class MFunction;
 class VirtualRegister;
@@ -26,11 +29,17 @@ protected:
 	std::vector<Register*> imp_use_;
 
 public:
+	CodeString* str = nullptr;
 	MInstruction(const MInstruction&) = delete;
 	MInstruction(MInstruction&&) = delete;
 	MInstruction& operator=(const MInstruction&) = delete;
 	MInstruction& operator=(MInstruction&&) = delete;
-	virtual ~MInstruction() = default;
+
+	virtual ~MInstruction()
+	{
+		delete str;
+	}
+
 	MInstruction(MBasicBlock* block);
 
 	[[nodiscard]] MBasicBlock* block() const
@@ -42,6 +51,7 @@ public:
 	{
 		return operands_;
 	}
+
 	[[nodiscard]] MOperand* operand(int i) const
 	{
 		return operands_[i];
@@ -71,6 +81,7 @@ public:
 	{
 		return imp_def_;
 	}
+
 	[[nodiscard]] Register* imp_def(int i) const
 	{
 		return imp_def_[i];
@@ -91,6 +102,9 @@ public:
 
 class MRet final : public MInstruction
 {
+	friend class ReturnMerge;
+	explicit MRet(MBasicBlock* block);
+
 public:
 	explicit MRet(MBasicBlock* block, const Function* function);
 	std::string print() override;
@@ -112,9 +126,11 @@ public:
 	std::string print() override;
 };
 
-class MBcc final : public MInstruction
+
+class MB final : public MInstruction
 {
 public:
+	MCMP* tiedWith_ = nullptr;
 	Instruction::OpID op_;
 
 	[[nodiscard]] Instruction::OpID op() const
@@ -122,15 +138,67 @@ public:
 		return op_;
 	}
 
-	explicit MBcc(MBasicBlock* block, Instruction::OpID op, BlockAddress* t);
-	std::string print() override;
-};
+	[[nodiscard]] bool isCondBranch() const
+	{
+		return operands_.size() > 1;
+	}
 
-class MB final : public MInstruction
-{
-public:
+	void reverseOp()
+	{
+		switch (op_) // NOLINT(clang-diagnostic-switch-enum)
+		{
+			case Instruction::ge:
+				{
+					op_ = Instruction::lt;
+					break;
+				}
+			case Instruction::gt:
+				{
+					op_ = Instruction::le;
+					break;
+				}
+			case Instruction::le:
+				{
+					op_ = Instruction::gt;
+					break;
+				}
+			case Instruction::lt:
+				{
+					op_ = Instruction::ge;
+					break;
+				}
+			case Instruction::eq:
+				{
+					op_ = Instruction::ne;
+					break;
+				}
+			case Instruction::ne:
+				{
+					op_ = Instruction::eq;
+					break;
+				}
+			default: break;
+		}
+	}
+
+	void changeLRBlocks()
+	{
+		if (operands_.size() == 1) return;
+		auto buf = operands_[0];
+		operands_[0] = operands_[1];
+		operands_[1] = buf;
+		reverseOp();
+	}
+
 	explicit MB(MBasicBlock* block, BlockAddress* t);
+	explicit MB(MBasicBlock* block, Instruction::OpID op, BlockAddress* t, BlockAddress* f);
 	std::string print() override;
+	[[nodiscard]] MBasicBlock* block2GoL() const;
+	[[nodiscard]] MBasicBlock* block2GoR() const;
+	void removeL();
+	void removeR();
+	void replaceL(MBasicBlock* to);
+	void replaceR(MBasicBlock* to);
 };
 
 class MMathInst final : public MInstruction
@@ -190,7 +258,8 @@ public:
 class MCMP final : public MInstruction
 {
 public:
-	MInstruction* tiedWith_ = nullptr;
+	MCSET* tiedC_ = nullptr;
+	MB* tiedB_ = nullptr;
 	bool itff_;
 	explicit MCMP(MBasicBlock* block, MOperand* l, MOperand* r, bool itff);
 	std::string print() override;
@@ -202,6 +271,7 @@ public:
 class MBL final : public MInstruction
 {
 public:
+
 	explicit MBL(MBasicBlock* block, FuncAddress* addr, Function* function);
 	explicit MBL(MBasicBlock* block, FuncAddress* addr, bool cptclf);
 	std::string print() override;
@@ -210,6 +280,8 @@ public:
 class MCSET final : public MInstruction
 {
 public:
+	MCMP* tiedWith_ = nullptr;
+
 	Instruction::OpID op_;
 	explicit MCSET(MBasicBlock* block, Instruction::OpID op, MOperand* t);
 	std::string print() override;

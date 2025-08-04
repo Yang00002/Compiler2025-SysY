@@ -5,6 +5,7 @@
 #include "IRPrinter.hpp"
 #include "MachineOperand.hpp"
 #include "MachineBasicBlock.hpp"
+#include "MachineFunction.hpp"
 #include "Type.hpp"
 
 using namespace std;
@@ -17,7 +18,7 @@ MInstruction::MInstruction(MBasicBlock* block) : block_(block)
 
 bool MInstruction::haveUseOf(const VirtualRegister* reg) const
 {
-	for (auto i : use_)  // NOLINT(readability-use-anyofallof)
+	for (auto i : use_) // NOLINT(readability-use-anyofallof)
 	{
 		if (operands_[i] == reg) return true;
 	}
@@ -26,7 +27,7 @@ bool MInstruction::haveUseOf(const VirtualRegister* reg) const
 
 bool MInstruction::haveDefOf(const VirtualRegister* reg) const
 {
-	for (auto i : def_)  // NOLINT(readability-use-anyofallof)
+	for (auto i : def_) // NOLINT(readability-use-anyofallof)
 	{
 		if (operands_[i] == reg) return true;
 	}
@@ -63,6 +64,10 @@ void MInstruction::stayUseReplace(const MOperand* from, MOperand* to, MFunction*
 	}
 }
 
+MRet::MRet(MBasicBlock* block) : MInstruction(block)
+{
+}
+
 MRet::MRet(MBasicBlock* block, const Function* function)
 	: MInstruction(block)
 {
@@ -97,23 +102,122 @@ std::string MCopy::print()
 	return operands_[1]->print() + " = COPY " + operands_[0]->print() + " [" + to_string(copyLen_) + "]";
 }
 
-MBcc::MBcc(MBasicBlock* block, Instruction::OpID op, BlockAddress* t) : MInstruction(block), op_(op)
+std::string MB::print()
 {
-	operands_.resize(1);
-	operands_[0] = t;
-	imp_use_.emplace_back(Register::getNZCV(block->module()));
-	auto func = block->function();
-	func->addUse(t, this);
-}
-
-std::string MBcc::print()
-{
+	if (operands().size() == 1)
+		return "B " + operands_[0]->print();
 	return "B." + print_instr_op_name(op_) + " " + operands_[0]->print() + "\t\t\t;imp_use NZCV";
 }
 
-std::string MB::print()
+MBasicBlock* MB::block2GoL() const
 {
-	return "B " + operands_[0]->print();
+	return dynamic_cast<BlockAddress*>(operands_[0])->block();
+}
+
+MBasicBlock* MB::block2GoR() const
+{
+	if (operands_.size() == 1) return nullptr;
+	return dynamic_cast<BlockAddress*>(operands_[1])->block();
+}
+
+void MB::removeL()
+{
+	assert(operands_.size() > 1);
+	if (operands_[0] == operands_[1])
+	{
+		operands_.pop_back();
+	}
+	else
+	{
+		auto rm = dynamic_cast<BlockAddress*>(operands_[0])->block();
+		block()->suc_bbs().erase(rm);
+		rm->pre_bbs().erase(block());
+		block()->function()->removeUse(operands_[0], this);
+		operands_[0] = operands_[1];
+		operands_.pop_back();
+	}
+}
+
+void MB::removeR()
+{
+	assert(operands_.size() > 1);
+	if (operands_[0] == operands_[1])
+		operands_.pop_back();
+	else
+	{
+		auto rm = dynamic_cast<BlockAddress*>(operands_[1])->block();
+		block()->suc_bbs().erase(rm);
+		rm->pre_bbs().erase(block());
+		block()->function()->removeUse(operands_[1], this);
+		operands_.pop_back();
+	}
+}
+
+void MB::replaceL(MBasicBlock* to)
+{
+	auto op = BlockAddress::get(to);
+	if (op == operands_[0]) return;
+	if (operands_.size() > 1)
+	{
+		if (operands_[0] == operands_[1])
+		{
+			operands_[0] = op;
+			auto ad = op->block();
+			block()->suc_bbs().emplace(ad);
+			ad->pre_bbs().emplace(block());
+			block()->function()->addUse(op, this);
+			return;
+		}
+		auto rm = dynamic_cast<BlockAddress*>(operands_[0])->block();
+		block()->suc_bbs().erase(rm);
+		rm->pre_bbs().erase(block());
+		block()->function()->removeUse(operands_[0], this);
+		operands_[0] = op;
+		if (op != operands_[1])
+		{
+			auto ad = op->block();
+			block()->suc_bbs().emplace(ad);
+			ad->pre_bbs().emplace(block());
+			block()->function()->addUse(op, this);
+		}
+	}
+	auto rm = dynamic_cast<BlockAddress*>(operands_[0])->block();
+	block()->suc_bbs().erase(rm);
+	rm->pre_bbs().erase(block());
+	block()->function()->removeUse(operands_[0], this);
+	auto ad = op->block();
+	block()->suc_bbs().emplace(ad);
+	ad->pre_bbs().emplace(block());
+	block()->function()->addUse(op, this);
+	operands_[0] = op;
+}
+
+void MB::replaceR(MBasicBlock* to)
+{
+	assert(operands_.size() > 1);
+	auto op = BlockAddress::get(to);
+	if (op == operands_[1]) return;
+	if (operands_[0] == operands_[1])
+	{
+		operands_[1] = op;
+		auto ad = op->block();
+		block()->suc_bbs().emplace(ad);
+		ad->pre_bbs().emplace(block());
+		block()->function()->addUse(op, this);
+		return;
+	}
+	auto rm = dynamic_cast<BlockAddress*>(operands_[1])->block();
+	block()->suc_bbs().erase(rm);
+	rm->pre_bbs().erase(block());
+	block()->function()->removeUse(operands_[1], this);
+	operands_[1] = op;
+	if (op != operands_[0])
+	{
+		auto ad = op->block();
+		block()->suc_bbs().emplace(ad);
+		ad->pre_bbs().emplace(block());
+		block()->function()->addUse(op, this);
+	}
 }
 
 MB::MB(MBasicBlock* block, BlockAddress* t) : MInstruction(block)
@@ -122,6 +226,17 @@ MB::MB(MBasicBlock* block, BlockAddress* t) : MInstruction(block)
 	operands_[0] = t;
 	auto func = block->function();
 	func->addUse(t, this);
+}
+
+MB::MB(MBasicBlock* block, Instruction::OpID op, BlockAddress* t, BlockAddress* f) : MInstruction(block), op_(op)
+{
+	operands_.resize(2);
+	operands_[0] = t;
+	operands_[1] = f;
+	imp_use_.emplace_back(Register::getNZCV(block->module()));
+	auto func = block->function();
+	func->addUse(t, this);
+	func->addUse(f, this);
 }
 
 MMathInst::MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r,

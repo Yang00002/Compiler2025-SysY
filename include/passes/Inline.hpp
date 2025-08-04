@@ -37,7 +37,7 @@ public:
 	explicit Inline(Module* m);
 
 	void run() override;
-
+	~Inline();
 private:
 	std::unordered_map<BasicBlock*, IBBNode*> nodes_;
 	std::vector<IBBNode*> allNodes_;

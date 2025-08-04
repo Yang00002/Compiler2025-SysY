@@ -1,13 +1,13 @@
-#include "GraphColoring.hpp"
+#include "RegisterAllocate.hpp"
 
 #include "Config.hpp"
 #include "MachineOperand.hpp"
-#include "MachineIR.hpp"
+#include "MachineFunction.hpp"
 
-// TODO: SPILL 后的一些 LDR 不是必须的
+// toStr: SPILL 后的一些 LDR 不是必须的
 // 例如形如 STR X1 %F; LDR X2 %F 可以被替代为 STR X1 %F; MOV X2 X1
 
-void GraphColorSolver::runOn(MFunction* function)
+void RegisterAllocate::runOn(MFunction* function)
 {
 	LiveMessage liveMessage{function};
 	liveMessage_ = &liveMessage;
@@ -27,7 +27,6 @@ void GraphColorSolver::runOn(MFunction* function)
 		}
 		else
 		{
-
 			for (auto reg : module_->IRegs())
 				if (reg->canAllocate() && !reg->callerSave_)
 					liveMessage.addRegister(reg);
@@ -78,7 +77,6 @@ void GraphColorSolver::runOn(MFunction* function)
 		}
 		else
 		{
-
 			for (auto reg : module_->FRegs())
 				if (reg->canAllocate() && !reg->callerSave_)
 					liveMessage.addRegister(reg);
@@ -122,11 +120,11 @@ void GraphColorSolver::runOn(MFunction* function)
 	}
 }
 
-GraphColorSolver::GraphColorSolver(MModule* module): interfereGraph_(this), module_(module)
+RegisterAllocate::RegisterAllocate(MModule* module): MachinePass(module), interfereGraph_(this), module_(module)
 {
 }
 
-void GraphColorSolver::run()
+void RegisterAllocate::run()
 {
 	auto& funcs = module_->all_funcs();
 	std::vector<DynamicBitset> callChain;
@@ -139,7 +137,7 @@ void GraphColorSolver::run()
 
 	DynamicBitset leaf{(idx)};
 	DynamicBitset workList{(idx)};
-	workList.set(0, (idx));
+	workList.rangeSet(0, (idx));
 	while (idx > 0)
 	{
 		bool changed = false;

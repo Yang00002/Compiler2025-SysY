@@ -6,7 +6,7 @@
 
 #include "GlobalVariable.hpp"
 #include "Type.hpp"
-#include "MachineIR.hpp"
+#include "MachineFunction.hpp"
 #include "MachineBasicBlock.hpp"
 #include "Constant.hpp"
 
@@ -130,7 +130,6 @@ bool VirtualRegister::isVirtualRegister() const
 	return true;
 }
 
-
 VirtualRegister* VirtualRegister::createVirtualIRegister(MFunction* f, int size)
 {
 	int id = u2iNegThrow(f->virtual_iregs_.size());
@@ -173,7 +172,6 @@ Register::Register(int id, bool ireg_t_freg_f, const std::string& name,
 	shortName_ = sname;
 }
 
-
 Register* Register::getIParameterRegister(int id, const MModule* m)
 {
 	if (id >= 8) return nullptr;
@@ -206,7 +204,6 @@ Register* Register::getReturnRegisterWithType(const Type* ty, const MModule* m)
 {
 	return getParameterRegisterWithType(0, ty, m);
 }
-
 
 Register* Register::getLR(const MModule* m)
 {

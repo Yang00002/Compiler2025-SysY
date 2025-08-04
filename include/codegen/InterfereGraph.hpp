@@ -5,7 +5,7 @@
 
 struct MoveInstNode;
 class MCopy;
-class GraphColorSolver;
+class RegisterAllocate;
 
 struct InterfereGraphNode
 {
@@ -82,7 +82,7 @@ public:
 
 class InterfereGraph
 {
-	GraphColorSolver* parent_;
+	RegisterAllocate* parent_;
 	std::unordered_map<RegisterLike*, InterfereGraphNode*> regNodes_;
 	std::unordered_map<MCopy*, MoveInstNode*> moveNodes_;
 	// 有可能合并的传送指令集合
@@ -152,7 +152,7 @@ public:
 	InterfereGraph& operator=(InterfereGraph&& other) = delete;
 
 	~InterfereGraph();
-	InterfereGraph(GraphColorSolver* parent);
+	InterfereGraph(RegisterAllocate* parent);
 	// 构建冲突图, 初始化有可能合并的传送指令集合
 	void build();
 	void flush();
@@ -171,4 +171,4 @@ public:
 	void applyChanges();
 };
 
-void calculateFrameInterfereGraph(const GraphColorSolver* parent, const FrameLiveMessage& flm);
+void calculateFrameInterfereGraph(const RegisterAllocate* parent, const FrameLiveMessage& flm);

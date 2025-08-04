@@ -31,9 +31,10 @@ public:
 	bool setAndGet(int i);
 	bool resetAndGet(int i);
 	// 设置一个范围, 不包含末尾
-	void set(int f, int t);
+	void rangeSet(int f, int t);
 	void reset(int i);
 	void reset() const;
+	void reverse() const;
 	void operator|=(const DynamicBitset& bit);
 	void operator-=(const DynamicBitset& bit);
 	DynamicBitset operator-(const DynamicBitset& bit) const;
