@@ -302,6 +302,7 @@ class ReturnInst : public BaseInst<ReturnInst>
 	ReturnInst(Value* val, BasicBlock* bb);
 
 public:
+	bool discarded_ = false;
 	Instruction* copy(BasicBlock* parent) override;
 	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static ReturnInst* create_ret(Value* val, BasicBlock* bb);

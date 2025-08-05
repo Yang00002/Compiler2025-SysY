@@ -243,6 +243,7 @@ class MSTR final : public MInstruction
 	int width_;
 
 public:
+	bool forCall_ = false;
 	[[nodiscard]] int width() const
 	{
 		return width_;

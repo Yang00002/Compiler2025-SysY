@@ -104,7 +104,6 @@ namespace
 		return i < 256;
 	}
 
-
 	bool align4(long long i)
 	{
 		return !(i & 0b11);
@@ -201,8 +200,11 @@ void CodeGen::makeFunction()
 	functionSuffix();
 	for (auto bb : func_->blocks())
 	{
+		LOG(color::yellow(bb->name()));
+		PUSH;
 		for (auto inst : bb->instructions())
 			makeInstruction(inst);
+		POP;
 	}
 	func_->sizeSuffix_ = functionSize(func_->name());
 }
@@ -221,7 +223,7 @@ void CodeGen::functionPrefix()
 	if (canLSInOneSPMove(calleeSaved))
 	{
 		sub64(sp(), sp(), func_->stack_move_offset(), toStr);
-		if (lc & 1) str(calleeSaved[0].first, sp(), calleeSaved[0].second, 64, toStr);
+		if (lc & 1) str(calleeSaved[0].first, sp(), calleeSaved[0].second, 64,  toStr);
 		if (lc >= 2)
 		{
 			for (int i = lc & 1; i < lc; i += 2)
@@ -230,7 +232,7 @@ void CodeGen::functionPrefix()
 				    64, toStr);
 			}
 		}
-		if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64, toStr);
+		if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64,  toStr);
 		if (rc >= 2)
 		{
 			for (int i = rc & 1; i < rc; i += 2)
@@ -254,7 +256,7 @@ void CodeGen::functionPrefix()
 			    u2iNegThrow(calleeSaved[i].second - nextOffset), 64, toStr);
 		}
 	}
-	if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64, toStr);
+	if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64,  toStr);
 	if (rc >= 2)
 	{
 		for (int i = rc & 1; i < rc; i += 2)
@@ -368,12 +370,12 @@ void CodeGen::str(const Register* a, const Register* c, long long offset, int le
 	releaseIP(reg);
 }
 
-void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, CodeString* toStr)
+void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, CodeString* toStr, bool forFuncCall)
 {
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
 		const Register* l = op2reg(regLike, len, toStr);
-		str(l, i, 0, len, toStr);
+		str(l, i, 0ll, len,  toStr);
 		releaseIP(l);
 		return;
 	}
@@ -382,14 +384,14 @@ void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, C
 	{
 		const Register* l = op2reg(regLike, len, toStr);
 		auto r = op2reg(i, 64, toStr);
-		str(l, r, 0, len, toStr);
+		str(l, r, 0ll, len, toStr);
 		releaseIP(l);
 		releaseIP(r);
 		return;
 	}
 	if (const FrameIndex* i = dynamic_cast<const FrameIndex*>(stackLike); i != nullptr)
 	{
-		auto offset = frameOffset(i, true, toStr);
+		auto offset = frameOffset(i, forFuncCall, toStr);
 		const Register* l = op2reg(regLike, len, toStr);
 		str(l, sp(), offset, len, toStr);
 		releaseIP(l);
@@ -964,7 +966,7 @@ void CodeGen::add64(const Register* to, const Register* l, long long imm, CodeSt
 		sub64(to, l, -imm, toStr);
 		return;
 	}
-	if (imm == 0) { copy(to, l, 64, toStr); }
+	if (imm == 0) return copy(to, l, 64, toStr);
 	if (inUImm12(imm))
 	{
 		toStr->addInstruction("ADD", regName(to, 64), regName(l, 64), immediate(imm));
@@ -989,7 +991,7 @@ void CodeGen::add64(const Register* to, const Register* l, long long imm, CodeSt
 
 void CodeGen::st1(const Register* stackLike, int count, int offset, CodeString* toStr)
 {
-	if (count == 1) return str(floatRegister(0), stackLike, 128, toStr);
+	if (count == 1) return str(floatRegister(0), stackLike, 128, toStr, false);
 	string ret = "ST1 {";
 	for (int i = 0; i < count; i++)
 		ret += "V" + to_string(i) + ".16B,";
@@ -1020,11 +1022,7 @@ void CodeGen::sub64(const Register* to, const Register* l, long long imm, CodeSt
 		add64(to, l, -imm, toStr);
 		return;
 	}
-	if (imm == 0)
-	{
-		copy(to, l, 64, toStr);
-		return;
-	}
+	if (imm == 0) return copy(to, l, 64, toStr);
 	if (inUImm12(imm))
 	{
 		toStr->addInstruction("SUB", regName(to, 64), regName(l, 64), immediate(imm));
@@ -1056,6 +1054,7 @@ void CodeGen::call(const MOperand* address, CodeString* toStr)
 	{
 		assert(f->function() == func2Call_);
 		add64(sp(), sp(), func2Call_->fix_move_offset(), toStr);
+		LOG(color::cyan("call, eliminate func2Call ") + func2Call_->print());
 		func2Call_ = nullptr;
 	}
 }
@@ -1356,11 +1355,14 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 {
 	instruction->str = new CodeString{};
 	auto toStr = instruction->str;
-	RUN(l.emplace_back(color::green("# " + instruction->print())));
+	LOG(color::green("# " + instruction->print()));
 	if (auto i = dynamic_cast<MCopy*>(instruction); i != nullptr)
 		copy(instruction->operands()[1], instruction->operands()[0], (i->copy_len()), toStr);
 	else if (auto i2 = dynamic_cast<MSTR*>(instruction); i2 != nullptr)
-		str(instruction->operands()[0], instruction->operands()[1], (i2->width()), toStr);
+	{
+		auto fc = i2->forCall_;
+		str(instruction->operands()[0], instruction->operands()[1], (i2->width()), toStr, fc);
+	}
 	else if (auto i3 = dynamic_cast<MLDR*>(instruction); i3 != nullptr)
 		ldr(instruction->operands()[0], instruction->operands()[1], (i3->width()), toStr);
 	else if (auto i4 = dynamic_cast<MST1V16B*>(instruction); i4 != nullptr)
@@ -1786,11 +1788,11 @@ bool CodeGen::canLSInOneSPMove(const std::vector<pair<Register*, long long>>& of
 // 区分不同的参数栈帧: caller 永远不会往自己的参数栈帧存值, 只会往 callee 的栈帧存值
 
 // 获得 FrameIndex 在当前语境偏移, 如必要, 插入函数调用前的 SP 移动
-long long CodeGen::frameOffset(const FrameIndex* index, bool isStore, CodeString* appendSlot)
+long long CodeGen::frameOffset(const FrameIndex* index, bool forCall, CodeString* appendSlot)
 {
 	if (func2Call_)
 	{
-		if (!index->stack_t_fix_f() && isStore)
+		if (!index->stack_t_fix_f() && forCall)
 		{
 			assert(index->func() == func2Call_);
 			return index->offset() - index->func()->stack_move_offset();
@@ -1798,11 +1800,12 @@ long long CodeGen::frameOffset(const FrameIndex* index, bool isStore, CodeString
 		assert(index->func() == func_);
 		return index->offset() + func2Call_->fix_move_offset();
 	}
-	if (!index->stack_t_fix_f() && isStore)
+	if (!index->stack_t_fix_f() && forCall)
 	{
 		sub64(sp(), sp(), index->func()->fix_move_offset(), appendSlot);
+		LOG(color::cyan("store, set func2Call ") + index->func()->name());
 		func2Call_ = index->func();
-		return frameOffset(index, isStore, appendSlot);
+		return frameOffset(index, forCall, appendSlot);
 	}
 	assert(index->func() == func_);
 	return index->offset();

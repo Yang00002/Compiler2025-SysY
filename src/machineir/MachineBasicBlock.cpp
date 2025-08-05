@@ -13,6 +13,9 @@
 #include "MachineOperand.hpp"
 #include "Type.hpp"
 
+#define DEBUG 0
+#include "Util.hpp"
+
 using namespace std;
 
 
@@ -127,6 +130,7 @@ void MBasicBlock::accept(BasicBlock* block,
 void MBasicBlock::acceptReturnInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
 	auto retu = dynamic_cast<ReturnInst*>(instruction);
+	if (retu->discarded_) return;
 	if (!retu->is_void_ret())
 	{
 		auto reg = block->function()->getOperandFor(instruction->get_operand(0), opMap);
@@ -272,6 +276,29 @@ void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOper
 void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap,
                                  std::map<Function*, MFunction*>& funcMap, MBasicBlock* block)
 {
+	Instruction* next = nullptr;
+	auto p = instruction->get_parent();
+	auto it = p->get_instructions().begin();
+	auto ed = p->get_instructions().end();
+	while (it != ed)
+	{
+		if (*it == instruction)
+		{
+			++it;
+			next = *it;
+			break;
+		}
+		++it;
+	}
+	if (next != nullptr && next->is_ret())
+	{
+		auto ret = dynamic_cast<ReturnInst*>(next);
+		if ((ret->get_type() == Types::VOID || ret->get_operand(0) == instruction) && instruction->get_operand(0) ==
+		    instruction->get_parent()->get_parent())
+			ret->discarded_ = true;
+		else next = nullptr;
+	}
+	else next = nullptr;
 	auto func = dynamic_cast<Function*>(instruction->get_operand(0));
 	auto mfunc = funcMap[func];
 	int ic = 0;
@@ -314,8 +341,21 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 		};
 		instructions_.emplace_back(st);
 		++nc;
+		if (next == nullptr)
+		{
+			st->forCall_ = true;
+		}
 	}
 	for (auto& i : buffer) instructions_.emplace_back(i);
+	if (next != nullptr)
+	{
+		auto t = function()->blocks()[0];
+		t->pre_bbs().emplace(block);
+		block->suc_bbs().emplace(t);
+		auto b = new MB{block, BlockAddress::get(function()->blocks()[0])};
+		instructions_.emplace_back(b);
+		return;
+	}
 	auto bl = new MBL{block, FuncAddress::get(mfunc), func};
 	instructions_.emplace_back(bl);
 	if (instruction->get_type() != Types::VOID)
@@ -436,7 +476,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 						}
 						else
 						{
-							auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+							auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 							instructions_.emplace_back(inst);
 						}
 					}
@@ -453,7 +493,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 						}
 						else
 						{
-							auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+							auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 							instructions_.emplace_back(inst);
 						}
 					}
@@ -510,7 +550,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				}
 				else
 				{
-					auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 					instructions_.emplace_back(inst);
 				}
 			}
@@ -527,7 +567,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				}
 				else
 				{
-					auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
 					instructions_.emplace_back(inst);
 				}
 			}
