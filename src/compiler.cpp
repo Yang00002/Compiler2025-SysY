@@ -213,13 +213,25 @@ void compiler(std::string infile, std::string outfile) {
     pm->add_pass<DeadCode>();
     pm->add_pass<LoopInvariantCodeMotion>();
     pm->add_pass<DeadCode>();
-    pm->add_pass<Print>();
     pm->add_pass<Inline>();
     pm->add_pass<GVN>();
     pm->add_pass<Arithmetic>();
     pm->add_pass<GlobalCodeMotion>();
     pm->add_pass<DeadCode>();
+
+	
+    pm->add_pass<Mem2Reg>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<SCCP>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<DeadCode>();
     pm->add_pass<Inline>();
+    pm->add_pass<GVN>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<GlobalCodeMotion>();
+    pm->add_pass<DeadCode>();
   } else
     pm->add_pass<DeadCode>();
   pm->add_pass<CriticalEdgeRemove>();

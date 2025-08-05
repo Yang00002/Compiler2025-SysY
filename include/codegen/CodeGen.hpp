@@ -58,6 +58,12 @@ class CodeGen : public MachinePass
 	void st1(const Register* stackLike, int count, int offset, CodeString* toStr);
 	void st1(const MOperand* stackLike, int count, int offset, CodeString* toStr);
 	void add32(const Register* to, const Register* l, int imm, CodeString* toStr);
+	static void lsl32(const Register* to, const Register* l, int imm, CodeString* toStr);
+	static void lsl64(const Register* to, const Register* l, long long imm, CodeString* toStr);
+	static void asr32(const Register* to, const Register* l, int imm, CodeString* toStr);
+	static void asr64(const Register* to, const Register* l, long long imm, CodeString* toStr);
+	void and32(const Register* to, const Register* l, int imm, CodeString* toStr);
+	void and64(const Register* to, const Register* l, long long imm, CodeString* toStr);
 	void add64(const Register* to, const Register* l, long long imm, CodeString* toStr);
 	void sub32(const Register* to, const Register* l, int imm, CodeString* toStr);
 	void sub64(const Register* to, const Register* l, long long imm, CodeString* toStr);
@@ -88,7 +94,7 @@ class CodeGen : public MachinePass
 	static std::string poolImmediate(int i);
 	static std::string poolImmediate(unsigned i);
 	[[nodiscard]] Register* floatRegister(int i) const;
-	void decideCond(MInstruction* instruction, int cond) const;
+	static void decideCond(MInstruction* instruction, int cond);
 	static std::string poolImmediate(long long i);
 	[[nodiscard]] Register* zeroRegister() const;
 	void makeI64Immediate(long long i, const Register* placeIn, CodeString* toStr);

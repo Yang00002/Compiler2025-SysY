@@ -45,7 +45,7 @@ void GVN::run(Function* f)
 		auto bb = *it;
 		std::unordered_set<Instruction*> visited_insts_;
 		std::vector<Instruction*> to_delete_;
-		for (const auto& i : bb->get_instructions())
+		for (auto i : bb->get_instructions())
 		{
 			if (i && to_be_visited(i))
 			{
@@ -63,7 +63,7 @@ void GVN::run(Function* f)
 		for (auto i : to_delete_)
 		{
 			i->get_parent()->erase_instr(i);
-            delete i;
+			delete i;
 			LOG("Replaced expression: " + i->print());
 		}
 	}
@@ -110,7 +110,7 @@ GVN::gvn_state_t GVN::visit_inst(Instruction* i)
 	return invalid;
 }
 
-void GVN::erase_inst(Instruction* i)
+void GVN::erase_inst(const Instruction* i)
 {
 	auto expr = get_expr(i);
 	expr_val_map_.erase(expr);

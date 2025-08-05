@@ -23,9 +23,9 @@ class BlockLayout final : public MachinePass
 		DynamicBitset pre_;
 		BBNode* parent_;
 		BBNode* child_;
-		int nc_;
-		int size_;
-		int id_;
+		unsigned size_;
+		unsigned id_;
+		unsigned len_ = 0;
 
 		BBNode* parent()
 		{
@@ -48,12 +48,12 @@ class BlockLayout final : public MachinePass
 
 	struct Edge
 	{
-		int from_;
-		int to_;
-		int cost_;
-		int length_;
+		unsigned from_;
+		unsigned to_;
+		unsigned cost_;
+		unsigned length_;
 
-		Edge(int f, int t, int c, int l): from_(f), to_(t), cost_(c), length_(l)
+		Edge(unsigned f, unsigned t, unsigned c, unsigned l): from_(f), to_(t), cost_(c), length_(l)
 		{
 		}
 	};
@@ -62,9 +62,17 @@ class BlockLayout final : public MachinePass
 	{
 		bool operator()(const Edge& l, const Edge& r) const
 		{
-			if (l.cost_ > r.cost_) return true;
-			if (l.cost_ == r.cost_) return l.length_ < r.length_;
-			return false;
+			unsigned long long c1 = l.length_;
+			unsigned long long c2 = r.length_;
+			c1 |= static_cast<unsigned long long>(l.cost_) << 32;
+			c2 |= static_cast<unsigned long long>(r.cost_) << 32;
+			if (c1 > c2) return true;
+			if (c1 < c2) return false;
+			c1 = l.to_;
+			c2 = r.to_;
+			c1 |= static_cast<unsigned long long>(l.from_) << 32;
+			c2 |= static_cast<unsigned long long>(r.from_) << 32;
+			return c1 < c2;
 		}
 	};
 
@@ -72,8 +80,8 @@ class BlockLayout final : public MachinePass
 	MachineLoopDetection detect;
 	std::priority_queue<Edge, std::vector<Edge>, EdgeCMP> workList_;
 	std::vector<BBNode*> blocks_;
-	int* costMap_ = nullptr;
-	int* lengthMap_ = nullptr;
+	unsigned* costMap_ = nullptr;
+	unsigned workListGate_ = 0;
 	int blockCount_ = 0;
 	void runOnFunc();
 	void runOnLoops(const std::vector<MachineLoop*>& loops);
@@ -82,12 +90,13 @@ class BlockLayout final : public MachinePass
 	void runOnNodes(DynamicBitset& nodes);
 	void collectBlocks();
 	BBNode* block(const MBasicBlock* bb) const;
-	[[nodiscard]] BBNode* block(int bb) const;
+	[[nodiscard]] BBNode* block(unsigned bb) const;
 	static void removeEdge(BBNode* from, BBNode* to);
-	void addEdge(BBNode* from, BBNode* to, int cost, int length) const;
-	int cost(const BBNode* from, const BBNode* to) const;
+	void addEdge(BBNode* from, BBNode* to, unsigned cost) const;
+	void addEdge(BBNode* from, BBNode* to, unsigned hash, unsigned cost) const;
+	unsigned cost(const BBNode* from, const BBNode* to) const;
 	void merge(BBNode* from, BBNode* to, const DynamicBitset& care);
-	[[nodiscard]] int edgeHash(int f, int t) const;
+	static unsigned lenOf(BBNode* node);
 
 public:
 	BlockLayout(const BlockLayout& other) = delete;

@@ -113,6 +113,26 @@ IBinaryInst* IBinaryInst::create_srem(Value* v1, Value* v2, BasicBlock* bb)
 	return create(srem, v1, v2, bb);
 }
 
+IBinaryInst* IBinaryInst::create_shl(Value* v1, Value* v2, BasicBlock* bb)
+{
+	return create(shl, v1, v2, bb);
+}
+
+IBinaryInst* IBinaryInst::create_ashr(Value* v1, Value* v2, BasicBlock* bb)
+{
+	return create(ashr, v1, v2, bb);
+}
+
+IBinaryInst* IBinaryInst::create_and(Value* v1, Value* v2, BasicBlock* bb)
+{
+	return create(and_, v1, v2, bb);
+}
+
+void IBinaryInst::setOp(OpID id)
+{
+	op_id_ = id;
+}
+
 FBinaryInst::FBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
 	: BaseInst<FBinaryInst>(FLOAT, id, bb)
 {
@@ -154,6 +174,11 @@ FBinaryInst* FBinaryInst::create_fmul(Value* v1, Value* v2, BasicBlock* bb)
 FBinaryInst* FBinaryInst::create_fdiv(Value* v1, Value* v2, BasicBlock* bb)
 {
 	return create(fdiv, v1, v2, bb);
+}
+
+void FBinaryInst::setOp(OpID id)
+{
+	op_id_ = id;
 }
 
 ICmpInst::ICmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb)

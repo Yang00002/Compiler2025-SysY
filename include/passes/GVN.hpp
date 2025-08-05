@@ -14,7 +14,7 @@ class GVN final : public Pass
 
     static bool to_be_visited(const Instruction* i);
     gvn_state_t visit_inst(Instruction* i);
-    void erase_inst(Instruction* i);
+    void erase_inst(const Instruction* i);
 
     static bool is_commutative(const Instruction* i);
     static std::string get_expr(const Instruction* i);

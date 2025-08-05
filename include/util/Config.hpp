@@ -52,3 +52,5 @@ extern bool testArchi;
 extern int funcInlineGate;
 // 函数的所有函数结束尾声加起来大于等于这个数字, 需要单独开辟一个返回基本块, 而不是将尾声内联到 RET
 extern int epilogShouldMerge;
+// 推断 srem 的左操作数和结果符号保持相同, 这并不总是有效的, 尤其是当 ar[op % 4], 此时推断 op >= 0, 但是其可能是 -4 的倍数
+extern bool dangerousSignalInfer;

@@ -14,6 +14,9 @@ class Function;
 
 class Instruction : public User
 {
+	friend class IBinaryInst;
+	friend class FBinaryInst;
+
 public:
 	Instruction(const Instruction&) = delete;
 	Instruction(Instruction&&) = delete;
@@ -31,6 +34,9 @@ public:
 		mul,
 		sdiv,
 		srem,
+		shl,
+		ashr,
+		and_,
 		// float binary operators
 		fadd,
 		fsub,
@@ -117,6 +123,9 @@ public:
 	[[nodiscard]] bool is_mul() const { return op_id_ == mul; }
 	[[nodiscard]] bool is_div() const { return op_id_ == sdiv; }
 	[[nodiscard]] bool is_rem() const { return op_id_ == srem; }
+	[[nodiscard]] bool is_shl() const { return op_id_ == shl; }
+	[[nodiscard]] bool is_ashr() const { return op_id_ == ashr; }
+	[[nodiscard]] bool is_and() const { return op_id_ == and_; }
 
 	[[nodiscard]] bool is_fadd() const { return op_id_ == fadd; }
 	[[nodiscard]] bool is_fsub() const { return op_id_ == fsub; }
@@ -137,7 +146,7 @@ public:
 
 	[[nodiscard]] bool isBinary() const
 	{
-		return (is_add() || is_sub() || is_mul() || is_div() || is_fadd() ||
+		return (is_add() || is_sub() || is_mul() || is_div() || is_shl() || is_ashr() || is_and() || is_fadd() ||
 		        is_fsub() || is_fmul() || is_fdiv()) &&
 		       (get_num_operand() == 2);
 	}
@@ -181,7 +190,10 @@ public:
 	static IBinaryInst* create_mul(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_sdiv(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_srem(Value* v1, Value* v2, BasicBlock* bb);
-
+	static IBinaryInst* create_shl(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_ashr(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_and(Value* v1, Value* v2, BasicBlock* bb);
+	void setOp(OpID id);
 	std::string print() override;
 };
 
@@ -199,6 +211,7 @@ public:
 	static FBinaryInst* create_fmul(Value* v1, Value* v2, BasicBlock* bb);
 	static FBinaryInst* create_fdiv(Value* v1, Value* v2, BasicBlock* bb);
 
+	void setOp(OpID id);
 	std::string print() override;
 };
 

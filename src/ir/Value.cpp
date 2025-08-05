@@ -73,7 +73,7 @@ Value* User::get_operand(int i) const { return operands_.at(i); }
 
 void User::set_operand(int i, Value* v)
 {
-	assert(i <u2iNegThrow(operands_.size()) && "set_operand out of index");
+	assert(i < u2iNegThrow(operands_.size()) && "set_operand out of index");
 	if (operands_[i])
 	{
 		// old operand

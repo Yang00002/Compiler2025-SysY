@@ -34,10 +34,15 @@ struct IBBNode
 class Inline final : public Pass
 {
 public:
+	Inline(const Inline& other) = delete;
+	Inline(Inline&& other) noexcept = delete;
+	Inline& operator=(const Inline& other) = delete;
+	Inline& operator=(Inline&& other) noexcept = delete;
+
 	explicit Inline(Module* m);
 
 	void run() override;
-	~Inline();
+	~Inline() override;
 private:
 	std::unordered_map<BasicBlock*, IBBNode*> nodes_;
 	std::vector<IBBNode*> allNodes_;

@@ -6,10 +6,10 @@
 #include "MachineLoopDetection.hpp"
 #include "MachineOperand.hpp"
 
-#define OPEN_ASSERT 0
-#define DEBUG 0
 #include <iostream>
 
+#define OPEN_ASSERT 0
+#define DEBUG 0
 #include "Util.hpp"
 
 using namespace std;
@@ -35,7 +35,6 @@ namespace
 {
 	bool checkFunc(MFunction* f)
 	{
-		int idx = 0;
 		for (auto i : f->blocks())
 		{
 			ASSERT(i->id() == idx++);
@@ -137,50 +136,56 @@ void BlockLayout::runOnNodes(DynamicBitset& nodes)
 	LOG(color::blue("runOnNodes ") + logNodes(nodes));
 	PUSH;
 
-	for (auto i : nodes)
+	while (true)
 	{
-		ASSERT(block(i) == blocks_[i]);
-		auto n = blocks_[i];
-		for (auto next : n->next_)
+		workListGate_ = 0;
+		for (auto i : nodes)
 		{
-			if (nodes.test(next))
+			ASSERT(block(i) == blocks_[i]);
+			auto n = blocks_[i];
+			auto l = i * blockCount_;
+			for (auto next : n->next_)
 			{
-				auto hash = edgeHash(i, next);
-				auto sb = blocks_[next]->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
-				workList_.emplace(i, next, costMap_[hash], n->size_ + blocks_[next]->size_ + sb);
+				if (nodes.test(next))
+				{
+					auto hash = l + next;
+					auto cost = costMap_[hash];
+					workList_.emplace(i, next, cost, block(next)->len_);
+					if (workListGate_ < cost) workListGate_ = cost;
+				}
 			}
 		}
+		if (workList_.empty()) break;
+		while (!workList_.empty())
+		{
+			auto edge = workList_.top();
+			workList_.pop();
+			auto from = block(edge.from_);
+			auto to = block(edge.to_);
+			if (from == to) continue;
+			auto hash = from->id_ * blockCount_ + to->id_;
+			auto cost = costMap_[hash];
+			if (cost == edge.cost_ && to->len_ == edge.length_)
+				merge(from, to, nodes);
+		}
 	}
-	while (!workList_.empty())
-	{
-		auto edge = workList_.top();
-		workList_.pop();
-		auto from = block(edge.from_);
-		auto to = block(edge.to_);
-		if (from == to) continue;
-		auto hash = edgeHash(from->id_, to->id_);
-		auto cost = costMap_[hash];
-		if (cost == edge.cost_ && lengthMap_[hash] == edge.length_)
-			merge(from, to, nodes);
-	}
+
 	POP;
 }
 
 void BlockLayout::collectBlocks()
 {
 	delete costMap_;
-	delete lengthMap_;
-	costMap_ = new int[i2uKeepBits(blockCount_ * blockCount_)]{};
-	lengthMap_ = new int[i2uKeepBits(blockCount_ * blockCount_)]{};
+	costMap_ = new unsigned[i2uKeepBits(blockCount_ * blockCount_)]{};
 	for (auto i : blocks_) delete i;
 	blocks_.resize(blockCount_);
-	int id = 0;
+	unsigned id = 0;
 	for (auto i : f_->blocks())
 	{
-		int size = 0;
+		unsigned size = 0;
 		for (auto j : i->instructions()) size += j->str->lines();
 		size += i->needBranchCount();
-		auto node = new BBNode{i, {blockCount_}, {blockCount_}, nullptr, nullptr,0, size, id++};
+		auto node = new BBNode{i, {blockCount_}, {blockCount_}, nullptr, nullptr, size, id++};
 		blocks_[i->id()] = node;
 	}
 	for (auto i : f_->blocks())
@@ -191,8 +196,7 @@ void BlockLayout::collectBlocks()
 			auto next = *suc.begin();
 			auto bl = block(i);
 			auto br = block(next);
-			auto sb = br->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
-			addEdge(bl, br, 0, bl->size_ + br->size_ + sb);
+			addEdge(bl, br, 0);
 		}
 		else if (suc.size() == 2)
 		{
@@ -200,8 +204,7 @@ void BlockLayout::collectBlocks()
 			for (auto next : suc)
 			{
 				auto br = block(next);
-				auto sb = br->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
-				addEdge(bl, br, 1, bl->size_ + br->size_ + sb);
+				addEdge(bl, br, 1);
 			}
 		}
 	}
@@ -212,29 +215,35 @@ BlockLayout::BBNode* BlockLayout::block(const MBasicBlock* bb) const
 	return blocks_[bb->id()]->parent();
 }
 
-BlockLayout::BBNode* BlockLayout::block(int bb) const
+BlockLayout::BBNode* BlockLayout::block(unsigned bb) const
 {
 	return blocks_[bb]->parent();
 }
 
 void BlockLayout::removeEdge(BBNode* from, BBNode* to)
 {
-	from->next_.reset(to->id_);
-	to->pre_.reset(from->id_);
+	from->next_.reset(static_cast<int>(to->id_));
+	to->pre_.reset(static_cast<int>(from->id_));
 }
 
-void BlockLayout::addEdge(BBNode* from, BBNode* to, int cost, int length) const
+void BlockLayout::addEdge(BBNode* from, BBNode* to, unsigned cost) const
 {
-	from->next_.set(to->id_);
-	to->pre_.set(from->id_);
-	int hash = edgeHash(from->id_, to->id_);
+	from->next_.set(static_cast<int>(to->id_));
+	to->pre_.set(static_cast<int>(from->id_));
+	unsigned hash = from->id_ * blockCount_ + to->id_;
 	costMap_[hash] = cost;
-	lengthMap_[hash] = length;
 }
 
-int BlockLayout::cost(const BBNode* from, const BBNode* to) const
+void BlockLayout::addEdge(BBNode* from, BBNode* to, unsigned hash, unsigned cost) const
 {
-	if (from->next_.test(to->id_)) return costMap_[from->id_ * blockCount_ + to->id_];
+	from->next_.set(static_cast<int>(to->id_));
+	to->pre_.set(static_cast<int>(from->id_));
+	costMap_[hash] = cost;
+}
+
+unsigned BlockLayout::cost(const BBNode* from, const BBNode* to) const
+{
+	if (from->next_.test(static_cast<int>(to->id_))) return costMap_[from->id_ * blockCount_ + to->id_];
 	return INT_MAX;
 }
 
@@ -242,16 +251,16 @@ namespace
 {
 	struct EdgeModifier
 	{
-		int c_;
-		int l_;
+		unsigned c_;
+		unsigned l_;
 	};
 }
 
 void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 {
 	LOG(color::yellow("Merge Nodes ") + from->print() + color::yellow(" and ") + to->print());
-	map<pair<int, int>, EdgeModifier> added;
-	auto add2map = [&added](int l, int r, int c, int le)-> void
+	map<pair<unsigned, unsigned>, EdgeModifier> added;
+	auto add2map = [&added](unsigned l, unsigned r, unsigned c, unsigned le)-> void
 	{
 		auto hash = pair{l, r};
 		auto fd = added.find(hash);
@@ -260,15 +269,8 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 		else
 		{
 			auto& s = fd->second;
-			if (s.c_ > c)
-			{
-				s.c_ = c;
-				s.l_ = le;
-			}
-			else if (s.c_ == c && s.l_ < le)
-			{
-				s.l_ = le;
-			}
+			if (s.c_ > c) s.c_ = c;
+			s.l_ = le;
 		}
 	};
 	removeEdge(from, to);
@@ -297,34 +299,33 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 	}
 	int nn = l->needBranchCount() - pn;
 
-	auto fe = to->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
+	unsigned fromHash = from->id_ * blockCount_;
+	unsigned toHash = to->id_ * blockCount_;
+
 	for (auto i : from->next_)
 	{
-		auto sb = blocks_[i]->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
-		int hash = edgeHash(from->id_, i);
-		add2map(from->id_, i, costMap_[hash] + to->size_ + nn,
-		        from->size_ + to->size_ + blocks_[i]->size_ + sb);
+		unsigned hash = fromHash + i;
+		add2map(from->id_, i, costMap_[hash] + to->size_ + nn, block(i)->len_);
 	}
 	for (auto i : to->next_)
 	{
-		auto sb = blocks_[i]->child()->block_->suc_bbs().empty() ? INT_MIN : 0;
-		int hash = edgeHash(to->id_, i);
+		unsigned hash = toHash + i;
 		add2map(from->id_, i,
-		        costMap_[hash], from->size_ + to->size_ + blocks_[i]->size_ + sb);
+		        costMap_[hash], block(i)->len_);
 		removeEdge(to, blocks_[i]);
 	}
 	for (auto i : from->pre_)
 	{
-		int hash = edgeHash(i, from->id_);
-		add2map(i, from->id_, costMap_[hash], from->size_ + to->size_ + blocks_[i]->size_ + fe);
+		unsigned hash = i * blockCount_ + from->id_;
+		add2map(i, from->id_, costMap_[hash], to->len_);
 	}
 	bool isEntry = from->block_ == f_->blocks()[0];
 	for (auto i : to->pre_)
 	{
 		if (!isEntry)
 		{
-			int hash = edgeHash(i, to->id_);
-			add2map(i, from->id_, costMap_[hash] + from->size_, from->size_ + to->size_ + blocks_[i]->size_ + fe);
+			unsigned hash = i * blockCount_ + to->id_;
+			add2map(i, from->id_, costMap_[hash] + from->size_, to->len_);
 		}
 		removeEdge(blocks_[i], to);
 	}
@@ -332,22 +333,29 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 	from->child_ = to;
 	for (auto [i,j] : added)
 	{
-		addEdge(blocks_[i.first], blocks_[i.second], j.c_, j.l_);
-		if (care.test(i.first) && care.test(i.second))
+		unsigned hash = i.first * blockCount_ + i.second;
+		if (care.test(static_cast<int>(i.first)) && care.test(static_cast<int>(i.second)) && j.c_ <= workListGate_ && (
+			    j.l_ != block(i.second)->len_ || costMap_[hash] != j.c_))
 			workList_.emplace(i.first, i.second, j.c_, j.l_);
+		addEdge(blocks_[i.first], blocks_[i.second], hash, j.c_);
 	}
 	from->size_ += to->size_;
+	from->len_ = to->len_;
 }
 
-int BlockLayout::edgeHash(int f, int t) const
+unsigned BlockLayout::lenOf(BBNode* node)
 {
-	return f * blockCount_ + t;
+	auto n = node->child();
+	auto inst = n->block_->instructions_.back();
+	if (dynamic_cast<ReturnInst*>(inst)) return 2;
+	auto b = n->block_->needBranchCount();
+	if (b == 1) return 0;
+	return 1;
 }
 
 BlockLayout::~BlockLayout()
 {
 	delete costMap_;
-	delete lengthMap_;
 	for (auto i : blocks_) delete i;
 }
 

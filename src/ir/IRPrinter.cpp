@@ -50,6 +50,12 @@ std::string print_instr_op_name(Instruction::OpID id)
 			return "sdiv";
 		case Instruction::srem:
 			return "srem";
+		case Instruction::shl:
+			return "shl";
+		case Instruction::ashr:
+			return "ashr";
+		case Instruction::and_:
+			return "and";
 		case Instruction::fadd:
 			return "fadd";
 		case Instruction::fsub:
@@ -404,6 +410,7 @@ std::string SiToFpInst::print()
 	instr_ir += this->get_dest_type()->print();
 	return instr_ir;
 }
+
 
 std::string PhiInst::print()
 {

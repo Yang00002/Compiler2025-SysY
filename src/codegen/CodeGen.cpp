@@ -529,8 +529,8 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	}
 	if (immL && immR)
 	{
-		assert(op <= Instruction::srem || len != 64);
-		if (op <= Instruction::srem)
+		assert(op <= Instruction::and_ || len != 64);
+		if (op <= Instruction::and_)
 		{
 			if (len == 32)
 			{
@@ -551,6 +551,15 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 						break;
 					case Instruction::srem:
 						i = immL->asInt() % immR->asInt();
+						break;
+					case Instruction::shl:
+						i = immL->asInt() << immR->asInt();
+						break;
+					case Instruction::ashr:
+						i = immL->asInt() >> immR->asInt();
+						break;
+					case Instruction::and_:
+						i = immL->asInt() & immR->asInt();
 						break;
 					default:
 						throw runtime_error("unexpected");
@@ -575,6 +584,15 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 					break;
 				case Instruction::srem:
 					i = immL->as64BitsInt() % immR->as64BitsInt();
+					break;
+				case Instruction::shl:
+					i = immL->as64BitsInt() << immR->as64BitsInt();
+					break;
+				case Instruction::ashr:
+					i = immL->as64BitsInt() >> immR->as64BitsInt();
+					break;
+				case Instruction::and_:
+					i = immL->as64BitsInt() & immR->as64BitsInt();
 					break;
 				default:
 					throw runtime_error("unexpected");
@@ -624,7 +642,7 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 			}
 			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem || op == Instruction::fmul
 			    ||
-			    op == Instruction::fdiv)
+			    op == Instruction::fdiv || op == Instruction::shl || op == Instruction::and_ || op == Instruction::ashr)
 			{
 				copy(target, zeroRegister(), len, toStr);
 				return;
@@ -643,12 +661,12 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	{
 		if (immR->isZero(flt, len))
 		{
-			if (op == Instruction::add || op == Instruction::fadd)
+			if (op == Instruction::add || op == Instruction::fadd || op == Instruction::shl || op == Instruction::ashr)
 			{
 				copy(target, l, len, toStr);
 				return;
 			}
-			if (op == Instruction::mul || op == Instruction::fmul)
+			if (op == Instruction::mul || op == Instruction::fmul || op == Instruction::and_)
 			{
 				copy(target, zeroRegister(), len, toStr);
 				return;
@@ -734,6 +752,75 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 		regL = op2reg(l, len, true, toStr);
 		fl = nullptr;
 	}
+	if (op == Instruction::shl)
+	{
+		assert(immR);
+		if (len == 32) lsl32(target, regL, immR->asInt(), toStr);
+		else lsl64(target, regL, immR->as64BitsInt(), toStr);
+		releaseIP(regL);
+		return;
+	}
+	if (op == Instruction::ashr)
+	{
+		assert(immR);
+		if (len == 32) asr32(target, regL, immR->asInt(), toStr);
+		else asr64(target, regL, immR->as64BitsInt(), toStr);
+		releaseIP(regL);
+		return;
+	}
+	if (op == Instruction::and_)
+	{
+		assert(immR);
+		if (len == 32) and32(target, regL, immR->asInt(), toStr);
+		else and64(target, regL, immR->as64BitsInt(), toStr);
+		releaseIP(regL);
+		return;
+	}
+	if (immR && op == Instruction::srem)
+	{
+		if (len == 32)
+		{
+			int val = immR->asInt();
+			int av = val < 0 ? -val : val;
+			if ((av & (av - 1)) == 0)
+			{
+				auto rr = getIP();
+				auto ip = getIP();
+				makeImmediate(immR, false, 32, rr, toStr);
+				toStr->addInstruction("SDIV", regName(ip, 32), regName(regL, 32),
+				                      regName(rr, 32));
+				lsl32(ip, ip, m_countr_zero(av), toStr);
+				if (val < 0)
+					mathRRInst(target, regL, ip, Instruction::add, 32, toStr);
+				else
+					mathRRInst(target, regL, ip, Instruction::sub, 32, toStr);
+				releaseIP(rr);
+				releaseIP(ip);
+				return;
+			}
+		}
+		else
+		{
+			long long val = immR->asInt();
+			long long av = val < 0 ? -val : val;
+			if ((av & (av - 1)) == 0)
+			{
+				auto rr = getIP();
+				auto ip = getIP();
+				makeImmediate(immR, false, 64, rr, toStr);
+				toStr->addInstruction("SDIV", regName(ip, 64), regName(regL, 64),
+				                      regName(rr, 64));
+				lsl64(ip, ip, m_countr_zero(av), toStr);
+				if (val < 0)
+					mathRRInst(target, regL, ip, Instruction::add, 64, toStr);
+				else
+					mathRRInst(target, regL, ip, Instruction::sub, 64, toStr);
+				releaseIP(rr);
+				releaseIP(ip);
+				return;
+			}
+		}
+	}
 	if (immR && (op == Instruction::add || op == Instruction::sub))
 	{
 		if (op == Instruction::add)
@@ -800,6 +887,74 @@ void CodeGen::add32(const Register* to, const Register* l, int imm, CodeString* 
 	makeI32Immediate(imm, reg, toStr);
 	add(to, l, reg, 32, toStr);
 	releaseIP(reg);
+}
+
+void CodeGen::lsl32(const Register* to, const Register* l, int imm, CodeString* toStr)
+{
+	assert(imm >= 0);
+	if (imm == 0) return copy(to, l, 32, toStr);
+	toStr->addInstruction("LSL", regName(to, 32), regName(l, 32), immediate(imm));
+}
+
+void CodeGen::lsl64(const Register* to, const Register* l, long long imm, CodeString* toStr)
+{
+	assert(imm >= 0);
+	if (imm == 0) return copy(to, l, 64, toStr);
+	toStr->addInstruction("LSL", regName(to, 64), regName(l, 64), immediate(imm));
+}
+
+void CodeGen::asr32(const Register* to, const Register* l, int imm, CodeString* toStr)
+{
+	assert(imm >= 0);
+	if (imm == 0) return copy(to, l, 32, toStr);
+	toStr->addInstruction("ASR", regName(to, 32), regName(l, 32), immediate(imm));
+}
+
+void CodeGen::asr64(const Register* to, const Register* l, long long imm, CodeString* toStr)
+{
+	assert(imm >= 0);
+	if (imm == 0) return copy(to, l, 64, toStr);
+	toStr->addInstruction("ASR", regName(to, 64), regName(l, 64), immediate(imm));
+}
+
+void CodeGen::and32(const Register* to, const Register* l, int imm, CodeString* toStr)
+{
+	assert(imm >= 0);
+	if (imm == 0) return copy(to, l, 32, toStr);
+	if (inUImm12(imm))
+	{
+		toStr->addInstruction("AND", regName(to, 32), regName(l, 32), immediate(imm));
+		return;
+	}
+	if (inUImm12L12(imm))
+	{
+		toStr->addInstruction("AND", regName(to, 32), regName(l, 32), immediate(imm >> 12), leftShift12());
+		return;
+	}
+	auto ip = getIP();
+	makeI64Immediate(imm, ip, toStr);
+	toStr->addInstruction("AND", regName(to, 32), regName(l, 32), regName(ip, 32));
+	releaseIP(ip);
+}
+
+void CodeGen::and64(const Register* to, const Register* l, long long imm, CodeString* toStr)
+{
+	assert(imm >= 0);
+	if (imm == 0) return copy(to, l, 64, toStr);
+	if (inUImm12(imm))
+	{
+		toStr->addInstruction("AND", regName(to, 64), regName(l, 64), immediate(imm));
+		return;
+	}
+	if (inUImm12L12(imm))
+	{
+		toStr->addInstruction("AND", regName(to, 64), regName(l, 64), immediate(imm >> 12), leftShift12());
+		return;
+	}
+	auto ip = getIP();
+	makeI64Immediate(imm, ip, toStr);
+	toStr->addInstruction("AND", regName(to, 64), regName(l, 64), regName(ip, 64));
+	releaseIP(ip);
 }
 
 void CodeGen::add64(const Register* to, const Register* l, long long imm, CodeString* toStr)
@@ -1292,7 +1447,7 @@ Register* CodeGen::floatRegister(int i) const
 	return m_->fregs_[i];
 }
 
-void CodeGen::decideCond(MInstruction* instruction, int cond) const
+void CodeGen::decideCond(MInstruction* instruction, int cond)
 {
 	Instruction::OpID op;
 	auto b = dynamic_cast<MB*>(instruction);

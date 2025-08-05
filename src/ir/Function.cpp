@@ -4,6 +4,7 @@
 #include <Module.hpp>
 #include <Type.hpp>
 #include <map>
+#include <cassert>
 
 #include "MachineBasicBlock.hpp"
 #include "System.hpp"

@@ -105,6 +105,12 @@ Constant* SCCP::constFold(const Instruction* i, const Constant* op1, const Const
 			return Constant::create(m_, op1->getIntConstant() / op2->getIntConstant());
 		case Instruction::srem:
 			return Constant::create(m_, op1->getIntConstant() % op2->getIntConstant());
+		case Instruction::shl:
+			return Constant::create(m_, op1->getIntConstant() << op2->getIntConstant());
+		case Instruction::ashr:
+			return Constant::create(m_,  op1->getIntConstant() >> op2->getIntConstant());
+		case Instruction::and_:
+			return Constant::create(m_, op1->getIntConstant() & op2->getIntConstant());
 		case Instruction::lt:
 			return Constant::create(m_, op1->getIntConstant() < op2->getIntConstant());
 		case Instruction::le:

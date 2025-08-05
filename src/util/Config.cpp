@@ -26,3 +26,4 @@ bool o1Optimization = false;
 bool testArchi = false;
 int funcInlineGate = 2;
 int epilogShouldMerge = 9;
+bool dangerousSignalInfer = true;

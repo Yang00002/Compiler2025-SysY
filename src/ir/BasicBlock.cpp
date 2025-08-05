@@ -6,7 +6,6 @@
 #include "Util.hpp"
 
 
-
 BasicBlock::BasicBlock(Module* m, const std::string& name = "",
                        Function* parent = nullptr)
 	: Value(Types::LABEL, name), parent_(parent)
@@ -17,7 +16,6 @@ BasicBlock::BasicBlock(Module* m, const std::string& name = "",
 
 Module* BasicBlock::get_module() const { return get_parent()->get_parent(); }
 void BasicBlock::erase_from_parent() { this->get_parent()->remove(this); }
-
 BasicBlock::~BasicBlock()
 {
 	for (const auto i : instr_list_)

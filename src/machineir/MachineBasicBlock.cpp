@@ -6,6 +6,7 @@
 #include "BasicBlock.hpp"
 #include "Config.hpp"
 #include "Constant.hpp"
+#include "CountLZ.hpp"
 #include "Instruction.hpp"
 #include "MachineFunction.hpp"
 #include "MachineInstruction.hpp"
@@ -60,6 +61,9 @@ void MBasicBlock::accept(BasicBlock* block,
 			case Instruction::mul:
 			case Instruction::sdiv:
 			case Instruction::srem:
+			case Instruction::shl:
+			case Instruction::ashr:
+			case Instruction::and_:
 			case Instruction::fadd:
 			case Instruction::fsub:
 			case Instruction::fmul:
@@ -419,8 +423,40 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				if (immA != nullptr)
 				{
 					auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
-					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
-					instructions_.emplace_back(inst);
+					if (use64BitsMathOperationInPointerOp)
+					{
+						long long c = immA->as64BitsInt();
+						if ((c & (c - 1)) == 0)
+						{
+							auto n = m_countr_zero(c);
+							auto inst = new MMathInst{
+								block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
+							};
+							instructions_.emplace_back(inst);
+						}
+						else
+						{
+							auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+							instructions_.emplace_back(inst);
+						}
+					}
+					else
+					{
+						int c = immA->asInt();
+						if ((c & (c - 1)) == 0)
+						{
+							auto n = m_countr_zero(c);
+							auto inst = new MMathInst{
+								block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
+							};
+							instructions_.emplace_back(inst);
+						}
+						else
+						{
+							auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+							instructions_.emplace_back(inst);
+						}
+					}
 					operand = reg;
 					immA = nullptr;
 				}
@@ -461,8 +497,40 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		if (immA != nullptr)
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
-			auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
-			instructions_.emplace_back(inst);
+			if (use64BitsMathOperationInPointerOp)
+			{
+				long long c = immA->as64BitsInt();
+				if ((c & (c - 1)) == 0)
+				{
+					auto n = m_countr_zero(c);
+					auto inst = new MMathInst{
+						block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
+					};
+					instructions_.emplace_back(inst);
+				}
+				else
+				{
+					auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+					instructions_.emplace_back(inst);
+				}
+			}
+			else
+			{
+				int c = immA->asInt();
+				if ((c & (c - 1)) == 0)
+				{
+					auto n = m_countr_zero(c);
+					auto inst = new MMathInst{
+						block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
+					};
+					instructions_.emplace_back(inst);
+				}
+				else
+				{
+					auto inst = new MMathInst{ block, Instruction::mul, immA, operand, reg, width };
+					instructions_.emplace_back(inst);
+				}
+			}
 			operand = reg;
 		}
 		if (immB != nullptr)
