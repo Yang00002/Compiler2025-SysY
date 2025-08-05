@@ -7,6 +7,7 @@
 
 #include "Arithmetic.hpp"
 #include "BlockLayout.hpp"
+#include "CleanCode.hpp"
 #include "CmpCombine.hpp"
 #include "CodeGen.hpp"
 #include "Config.hpp"
@@ -245,6 +246,7 @@ void compiler(std::string infile, std::string outfile) {
   MachinePassManager *mng = new MachinePassManager{mir};
 
   mng->add_pass<RegisterAllocate>();
+  mng->add_pass<CleanCode>();
   mng->add_pass<FrameOffset>();
   mng->add_pass<CodeGen>();
   mng->add_pass<ReturnMerge>();
