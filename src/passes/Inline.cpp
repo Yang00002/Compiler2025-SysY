@@ -534,7 +534,7 @@ void Inline::mergeFunc()
 				for (auto& arg : f_->get_args())
 				{
 					auto to = call->get_operand(++idx);
-					valMap.emplace(&arg, to);
+					valMap.emplace(arg, to);
 				}
 				for (auto in : ii)
 				{

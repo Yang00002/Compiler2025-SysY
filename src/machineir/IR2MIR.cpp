@@ -295,7 +295,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 	for (auto& arg : func->get_args())
 	{
 		++idx;
-		if (arg.get_type() == Types::FLOAT)
+		if (arg->get_type() == Types::FLOAT)
 		{
 			if (fc < 8)
 			{
@@ -314,7 +314,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 			{
 				auto cp = new MCopy{
 					block, function()->getOperandFor(instruction->get_operand(idx), opMap),
-					Register::getIParameterRegister(ic, module()), u2iNegThrow(arg.get_type()->sizeInBitsInArm64())
+					Register::getIParameterRegister(ic, module()), u2iNegThrow(arg->get_type()->sizeInBitsInArm64())
 				};
 				buffer.emplace_back(cp);
 				++ic;
@@ -323,7 +323,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 		}
 		auto st = new MSTR{
 			block, function()->getOperandFor(instruction->get_operand(idx), opMap),
-			mfunc->getFix(nc), u2iNegThrow(arg.get_type()->sizeInBitsInArm64())
+			mfunc->getFix(nc), u2iNegThrow(arg->get_type()->sizeInBitsInArm64())
 		};
 		instructions_.emplace_back(st);
 		++nc;

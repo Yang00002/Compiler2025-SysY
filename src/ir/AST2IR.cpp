@@ -305,13 +305,13 @@ Value* AST2IRVisitor::visit(ASTFuncDecl* func_decl)
 		auto& ast_arg = func_decl->args()[i];
 		auto& arg = *it;
 		const auto inter = _builder->create_alloca(inputTypes[i]);
-		_builder->create_store(&arg, inter);
+		_builder->create_store(arg, inter);
 		_var_scope.push(ast_arg->id(), inter);
 	}
 	std::vector<Value*> args;
 	for (auto& arg : func->get_args())
 	{
-		args.push_back(&arg);
+		args.push_back(arg);
 	}
 	_var_scope.enter();
 	func_decl->block()->accept(this);

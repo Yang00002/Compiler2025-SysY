@@ -49,9 +49,9 @@ void FuncInfo::run()
 		visited.emplace(func);
 		for (auto& arg : func->get_args())
 		{
-			if (arg.get_type()->isPointerType())
+			if (arg->get_type()->isPointerType())
 			{
-				spread(&arg, spMap);
+				spread(arg, spMap);
 			}
 		}
 	}
@@ -74,14 +74,14 @@ void FuncInfo::run()
 			auto& ops = inst->get_operands();
 			for (auto& arg : f->get_args())
 			{
-				if (arg.get_type()->isPointerType())
+				if (arg->get_type()->isPointerType())
 				{
-					auto carg = ops[arg.get_arg_no() + 1];
+					auto carg = ops[arg->get_arg_no() + 1];
 					auto traceP = spMap.find(carg);
 					if (traceP == spMap.end()) continue;
 					auto trace = traceP->second;
-					if (rld.have(&arg)) lld.add(trace);
-					if (rst.have(&arg)) lst.add(trace);
+					if (rld.have(arg)) lld.add(trace);
+					if (rst.have(arg)) lst.add(trace);
 				}
 			}
 			if (lld.globals_.size() + lld.arguments_.size() + lst.globals_.size() + lst.arguments_.size() != ps)
@@ -165,6 +165,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 	while (!q.empty())
 	{
 		auto v = q.front();
+		assert(v->get_type()->isPointerType());
 		q.pop();
 		for (auto& use : v->get_use_list())
 		{
@@ -185,7 +186,16 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 						break;
 					}
 				case Instruction::call:
-					break;
+					{
+						// 不能确定库函数的行为, 因此认为其对参数同时进行了读写
+						auto callF = dynamic_cast<Function*>(inst->get_operand(0));
+						if (callF->is_lib_)
+						{
+							stores[f].add(val);
+							loads[f].add(val);
+						}
+						break;
+					}
 				case Instruction::getelementptr:
 					{
 						assert(idx == 0);

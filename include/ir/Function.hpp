@@ -45,7 +45,12 @@ public:
 	[[nodiscard]] BasicBlock* get_entry_block() const { return *basic_blocks_.begin(); }
 
 	std::list<BasicBlock*>& get_basic_blocks() { return basic_blocks_; }
-	std::list<Argument>& get_args() { return arguments_; }
+	std::vector<Argument*>& get_args() { return arguments_; }
+	[[nodiscard]] Argument* get_arg(int i) const { return arguments_[i]; }
+	// 去除参数并返回(但不删除它)
+	Argument* removeArg(Argument* arg);
+	// 去除参数并返回, 并且不更新后续参数的序号(但不删除它)
+	Argument* removeArgWithoutUpdate(Argument* arg);
 
 	[[nodiscard]] bool is_declaration() const { return basic_blocks_.empty(); }
 
@@ -58,8 +63,10 @@ public:
 	static float opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap);
 
 private:
+	// 去除所有 Call 的特定参数
+	void removeArgUse(int id) const;
 	std::list<BasicBlock*> basic_blocks_;
-	std::list<Argument> arguments_;
+	std::vector<Argument*> arguments_;
 	Module* parent_;
 	int seq_cnt_; // print use
 public:
@@ -92,6 +99,11 @@ public:
 	{
 		assert(parent_ && "can't get number of unparented arg");
 		return arg_no_;
+	}
+
+	void set_arg_no(int arg_no)
+	{
+		arg_no_ = arg_no;
 	}
 
 	std::string print() override;

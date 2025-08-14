@@ -10,41 +10,101 @@
 #include "Instruction.hpp"
 
 #define DEBUG 0
+#include "Config.hpp"
+#include "Constant.hpp"
+#include "Type.hpp"
 #include "Util.hpp"
 
 
+void DeadCode::WorkList::addClearParameters(Function* f)
+{
+	if (o1Optimization && in_clear_parameters_.count(f))
+	{
+		in_clear_parameters_.emplace(f);
+		clear_parameters_.emplace(f);
+	}
+}
+
+void DeadCode::WorkList::addClearNotUseAllocas(Function* f)
+{
+	if (o1Optimization && in_clear_not_use_allocas_.count(f))
+	{
+		in_clear_not_use_allocas_.emplace(f);
+		clear_not_use_allocas_.emplace(f);
+	}
+}
+
+DeadCode::~DeadCode()
+{
+	delete work_list;
+}
 
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run()
 {
 	LOG(color::cyan("Run DeadCode Pass"));
 	PUSH;
-	bool changed;
 	func_info->run();
 	LOG(color::green("Function Info Collected "));
+	for (auto f : m_->get_functions())
+	{
+		if (f->is_lib_) continue;
+		work_list->addClearBasicBlock(f);
+		work_list->addClearInstructions(f);
+		work_list->addClearNotUseAllocas(f);
+		work_list->addClearParameters(f);
+	}
+
+	bool change = false;
 	do
 	{
-		changed = false;
-		for (const auto& func : m_->get_functions())
+		while (!work_list->clear_basic_blocks_.empty())
 		{
-			if (func->is_lib_) continue;
-			changed |= clear_basic_blocks(func);
-			mark(func);
-			changed |= sweep(func);
+			auto b = work_list->clear_basic_blocks_.front();
+			work_list->clear_basic_blocks_.pop();
+			work_list->in_clear_basic_blocks_.erase(b);
+			clear_basic_blocks(b);
+			change = true;
+		}
+		while (!work_list->clear_not_use_allocas_.empty())
+		{
+			auto b = work_list->clear_not_use_allocas_.front();
+			work_list->clear_not_use_allocas_.pop();
+			work_list->in_clear_not_use_allocas_.erase(b);
+			clear_not_use_allocas(b);
+			change = true;
+		}
+		while (!work_list->clear_parameters_.empty())
+		{
+			auto b = work_list->clear_parameters_.front();
+			work_list->clear_parameters_.pop();
+			work_list->in_clear_parameters_.erase(b);
+			clear_parameters(b);
+			change = true;
+		}
+		while (!work_list->clear_instructions_.empty())
+		{
+			auto b = work_list->clear_instructions_.front();
+			work_list->clear_instructions_.pop();
+			work_list->in_clear_instructions_.erase(b);
+			clear_instructions(b);
+			change = true;
 		}
 	}
-	while (changed);
+	while (change);
+
 	sweep_globally();
 	POP;
 	PASS_SUFFIX;
 	LOG(color::cyan("DeadCode Done"));
 }
 
-bool DeadCode::clear_basic_blocks(Function* func)
+// -> clear_parameters / clear_not_use_allocas / clear_instructions
+
+void DeadCode::clear_basic_blocks(Function* func) const
 {
 	LOG(color::blue("Begin Clean Basic Block of ") + func->get_name());
 	PUSH;
-	bool changed = false;
 	std::unordered_set<BasicBlock*> visited;
 	std::queue<BasicBlock*> toVisit;
 	toVisit.emplace(func->get_entry_block());
@@ -70,7 +130,9 @@ bool DeadCode::clear_basic_blocks(Function* func)
 		{
 			LOG(color::pink("Block ") + bb->get_name() + color::pink(" empty, remove"));
 			toRM.emplace(bb);
-			changed = true;
+			work_list->addClearParameters(func);
+			work_list->addClearNotUseAllocas(func);
+			work_list->addClearInstructions(func);
 		}
 	}
 
@@ -84,7 +146,7 @@ bool DeadCode::clear_basic_blocks(Function* func)
 		}
 	}
 
-	for (auto i : toRM)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	for (auto i : toRM) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
 		for (const auto& use : i->get_use_list())
 		{
@@ -95,16 +157,174 @@ bool DeadCode::clear_basic_blocks(Function* func)
 		delete i;
 	}
 
+	// 消除冗余 Phi
+	for (auto i : visited) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	{
+		if (i->get_pre_basic_blocks().size() > 1) continue;
+		auto insts = i->get_instructions().phi_and_allocas();
+		auto it = insts.begin();
+		auto ed = insts.end();
+		while (it != ed)
+		{
+			auto phi = dynamic_cast<PhiInst*>(it.get_and_add());
+			if (phi == nullptr) break;
+			phi->replace_all_use_with(phi->get_operand(0));
+			delete it.remove_pre();
+		}
+	}
+
 	POP;
-	return changed;
 }
 
-void DeadCode::mark(Function* func)
+// -> clear_not_use_allocas + / clear_instructions +
+
+void DeadCode::clear_parameters(Function* func) const
+{
+	LOG(color::blue("Begin Clean Parameters of ") + func->get_name());
+	PUSH;
+	auto& lds = func_info->loadDetail(func);
+	auto& sts = func_info->storeDetail(func);
+	for (int i = 0, size = u2iNegThrow(func->get_args().size()); i < size; i++)
+	{
+		auto arg = func->get_arg(i);
+		arg->set_arg_no(i);
+		// 没有任何使用
+		if (arg->get_use_list().empty())
+		{
+			for (auto use : func->get_use_list())
+			{
+				auto inst = dynamic_cast<CallInst*>(use.val_);
+				auto caller = inst->get_parent()->get_parent();
+				work_list->addClearNotUseAllocas(caller);
+				work_list->addClearInstructions(caller);
+			}
+			delete func->removeArgWithoutUpdate(arg);
+			i--;
+			size--;
+			continue;
+		}
+		// 指针
+		if (arg->get_type()->isPointerType())
+		{
+			// 没有存入也没有读取
+			if (!sts.have(arg) && !lds.have(arg))
+			{
+				for (auto use : func->get_use_list())
+				{
+					auto inst = dynamic_cast<CallInst*>(use.val_);
+					auto caller = inst->get_parent()->get_parent();
+					work_list->addClearNotUseAllocas(caller);
+					work_list->addClearInstructions(caller);
+				}
+				func->removeArgWithoutUpdate(arg);
+				eraseValue(arg);
+				delete arg;
+				i--;
+				size--;
+			}
+		}
+	}
+	POP;
+}
+
+// -> clear_instructions
+
+void DeadCode::clear_not_use_allocas(Function* func) const
+{
+	auto et = func->get_entry_block();
+	auto insts = et->get_instructions().phi_and_allocas();
+	auto it = insts.begin();
+	auto ed = insts.end();
+	while (it != ed)
+	{
+		auto alloc = dynamic_cast<AllocaInst*>(it.get_and_add());
+		bool haveLoad = false;
+
+		std::unordered_set<Value*> visited;
+		std::queue<Value*> q;
+		visited.emplace(alloc);
+		q.emplace(alloc);
+		while (!q.empty())
+		{
+			auto v = q.front();
+			q.pop();
+			for (auto& use : v->get_use_list())
+			{
+				auto inst = dynamic_cast<Instruction*>(use.val_);
+				int idx = use.arg_no_;
+				switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
+				{
+					case Instruction::load:
+						{
+							haveLoad = true;
+							break;
+						}
+					case Instruction::call:
+						haveLoad = true;
+						break;
+					case Instruction::getelementptr:
+						{
+							assert(idx == 0);
+							if (!visited.count(inst))
+							{
+								visited.emplace(inst);
+								q.emplace(inst);
+							}
+							break;
+						}
+					case Instruction::memcpy_:
+						{
+							if (idx == 0) haveLoad = true;
+							break;
+						}
+					case Instruction::nump2charp:
+					case Instruction::global_fix:
+						{
+							if (!visited.count(inst))
+							{
+								visited.emplace(inst);
+								q.emplace(inst);
+							}
+							break;
+						}
+					default:
+						assert(false);
+						break;
+				}
+				if (haveLoad) break;
+			}
+			if (haveLoad) break;
+		}
+
+		if (!haveLoad)
+		{
+			it.remove_pre();
+			eraseValue(alloc);
+			delete alloc;
+			work_list->addClearInstructions(func);
+		}
+	}
+}
+
+// -> clear_parameters + / clear_not_use_allocas + / clear_instructions +
+
+void DeadCode::clear_instructions(Function* func) const
+{
+	mark(func);
+	if (sweep(func))
+	{
+		work_list->addClearParameters(func);
+		work_list->addClearNotUseAllocas(func);
+		work_list->addClearInstructions(func);
+	}
+}
+
+void DeadCode::mark(Function* func) const
 {
 	LOG(color::blue("Begin Mark Unused Instructions of ") + func->get_name());
 	PUSH;
-	work_list.clear();
-	marked.clear();
+	work_list->work_list.clear();
+	work_list->marked.clear();
 
 	for (auto& bb : func->get_basic_blocks())
 	{
@@ -112,40 +332,38 @@ void DeadCode::mark(Function* func)
 		{
 			if (is_critical(ins))
 			{
-				marked[ins] = true;
-				work_list.push_back(ins);
+				work_list->marked[ins] = true;
+				work_list->work_list.push_back(ins);
 			}
 		}
 	}
 
-	while (work_list.empty() == false)
+	while (work_list->work_list.empty() == false)
 	{
-		auto now = work_list.front();
-		work_list.pop_front();
-
+		auto now = work_list->work_list.front();
+		work_list->work_list.pop_front();
 		mark(now);
 	}
 
 	POP;
 }
 
-void DeadCode::mark(const Instruction* ins)
+void DeadCode::mark(const Instruction* ins) const
 {
 	for (auto op : ins->get_operands())
 	{
 		auto def = dynamic_cast<Instruction*>(op);
 		if (def == nullptr)
 			continue;
-		if (marked[def])
+		if (work_list->marked[def])
 			continue;
-		if (def->get_function() != ins->get_function())
-			continue;
-		marked[def] = true;
-		work_list.push_back(def);
+		assert(def->get_function() == ins->get_function());
+		work_list->marked[def] = true;
+		work_list->work_list.push_back(def);
 	}
 }
 
-bool DeadCode::sweep(Function* func)
+bool DeadCode::sweep(Function* func) const
 {
 	LOG(color::blue("Begin Sweep ") + func->get_name());
 	PUSH;
@@ -159,7 +377,14 @@ bool DeadCode::sweep(Function* func)
 		while (it != instructions.end())
 		{
 			auto n = it.get_and_add();
-			if (marked[n]) continue;
+			if (work_list->marked[n]) continue;
+			if (n->is_call())
+			{
+				auto f = dynamic_cast<Function*>(n->get_operand(0));
+				work_list->addClearParameters(f);
+				work_list->addClearNotUseAllocas(f);
+				work_list->addClearInstructions(f);
+			}
 			LOG(color::pink("Remove Instruction ") + n->get_name() + " " + n->get_instr_op_name());
 			n->remove_all_operands();
 			// ReSharper disable once CppNoDiscardExpression
@@ -175,12 +400,12 @@ bool DeadCode::sweep(Function* func)
 
 bool DeadCode::is_critical(Instruction* ins) const
 {
-	// 对纯函数的无用调用也可以在删除之列
+	// 删除未存储值或调用 impure 库的函数调用
 	if (ins->is_call())
 	{
 		auto call_inst = dynamic_cast<CallInst*>(ins);
 		auto callee = dynamic_cast<Function*>(call_inst->get_operand(0));
-		if (func_info->is_pure_function(callee))
+		if (func_info->useOrIsImpureLib(callee) || !func_info->storeDetail(callee).empty())
 			return false;
 		return true;
 	}
@@ -216,5 +441,55 @@ void DeadCode::sweep_globally() const
 	{
 		m_->get_global_variable().remove(glob);
 		delete glob;
+	}
+}
+
+void DeadCode::eraseValue(const Value* val) const
+{
+	std::queue<Instruction*> worklist;
+	std::unordered_set<Instruction*> collected;
+	for (auto use : val->get_use_list())
+	{
+		auto inst = dynamic_cast<Instruction*>(use.val_);
+		// 防止将 call 一并删除 (但最后, DeadCode 会删除该参数, 因为这属于其它函数的未使用参数)
+		if (inst->is_call())
+		{
+			inst->set_operand(use.arg_no_, Constant::create(m_, 0));
+			work_list->addClearParameters(dynamic_cast<Function*>(inst->get_operand(0)));
+			continue;
+		}
+		if (!collected.count(inst))
+		{
+			assert(!inst->is_phi());
+			collected.emplace(inst);
+			worklist.emplace(inst);
+		}
+	}
+	while (!worklist.empty())
+	{
+		auto p = worklist.front();
+		worklist.pop();
+		for (auto use : p->get_use_list())
+		{
+			auto inst = dynamic_cast<Instruction*>(use.val_);
+			// 防止将 call 一并删除 (但最后, DeadCode 会删除该参数, 因为这属于其它函数的未使用参数)
+			if (inst->is_call())
+			{
+				inst->set_operand(use.arg_no_, Constant::create(m_, 0));
+				work_list->addClearParameters(dynamic_cast<Function*>(inst->get_operand(0)));
+				continue;
+			}
+			if (!collected.count(inst))
+			{
+				assert(!inst->is_phi());
+				collected.emplace(inst);
+				worklist.emplace(inst);
+			}
+		}
+	}
+	for (auto p : collected) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	{
+		p->get_parent()->erase_instr(p);
+		delete p;
 	}
 }

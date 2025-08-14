@@ -17,13 +17,14 @@ Function::Function(FuncType* ty, const std::string& name, Module* parent, const 
 	// build args
 	for (int i = 0; i < get_num_of_args(); i++)
 	{
-		arguments_.emplace_back(ty->argumentType(i), "", this, i);
+		arguments_.emplace_back(new Argument{ty->argumentType(i), "", this, i});
 	}
 }
 
 Function::~Function()
 {
 	for (const auto& i : basic_blocks_) delete i;
+	for (auto i : arguments_) delete i;
 }
 
 Function* Function::create(FuncType* ty, const std::string& name,
@@ -75,17 +76,37 @@ void Function::remove(BasicBlock* bb)
 
 void Function::add_basic_block(BasicBlock* bb) { basic_blocks_.push_back(bb); }
 
+Argument* Function::removeArg(Argument* arg)
+{
+	int id = arg->get_arg_no();
+	removeArgUse(id);
+	arguments_.erase(arguments_.begin() + id);
+	for (int i = id, size = u2iNegThrow(arguments_.size()); i < size; i++)
+	{
+		arguments_[i]->set_arg_no(i);
+	}
+	return arg;
+}
+
+Argument* Function::removeArgWithoutUpdate(Argument* arg)
+{
+	int id = arg->get_arg_no();
+	removeArgUse(id);
+	arguments_.erase(arguments_.begin() + id);
+	return arg;
+}
+
 void Function::set_instr_name()
 {
 	std::map<Value*, int> seq;
 	for (auto& arg : this->get_args())
 	{
-		if (seq.find(&arg) == seq.end())
+		if (seq.find(arg) == seq.end())
 		{
 			auto seq_num = u2iNegThrow(seq.size()) + seq_cnt_;
-			if (arg.set_name("arg" + std::to_string(seq_num)))
+			if (arg->set_name("arg" + std::to_string(seq_num)))
 			{
-				seq.emplace(&arg, seq_num);
+				seq.emplace(arg, seq_num);
 			}
 		}
 	}
@@ -150,7 +171,7 @@ std::string Function::print()
 		{
 			if (&arg != &*get_args().begin())
 				func_ir += ", ";
-			func_ir += arg.print();
+			func_ir += arg->print();
 		}
 	}
 	func_ir += ")";
@@ -186,6 +207,15 @@ float Function::opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBl
 		}
 	}
 	return r;
+}
+
+void Function::removeArgUse(int id) const
+{
+	for (auto& use : get_use_list())
+	{
+		auto call = dynamic_cast<CallInst*>(use.val_);
+		call->remove_operand(id + 1);
+	}
 }
 
 std::string Argument::print()

@@ -79,10 +79,9 @@ void MFunction::preprocess(Function* function)
 {
 	int ic = 0;
 	int fc = 0;
-	for (auto& argC : function->get_args())
+	for (auto argC : function->get_args())
 	{
-		auto argv = &argC;
-		if (argv->get_type() != Types::FLOAT)
+		if (argC->get_type() != Types::FLOAT)
 		{
 			if (ic < 8)
 			{
@@ -98,7 +97,7 @@ void MFunction::preprocess(Function* function)
 				continue;
 			}
 		}
-		allocaFix(argv);
+		allocaFix(argC);
 	}
 }
 
@@ -185,17 +184,16 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	vector<MInstruction*> parameterInsts;
 	for (auto& argC : function->get_args())
 	{
-		auto argv = &argC;
-		if (argv->get_type() != Types::FLOAT)
+		if (argC->get_type() != Types::FLOAT)
 		{
 			if (ic < 8)
 			{
-				if (!argv->get_use_list().empty())
+				if (!argC->get_use_list().empty())
 				{
 					auto cp = new MCopy{
 					entryMBB, Register::getIParameterRegister(ic, module_),
-					getOperandFor(argv, opMap),
-					u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
+					getOperandFor(argC, opMap),
+					u2iNegThrow(argC->get_type()->sizeInBitsInArm64())
 					};
 					parameterInsts.emplace_back(cp);
 				}
@@ -207,12 +205,12 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 		{
 			if (fc < 8)
 			{
-				if (!argv->get_use_list().empty())
+				if (!argC->get_use_list().empty())
 				{
 					auto cp = new MCopy{
 						entryMBB, Register::getFParameterRegister(fc, module_),
-						getOperandFor(argv, opMap),
-						u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
+						getOperandFor(argC, opMap),
+						u2iNegThrow(argC->get_type()->sizeInBitsInArm64())
 					};
 					parameterInsts.emplace_back(cp);
 				}
@@ -221,14 +219,14 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 			}
 		}
 		auto frameIdx = getFix(idx++);
-		if (!argv->get_use_list().empty())
+		if (!argC->get_use_list().empty())
 		{
-			auto val = getOperandFor(argv, opMap);
+			auto val = getOperandFor(argC, opMap);
 			auto vr = dynamic_cast<VirtualRegister*>(val);
 			assert(vr != nullptr);
 			assert(this == frameIdx->func());
 			vr->replacePrefer_ = frameIdx;
-			auto cp = new MLDR{ entryMBB, val, frameIdx, u2iNegThrow(argC.get_type()->sizeInBitsInArm64()) };
+			auto cp = new MLDR{ entryMBB, val, frameIdx, u2iNegThrow(argC->get_type()->sizeInBitsInArm64()) };
 			parameterInsts.emplace_back(cp);
 		}
 	}

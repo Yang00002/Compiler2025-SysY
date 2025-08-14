@@ -412,7 +412,7 @@ MBL::MBL(MBasicBlock* block, FuncAddress* addr, Function* function) : MInstructi
 	int fc = 0;
 	for (auto& arg : function->get_args())
 	{
-		if (arg.get_type() == Types::FLOAT)
+		if (arg->get_type() == Types::FLOAT)
 		{
 			if (fc < 8)
 			{
