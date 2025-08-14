@@ -181,6 +181,8 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 					}
 				case Instruction::store:
 					{
+						assert(dynamic_cast<StoreInst*>(inst));
+						assert(inst->get_operands().size() == 2);
 						assert(idx == 1);
 						stores[f].add(val);
 						break;

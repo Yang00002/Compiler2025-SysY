@@ -406,8 +406,8 @@ bool DeadCode::is_critical(Instruction* ins) const
 		auto call_inst = dynamic_cast<CallInst*>(ins);
 		auto callee = dynamic_cast<Function*>(call_inst->get_operand(0));
 		if (func_info->useOrIsImpureLib(callee) || !func_info->storeDetail(callee).empty())
-			return false;
-		return true;
+			return true;
+		return false;
 	}
 	if (ins->is_memcpy() || ins->is_memclear())
 		return true;

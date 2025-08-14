@@ -34,6 +34,7 @@
 #include "Ast.hpp"
 #include "System.hpp"
 #include <CharStream.h>
+#include <climits>
 #include <cstdlib>
 #include <tree/ParseTree.h>
 #include <tree/ParseTreeVisitor.h>
@@ -78,6 +79,57 @@ std::tuple<std::string, std::string> parseArgs(int argc, char **argv) {
   return std::make_tuple(input_filename, output_filename);
 }
 
+void toggleNO1DefaultSettings() {
+  if (!o1Optimization) {
+    replaceGlobalAddressWithRegisterNeedUseCount = INT_MAX;
+	replaceAllocaAddressWithRegisterNeedUseCount = INT_MAX;
+	mergeStackFrameSpilledWithGraphColoring = false;
+	useCallerSaveRegsFirst = false;
+	funcInlineGate = INT_MAX;
+	epilogShouldMerge = INT_MAX;
+	dangerousSignalInfer = false;
+	ignoreNegativeArrayIndexes = false;
+	useSinkForVirtualRegister = false;
+  }
+}
+
+void addPasses4IR(PassManager *pm) {
+  pm->add_pass<Mem2Reg>();
+  pm->add_pass<DeadCode>();
+  if (o1Optimization) {
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<SCCP>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Inline>();
+    pm->add_pass<GVN>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<GlobalCodeMotion>();
+    pm->add_pass<DeadCode>();
+
+    pm->add_pass<Mem2Reg>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<SCCP>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Inline>();
+    pm->add_pass<GVN>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<GlobalCodeMotion>();
+    pm->add_pass<DeadCode>();
+  }
+}
+
+void addPasses4IR2MIR(PassManager *pm) {
+  pm->add_pass<CriticalEdgeRemove>();
+  pm->add_pass<CmpCombine>();
+  if (o1Optimization)
+    pm->add_pass<InstructionSelect>();
+}
+
 void stack(std::string infile, std::string outfile) {
   std::ifstream input_file(infile);
   antlr4::ANTLRInputStream inputStream(input_file);
@@ -93,22 +145,10 @@ void stack(std::string infile, std::string outfile) {
   delete ast;
   auto m = MakeIR.getModule();
 
-  if (o1Optimization) {
-    PassManager *pm = new PassManager{m};
-    pm->add_pass<Mem2Reg>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<SCCP>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<LoopInvariantCodeMotion>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<GlobalCodeMotion>();
-    pm->add_pass<DeadCode>();
-    pm->run();
-    delete pm;
-  }
+  PassManager *pm = new PassManager{m};
+  addPasses4IR(pm);
+  pm->run();
+  delete pm;
 
   ARMCodeGen *cg = new ARMCodeGen{m};
   cg->run();
@@ -134,25 +174,10 @@ void ir(std::string infile, std::string outfile) {
   delete ast;
   auto m = MakeIR.getModule();
 
-  if (o1Optimization) {
-    PassManager *pm = new PassManager{m};
-    pm->add_pass<Mem2Reg>();
-    pm->add_pass<DeadCode>();
-    // pm->add_pass<Arithmetic>();
-    // pm->add_pass<SCCP>();
-    // pm->add_pass<DeadCode>();
-    pm->add_pass<LoopInvariantCodeMotion>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Print>();
-    pm->add_pass<Inline>();
-    pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<GlobalCodeMotion>();
-    pm->add_pass<DeadCode>();
-   // pm->add_pass<InstructionSelect>();
-    pm->run();
-    delete pm;
-  }
+  PassManager *pm = new PassManager{m};
+  addPasses4IR(pm);
+  pm->run();
+  delete pm;
 
   std::ofstream output_file(outfile);
   output_file << m->print();
@@ -207,38 +232,8 @@ void compiler(std::string infile, std::string outfile) {
   }
 
   PassManager *pm = new PassManager{m};
-  if (o1Optimization) {
-    // Optimization Pass
-    pm->add_pass<Mem2Reg>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<SCCP>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<LoopInvariantCodeMotion>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Inline>();
-    pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<GlobalCodeMotion>();
-    pm->add_pass<DeadCode>();
-
-    pm->add_pass<Mem2Reg>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<SCCP>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<LoopInvariantCodeMotion>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Inline>();
-    pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<GlobalCodeMotion>();
-    pm->add_pass<DeadCode>();
-  } else
-    pm->add_pass<DeadCode>();
-  pm->add_pass<CriticalEdgeRemove>();
-  pm->add_pass<CmpCombine>();
-  pm->add_pass<InstructionSelect>();
+  addPasses4IR(pm);
+  addPasses4IR2MIR(pm);
   pm->run();
 
   auto mir = new MModule();
@@ -252,7 +247,9 @@ void compiler(std::string infile, std::string outfile) {
   mng->add_pass<FrameOffset>();
   mng->add_pass<CodeGen>();
   mng->add_pass<ReturnMerge>();
-  mng->add_pass<BlockLayout>();
+  if (o1Optimization) {
+    mng->add_pass<BlockLayout>();
+  }
   mng->run();
   delete mng;
 
@@ -270,6 +267,7 @@ int main(int argc, char *argv[]) {
     beforeRun();
   std::string infile, outfile;
   std::tie(infile, outfile) = parseArgs(argc, argv);
+  toggleNO1DefaultSettings();
   if (emitAST)
     ast(infile, outfile);
   else if (emitIR)

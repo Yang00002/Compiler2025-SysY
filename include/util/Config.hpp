@@ -56,3 +56,5 @@ extern int epilogShouldMerge;
 extern bool dangerousSignalInfer;
 // 忽略可能存在的负数组偏移, 这代表不再使用 SXTW 将 getelement 的偏移计算从 32 拓展到 64 位
 extern bool ignoreNegativeArrayIndexes;
+// 在一个虚拟寄存器需要 spill 时, 首先尝试将它的定值放置到尽可能靠后的地方(这称为 sink) 而非存入栈
+extern bool useSinkForVirtualRegister;

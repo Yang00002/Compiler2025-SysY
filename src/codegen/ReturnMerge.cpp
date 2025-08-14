@@ -69,7 +69,7 @@ void ReturnMerge::run()
 	for (auto i : m_->functions())
 	{
 		f_ = i;
-		if (shoudlMerge()) mergeEpilog();
+		if (o1Optimization && shoudlMerge()) mergeEpilog();
 		else inlineEpilog();
 	}
 }
