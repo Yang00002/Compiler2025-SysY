@@ -579,12 +579,12 @@ class MSubInst : public BaseInst<MSubInst>
 {
 	friend BaseInst<MSubInst>;
 
-	MSubInst(Value* s, Value* ml, Value* mr, Type* ty, BasicBlock* bb);
+	MSubInst( Value* ml, Value* mr, Value* s, Type* ty, BasicBlock* bb);
 
 public:
 	Instruction* copy(BasicBlock* parent) override;
 	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
-	static MSubInst* create_msub(Value* val, Value* ml, Value* mr, BasicBlock* bb);
+	static MSubInst* create_msub( Value* ml, Value* mr, Value* val, BasicBlock* bb);
 
 	std::string print() override;
 };

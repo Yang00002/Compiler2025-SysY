@@ -52,6 +52,7 @@ std::tuple<std::string, std::string> parseArgs(int argc, char **argv) {
               << " -S -o <testcase.s> <testcase.sy> [-O1] [-ast/ir/stack]\n";
     std::exit(EXIT_FAILURE);
   }
+  o1Optimization = false;
   int i = 1;
   std::string input_filename, output_filename;
   for (int i = 1; i < argc; ++i) {

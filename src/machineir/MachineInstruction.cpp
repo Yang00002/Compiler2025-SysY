@@ -598,23 +598,23 @@ std::string MSXTW::print()
 	return operands_[1]->print() + " = SXTW " + operands_[0]->print();
 }
 
-MMSUB::MMSUB(MBasicBlock* block, MOperand* t, MOperand* s, MOperand* l, MOperand* r) : MInstruction(block)
+MMSUB::MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s) : MInstruction(block)
 {
 	operands_.resize(4);
 	operands_[0] = t;
-	operands_[1] = s;
-	operands_[2] = l;
-	operands_[3] = r;
+	operands_[1] = l;
+	operands_[2] = r;
+	operands_[3] = s;
 	def_.resize(1);
 	def_[0] = 0;
 	use_.emplace_back(1);
-	if (l != s) use_.emplace_back(2);
-	if (r != l && r != s) use_.emplace_back(3);
+	if (r != l) use_.emplace_back(2);
+	if (s != r && s != l) use_.emplace_back(3);
 	auto func = block->function();
 	func->addUse(t, this);
-	func->addUse(s, this);
 	func->addUse(l, this);
 	func->addUse(r, this);
+	func->addUse(s, this);
 }
 
 std::string MMSUB::print()

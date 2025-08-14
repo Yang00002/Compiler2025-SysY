@@ -58,3 +58,5 @@ extern bool dangerousSignalInfer;
 extern bool ignoreNegativeArrayIndexes;
 // 在一个虚拟寄存器需要 spill 时, 首先尝试将它的定值放置到尽可能靠后的地方(这称为 sink) 而非存入栈
 extern bool useSinkForVirtualRegister;
+// 是否尝试合并浮点指令, 例如将 FMUL 和 FSUB 合并为 FMSUB, 这可能导致与分开时不同的结果(由于舍入误差)
+extern bool mergeFloatBinaryInst;

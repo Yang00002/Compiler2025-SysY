@@ -40,7 +40,7 @@ class CodeGen : public MachinePass
 	static void fmul(const Register* to, const Register* l, const Register* r, CodeString* toStr);
 	static void fdiv(const Register* to, const Register* l, const Register* r, CodeString* toStr);
 	static void stp(const Register* a, const Register* b, const Register* c, int offset, int len, CodeString* toStr);
-	void str(const Register* a, const Register* c, long long offset, int len,CodeString* toStr);
+	void str(const Register* a, const Register* c, long long offset, int len, CodeString* toStr);
 	void str(const MOperand* regLike, const MOperand* stackLike, int len, CodeString* toStr, bool forFuncCall);
 	// 将操作数转换为特定类型寄存器(如果类型不一样就进行复制), 可能会占用临时寄存器, 需要释放
 	const Register* op2reg(const MOperand* op, int len, bool useIntReg, CodeString* toStr);
@@ -78,7 +78,7 @@ class CodeGen : public MachinePass
 	static void sub(const Register* to, const Register* l, const Register* r, int len, CodeString* toStr);
 	void mathRRInst(const Register* to, const Register* l, const Register* r, Instruction::OpID op,
 	                int len, CodeString* toStr);
-	void msub(MOperand* to, MOperand* s, MOperand* l, MOperand* r, CodeString* toStr);
+	void msub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, CodeString* toStr);
 	static void fsub(const Register* to, const Register* l, const Register* r, CodeString* toStr);
 	static void copy(const Register* to, const Register* from, int len, CodeString* toStr);
 	void copy(const Register* to, const Immediate* from, int len, CodeString* toStr);
@@ -86,7 +86,7 @@ class CodeGen : public MachinePass
 	static void copy(const Register* to, const GlobalAddress* from, int len, CodeString* toStr);
 	void copy(const Register* to, const FrameIndex* from, int len, CodeString* toStr);
 	void makeInstruction(MInstruction* instruction);
-		static std::string regName(const Register* reg, int len);
+	static std::string regName(const Register* reg, int len);
 	static std::string immediate(int i);
 	static std::string immediate(unsigned i);
 	static std::string immediate(long long i);

@@ -1287,23 +1287,26 @@ void CodeGen::mathRRInst(const Register* to, const Register* l, const Register* 
 }
 
 
-void CodeGen::msub(MOperand* to, MOperand* s, MOperand* l, MOperand* r, CodeString* toStr)
+void CodeGen::msub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, CodeString* toStr)
 {
 	auto tor = dynamic_cast<Register*>(to);
 	ASSERT(tor != nullptr);
-	auto si = dynamic_cast<Immediate*>(s);
 	auto li = dynamic_cast<Immediate*>(l);
 	auto ri = dynamic_cast<Immediate*>(r);
+	auto si = dynamic_cast<Immediate*>(s);
 	ASSERT(si == nullptr || li == nullptr || ri == nullptr);
-	const Register* sr = dynamic_cast<Register*>(s);
 	const Register* lr = dynamic_cast<Register*>(l);
 	const Register* rr = dynamic_cast<Register*>(r);
+	const Register* sr = dynamic_cast<Register*>(s);
 	ASSERT((si || sr) && (li || lr) && (ri || rr));
 	bool isI = tor->isIntegerRegister();
-	sr = op2reg(s, 32, isI, toStr);
 	lr = op2reg(l, 32, isI, toStr);
 	rr = op2reg(r, 32, isI, toStr);
+	sr = op2reg(s, 32, isI, toStr);
 	toStr->addInstruction(isI ? "MSUB" : "FMSUB", regName(tor, 32), regName(lr, 32), regName(rr, 32), regName(sr, 32));
+	releaseIP(sr);
+	releaseIP(lr);
+	releaseIP(rr);
 }
 
 void CodeGen::fsub(const Register* to, const Register* l, const Register* r, CodeString* toStr)

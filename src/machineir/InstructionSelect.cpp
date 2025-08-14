@@ -1,10 +1,11 @@
 #include "InstructionSelect.hpp"
 
 #include "BasicBlock.hpp"
+#include "Config.hpp"
 #include "Constant.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Util.hpp"
 
 using namespace std;
@@ -56,7 +57,7 @@ void InstructionSelect::runInner() const
 				LOG(color::yellow("Merge"));
 				LOG(inst->print());
 				LOG(use->print());
-				auto ninst = MSubInst::create_msub(use->get_operand(0), inst->get_operand(0), inst->get_operand(1),
+				auto ninst = MSubInst::create_msub(inst->get_operand(0), inst->get_operand(1), use->get_operand(0),
 				                                   nullptr);
 				ninst->set_parent(b_);
 				use->replace_all_use_with(ninst);
@@ -70,7 +71,7 @@ void InstructionSelect::runInner() const
 			}
 			continue;
 		}
-		if (inst->is_fmul())
+		if (mergeFloatBinaryInst && inst->is_fmul())
 		{
 			if (use->is_fsub())
 			{
@@ -78,8 +79,8 @@ void InstructionSelect::runInner() const
 				LOG(color::yellow("Merge"));
 				LOG(inst->print());
 				LOG(use->print());
-				auto ninst = MSubInst::create_msub(use->get_operand(0), inst->get_operand(0), inst->get_operand(1),
-					nullptr);
+				auto ninst = MSubInst::create_msub(inst->get_operand(0), inst->get_operand(1), use->get_operand(0),
+				                                   nullptr);
 				ninst->set_parent(b_);
 				use->replace_all_use_with(ninst);
 				LOG(color::green("Get"));

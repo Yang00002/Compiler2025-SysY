@@ -29,3 +29,4 @@ int epilogShouldMerge = 9;
 bool dangerousSignalInfer = true;
 bool ignoreNegativeArrayIndexes = true;
 bool useSinkForVirtualRegister = true;
+bool mergeFloatBinaryInst = false;
