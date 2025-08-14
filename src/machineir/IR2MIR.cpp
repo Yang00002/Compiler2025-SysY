@@ -136,7 +136,7 @@ void MBasicBlock::acceptBranchInst(Instruction* instruction, std::map<BasicBlock
 		auto op0 = dynamic_cast<Instruction*>(br->get_operand(0));
 		auto inst = dynamic_cast<MCMP*>(block->instructions().back());
 		if (inst == nullptr) inst = dynamic_cast<MCMP*>(block->instructions()[block->instructions().size() - 2]);
-		assert(inst != nullptr);
+		ASSERT(inst != nullptr);
 		auto op = asCmpGetOp(op0);
 		auto cmp = new MB{block, op, t, f};
 		inst->tiedB_ = cmp;
@@ -197,7 +197,7 @@ void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand
 		if (i.cache_)
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function_, 64);
-			assert(function() == i.frame_index_->func());
+			ASSERT(function() == i.frame_index_->func());
 			reg->replacePrefer_ = i.frame_index_;
 			auto inst = new MCopy{this, i.frame_index_, reg, 64};
 			instructions_.emplace_back(inst);
@@ -211,7 +211,7 @@ void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand
 void MBasicBlock::acceptLoadInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
 	auto regLike = dynamic_cast<VirtualRegister*>(block->function()->getOperandFor(instruction, opMap));
-	assert(regLike != nullptr);
+	ASSERT(regLike != nullptr);
 	regLike->sinked = true;
 	auto stackLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
 	auto ret = new MLDR{block, regLike, stackLike, u2iNegThrow(instruction->get_type()->sizeInBitsInArm64())};
@@ -245,7 +245,7 @@ void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOper
 	auto phi = dynamic_cast<PhiInst*>(instruction);
 	auto pairs = phi->get_phi_pairs();
 	auto dest = dynamic_cast<VirtualRegister*>(block->function()->getOperandFor(phi, opMap));
-	assert(dest != nullptr);
+	ASSERT(dest != nullptr);
 	dest->sinked = true;
 	for (auto& [val, bb] : pairs)
 	{
@@ -406,7 +406,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		if (use64BitsMathOperationInPointerOp && immMop == nullptr)
 		{
 			auto vr = dynamic_cast<VirtualRegister*>(mop);
-			assert(vr != nullptr);
+			ASSERT(vr != nullptr);
 			if (vr->size() != 64 && !ignoreNegativeArrayIndexes)
 			{
 				auto r = VirtualRegister::createVirtualIRegister(function_, 64);
@@ -569,7 +569,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 			operand = reg;
 		}
 		auto vop = dynamic_cast<VirtualRegister*>(operand);
-		assert(vop != nullptr);
+		ASSERT(vop != nullptr);
 		if (vop->size() < 64 && !ignoreNegativeArrayIndexes)
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function(), 64);
@@ -626,10 +626,10 @@ void MBasicBlock::mergePhiCopies(std::list<MCopy*>& copies)
 			auto& cpu = it->second;
 			auto from = cpu.copyToMe_->operand(0);
 			auto& fcpu = m[from];
-			assert(fcpu.usage_ == 1);
+			ASSERT(fcpu.usage_ == 1);
 			fcpu.usage_--;
 			auto toR = dynamic_cast<VirtualRegister*>(to);
-			assert(toR != nullptr);
+			ASSERT(toR != nullptr);
 			auto vr = VirtualRegister::copy(function_, toR);
 			cpu.copyToMe_->replace(from, vr, function_);
 			copies.emplace_back(new MCopy{this, from, vr, vr->size()});
@@ -661,10 +661,10 @@ void MBasicBlock::acceptZextInst(Instruction* instruction, std::map<Value*, MOpe
 	auto op0 = dynamic_cast<Instruction*>(instruction->get_operand(0));
 	auto op = asCmpGetOp(op0);
 	auto t = dynamic_cast<VirtualRegister*>(function()->getOperandFor(instruction, opMap));
-	assert(t != nullptr);
+	ASSERT(t != nullptr);
 	t->sinked = true;
 	auto inst = dynamic_cast<MCMP*>(block->instructions().back());
-	assert(inst != nullptr);
+	ASSERT(inst != nullptr);
 	auto cmp = new MCSET{block, op, t};
 	inst->tiedC_ = cmp;
 	cmp->tiedWith_ = inst;

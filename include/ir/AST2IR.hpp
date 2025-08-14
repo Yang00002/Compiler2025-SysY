@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "Util.hpp"
+
 class ASTContinue;
 class ASTNode;
 class ASTStmt;
@@ -79,7 +81,7 @@ public:
 		}
 
 		// Name not found: handled here?
-		assert(false && "Name not found in scope");
+		ASSERT(false && "Name not found in scope");
 
 		return nullptr;
 	}

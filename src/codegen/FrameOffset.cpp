@@ -117,7 +117,7 @@ void FrameOffset::run()
 		for (auto it = f->fix_.rbegin(), e = f->fix_.rend(); it != e; ++it)
 		{
 			auto i = *it;
-			assert((i->size() & 31) == 0);
+			ASSERT((i->size() & 31) == 0);
 			auto s = logicalRightShift(i->size(), 3);
 			i->set_offset(upAlignTo(of, s));
 			of = i->offset() + s;

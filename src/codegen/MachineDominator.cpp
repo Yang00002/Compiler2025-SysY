@@ -326,6 +326,6 @@ MBasicBlock* MachineDominators::latestCommonParent(const std::unordered_set<MIns
 		auto fd = dom_dfs_order_[i];
 		if (dom_tree_R_[fd->id()] >= rid) return fd;
 	}
-	assert(false);
+	ASSERT(false);
 	return nullptr;
 }

@@ -4,6 +4,8 @@
 
 #include "SysYLexer.h"
 
+#include "Util.hpp"
+
 
 using namespace antlr4;
 
@@ -53,7 +55,7 @@ void sysylexerLexerInitialize() {
     return;
   }
 #else
-  assert(sysylexerLexerStaticData == nullptr);
+  ASSERT(sysylexerLexerStaticData == nullptr);
 #endif
   auto staticData = std::make_unique<SysYLexerStaticData>(
     std::vector<std::string>{

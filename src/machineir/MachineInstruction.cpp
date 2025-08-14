@@ -122,7 +122,7 @@ MBasicBlock* MB::block2GoR() const
 
 void MB::removeL()
 {
-	assert(operands_.size() > 1);
+	ASSERT(operands_.size() > 1);
 	if (operands_[0] == operands_[1])
 	{
 		operands_.pop_back();
@@ -140,7 +140,7 @@ void MB::removeL()
 
 void MB::removeR()
 {
-	assert(operands_.size() > 1);
+	ASSERT(operands_.size() > 1);
 	if (operands_[0] == operands_[1])
 		operands_.pop_back();
 	else
@@ -194,7 +194,7 @@ void MB::replaceL(MBasicBlock* to)
 
 void MB::replaceR(MBasicBlock* to)
 {
-	assert(operands_.size() > 1);
+	ASSERT(operands_.size() > 1);
 	auto op = BlockAddress::get(to);
 	if (op == operands_[1]) return;
 	if (operands_[0] == operands_[1])
@@ -242,9 +242,9 @@ MB::MB(MBasicBlock* block, Instruction::OpID op, BlockAddress* t, BlockAddress* 
 MMathInst::MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOperand* r,
                      MOperand* t, int width) : MInstruction(block), width_(width), op_(op)
 {
-	assert(l != nullptr);
-	assert(r != nullptr);
-	assert(t != nullptr);
+	ASSERT(l != nullptr);
+	ASSERT(r != nullptr);
+	ASSERT(t != nullptr);
 	operands_.resize(3);
 	operands_[0] = t;
 	operands_[1] = l;

@@ -4,10 +4,10 @@
 
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
-
-#define DEBUG 0
 #include "Config.hpp"
 #include "Type.hpp"
+
+#define DEBUG 0
 #include "Util.hpp"
 
 void IBBNode::add(IBBNode* target)
@@ -58,13 +58,13 @@ bool IBBNode::empty() const
 
 IBBNode* IBBNode::top() const
 {
-	assert(r_ != this);
+	ASSERT(r_ != this);
 	return l_;
 }
 
 IBBNode* IBBNode::pop() const
 {
-	assert(r_ != this);
+	ASSERT(r_ != this);
 	auto l = l_;
 	remove(l_);
 	return l;
@@ -255,7 +255,7 @@ void Inline::mergeBranchs()
 				if (preNode->nc_ > 1) continue;
 				auto& insts = preNode->block_->get_instructions();
 				auto br = dynamic_cast<BranchInst*>(insts.back());
-				assert(br != nullptr);
+				ASSERT(br != nullptr);
 				LOG(color::yellow("Merge Branch ") + preNode->block_->get_name() + color::yellow(" to ") + branch->
 					block_->get_name());
 				br->remove_all_operands();
@@ -284,10 +284,10 @@ void Inline::mergeBranchs()
 				auto preNode = node(pre);
 				if (preNode->nc_ == 1 || !preNode->haveNext(nextNode))
 				{
-					assert(preNode->block_ != nullptr);
+					ASSERT(preNode->block_ != nullptr);
 					auto& insts = preNode->block_->get_instructions();
 					auto br = dynamic_cast<BranchInst*>(insts.back());
-					assert(br != nullptr);
+					ASSERT(br != nullptr);
 					LOG(color::yellow("Merge Branch ") + preNode->block_->get_name() + color::yellow(" to ") + branch->
 						block_->get_name());
 					br->replaceAllOperandMatchs(branch->block_, nextNode->block_);
@@ -318,7 +318,7 @@ void Inline::mergeBranchs()
 					{
 						auto& insts = preNode->block_->get_instructions();
 						auto br = dynamic_cast<BranchInst*>(insts.back());
-						assert(br != nullptr);
+						ASSERT(br != nullptr);
 						LOG(color::yellow("Merge Branch ") + preNode->block_->get_name() + color::yellow(" to ") +
 							branch->
 							block_->get_name());
@@ -347,7 +347,7 @@ void Inline::mergeBranchs()
 				for (auto p : nextNode->block_->get_instructions().phi_and_allocas())
 				{
 					auto phi = dynamic_cast<PhiInst*>(p);
-					assert(phi != nullptr);
+					ASSERT(phi != nullptr);
 					phi->remove_phi_operand(branch->block_);
 				}
 				removeEdge(branch, nextNode);
@@ -462,9 +462,9 @@ void Inline::merge(IBBNode* pre, IBBNode* next) const
 	while (it != ed)
 	{
 		auto phi = dynamic_cast<PhiInst*>(it.get_and_add());
-		assert(phi != nullptr && phi->get_phi_pairs().size() == 1);
+		ASSERT(phi != nullptr && phi->get_phi_pairs().size() == 1);
 		auto [val, bb] = phi->get_phi_pairs()[0];
-		assert(bb == prebb);
+		ASSERT(bb == prebb);
 		phi->replace_all_use_with(val);
 		delete it.remove_pre();
 	}
@@ -512,7 +512,7 @@ void Inline::mergeFunc()
 	for (auto i : f_->get_use_list())
 	{
 		auto usage = dynamic_cast<CallInst*>(i.val_);
-		assert(usage);
+		ASSERT(usage);
 		uses.emplace_back(usage);
 	}
 	for (auto call : uses)

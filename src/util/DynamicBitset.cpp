@@ -63,7 +63,7 @@ DynamicBitset& DynamicBitset::operator=(DynamicBitset&& other) noexcept
 
 DynamicBitset::DynamicBitset(int len)
 {
-	assert(len >= 0);
+	ASSERT(len >= 0);
 	bitlen_ = len;
 	dataSize_ = (bitlen_ + 63) >> 6;
 	data_ = new unsigned long long[dataSize_]{};
@@ -76,7 +76,7 @@ DynamicBitset::~DynamicBitset()
 
 bool DynamicBitset::test(int i) const
 {
-	assert(i >= 0);
+	ASSERT(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	return data_[idx1] & (1ull << idx2);
@@ -99,7 +99,7 @@ std::string DynamicBitset::print() const
 
 void DynamicBitset::set(int i)
 {
-	assert(i >= 0);
+	ASSERT(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	data_[idx1] |= 1ull << idx2;
@@ -107,7 +107,7 @@ void DynamicBitset::set(int i)
 
 bool DynamicBitset::setAndGet(int i)
 {
-	assert(i >= 0);
+	ASSERT(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	auto p = data_[idx1];
@@ -118,7 +118,7 @@ bool DynamicBitset::setAndGet(int i)
 
 bool DynamicBitset::resetAndGet(int i)
 {
-	assert(i >= 0);
+	ASSERT(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	auto p = data_[idx1];
@@ -129,7 +129,7 @@ bool DynamicBitset::resetAndGet(int i)
 
 void DynamicBitset::rangeSet(int f, int t)
 {
-	assert(f >= 0 && t >= 0);
+	ASSERT(f >= 0 && t >= 0);
 	auto ullf = ULLOFBITS(f);
 	auto offf = OFFSETOFBITS(f);
 	auto ullt = ULLOFBITS(t);
@@ -147,7 +147,7 @@ void DynamicBitset::rangeSet(int f, int t)
 
 void DynamicBitset::reset(int i)
 {
-	assert(i >= 0);
+	ASSERT(i >= 0);
 	int idx1 = i >> 6;
 	int idx2 = i & 63;
 	data_[idx1] &= ~(1ull << idx2);

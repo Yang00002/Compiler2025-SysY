@@ -2,6 +2,8 @@
 #include <iostream>
 #include <string>
 #include <cassert>
+
+#include "Util.hpp"
 using std::ostream;
 using std::wstring;
 
@@ -26,7 +28,7 @@ namespace color
 	Color::Color(const int& r1, const int& g1, const int& b1, const int& r2, const int& g2, const int& b2,
 	             const kind& k)
 	{
-		assert(inrange(r1) && inrange(g1) && inrange(b1) && inrange(r2) && inrange(g2) && inrange(b2));
+		ASSERT(inrange(r1) && inrange(g1) && inrange(b1) && inrange(r2) && inrange(g2) && inrange(b2));
 		colorstr = "\033[" + std::to_string(static_cast<int>(k)) + ";38;2;" + std::to_string(r1) + ";" +
 		           std::to_string(g1) + ";" + std::to_string(b1) + ";48;2;" + std::to_string(r2) + ";" +
 		           std::to_string(g2) + ";" + std::to_string(b2) + "m";
@@ -34,14 +36,14 @@ namespace color
 
 	Color::Color(const fore& f, const int& r2, const int& g2, const int& b2, const kind& k)
 	{
-		assert(inrange(r2) && inrange(g2) && inrange(b2));
+		ASSERT(inrange(r2) && inrange(g2) && inrange(b2));
 		colorstr = "\033[" + std::to_string(static_cast<int>(k)) + ";" + std::to_string(static_cast<int>(f)) + ";48;2;"
 		           + std::to_string(r2) + ";" + std::to_string(g2) + ";" + std::to_string(b2) + "m";
 	}
 
 	Color::Color(const int& r1, const int& g1, const int& b1, const back& b, const kind& k)
 	{
-		assert(inrange(r1) && inrange(g1) && inrange(b1));
+		ASSERT(inrange(r1) && inrange(g1) && inrange(b1));
 		colorstr = "\033[" + std::to_string(static_cast<int>(k)) + ";38;2;" + std::to_string(r1) + ";" +
 		           std::to_string(g1) + ";" + std::to_string(b1) + ";" + std::to_string(static_cast<int>(b)) + "m";
 	}

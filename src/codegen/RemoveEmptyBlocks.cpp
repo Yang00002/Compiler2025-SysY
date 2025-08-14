@@ -103,7 +103,7 @@ bool RemoveEmptyBlocks::removeEmptyBBs() const
 					delete ed;
 					bb->instructions_.pop_back();
 					auto e2 = bb->instructions_.back();
-					assert(dynamic_cast<MCMP*>(e2));
+					ASSERT(dynamic_cast<MCMP*>(e2));
 					for (auto op2 : e2->operands()) f_->removeUse(op2, e2);
 					delete e2;
 					bb->instructions_.pop_back();

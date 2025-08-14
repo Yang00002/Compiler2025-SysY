@@ -10,7 +10,7 @@ BasicBlock::BasicBlock(Module* m, const std::string& name = "",
                        Function* parent = nullptr)
 	: Value(Types::LABEL, name), parent_(parent)
 {
-	assert(parent && "currently parent should not be nullptr");
+	ASSERT(parent && "currently parent should not be nullptr");
 	parent_->add_basic_block(this);
 }
 
@@ -37,7 +37,7 @@ bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 			if (phi != nullptr)
 			{
 				// 理论上不该对这种基本块运行该指令
-				assert(preBB != nullptr);
+				ASSERT(preBB != nullptr);
 				// 替代会增加 phi 的长度
 				if (multiPre) return false;
 				auto& ops = phi->get_operands();
@@ -83,7 +83,7 @@ bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 
 void BasicBlock::replace_terminate_with_return_value(Value* value)
 {
-	assert(is_terminated() && "not terminated");
+	ASSERT(is_terminated() && "not terminated");
 	auto pre = get_terminator();
 	auto preRet = dynamic_cast<ReturnInst*>(pre);
 	auto preBr = dynamic_cast<BranchInst*>(pre);
@@ -127,7 +127,7 @@ bool BasicBlock::is_terminated() const
 
 Instruction* BasicBlock::get_terminator() const
 {
-	assert(is_terminated() &&
+	ASSERT(is_terminated() &&
 		"Trying to get terminator from an bb which is not terminated");
 	return instr_list_.back();
 }

@@ -97,7 +97,7 @@ public:
 	// For example in "void foo(int a, float b)" a is 0 and b is 1.
 	[[nodiscard]] int get_arg_no() const
 	{
-		assert(parent_ && "can't get number of unparented arg");
+		ASSERT(parent_ && "can't get number of unparented arg");
 		return arg_no_;
 	}
 

@@ -7,6 +7,8 @@
 
 #include "SysYParser.h"
 
+#include "Util.hpp"
+
 
 using namespace antlrcpp;
 
@@ -49,7 +51,7 @@ void sysyParserInitialize() {
     return;
   }
 #else
-  assert(sysyParserStaticData == nullptr);
+  ASSERT(sysyParserStaticData == nullptr);
 #endif
   auto staticData = std::make_unique<SysYParserStaticData>(
     std::vector<std::string>{

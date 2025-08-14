@@ -537,7 +537,7 @@ void Dominators::create_dom_dfs_order(Function* f)
 		}
 		dfsVisitList.top() = true;
 		auto bb = dfsWorkList.top();
-		assert(!dom_tree_L_.count(bb));
+		ASSERT(!dom_tree_L_.count(bb));
 		dom_tree_L_[bb] = ++order;
 		od.emplace_back(bb);
 		for (auto i : dom_tree_succ_blocks_[bb])

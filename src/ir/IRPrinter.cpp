@@ -116,7 +116,7 @@ std::string print_instr_op_name(Instruction::OpID id)
 			return "memclear";
 	}
 	// mem 系列指令是某些复杂指令的包装, 单独获得指令名称不具有相同意义
-	assert(false && "Must be bug");
+	ASSERT(false && "Must be bug");
 	return "";
 }
 
@@ -156,7 +156,7 @@ static std::string print_cmp_inst(const CMP& inst)
 	else if (inst.is_fcmp())
 		cmp_type = "fcmp";
 	else
-		assert(false && "Unexpected case");
+		ASSERT(false && "Unexpected case");
 	std::string instr_ir;
 	instr_ir += "%";
 	instr_ir += inst.get_name();
@@ -195,7 +195,7 @@ std::string CallInst::print()
 	instr_ir += this->get_function_type()->returnType()->print();
 
 	instr_ir += " ";
-	assert(dynamic_cast<Function *>(this->get_operand(0)) &&
+	ASSERT(dynamic_cast<Function *>(this->get_operand(0)) &&
 		"Wrong call operand function");
 	instr_ir += print_as_op(this->get_operand(0), false);
 	instr_ir += "(";
@@ -306,7 +306,7 @@ std::string GetElementPtrInst::print()
 	instr_ir += " = ";
 	instr_ir += get_instr_op_name();
 	instr_ir += " ";
-	assert(this->get_operand(0)->get_type()->isPointerType());
+	ASSERT(this->get_operand(0)->get_type()->isPointerType());
 	instr_ir +=
 		this->get_operand(0)->get_type()->toPointerType()->typeContained()->print();
 	instr_ir += ", ";
@@ -342,7 +342,7 @@ std::string LoadInst::print()
 	instr_ir += " = ";
 	instr_ir += get_instr_op_name();
 	instr_ir += " ";
-	assert(this->get_operand(0)->get_type()->isPointerType());
+	ASSERT(this->get_operand(0)->get_type()->isPointerType());
 	instr_ir +=
 		this->get_operand(0)->get_type()->toPointerType()->typeContained()->print();
 	instr_ir += ",";

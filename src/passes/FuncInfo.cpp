@@ -165,7 +165,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 	while (!q.empty())
 	{
 		auto v = q.front();
-		assert(v->get_type()->isPointerType());
+		ASSERT(v->get_type()->isPointerType());
 		q.pop();
 		for (auto& use : v->get_use_list())
 		{
@@ -181,9 +181,9 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 					}
 				case Instruction::store:
 					{
-						assert(dynamic_cast<StoreInst*>(inst));
-						assert(inst->get_operands().size() == 2);
-						assert(idx == 1);
+						ASSERT(dynamic_cast<StoreInst*>(inst));
+						ASSERT(inst->get_operands().size() == 2);
+						ASSERT(idx == 1);
 						stores[f].add(val);
 						break;
 					}
@@ -200,7 +200,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 					}
 				case Instruction::getelementptr:
 					{
-						assert(idx == 0);
+						ASSERT(idx == 0);
 						if (!visited.count(inst))
 						{
 							visited.emplace(inst);
@@ -232,7 +232,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 						break;
 					}
 				default:
-					assert(false);
+					ASSERT(false);
 					break;
 			}
 		}

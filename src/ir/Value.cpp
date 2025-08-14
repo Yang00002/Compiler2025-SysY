@@ -73,7 +73,7 @@ Value* User::get_operand(int i) const { return operands_.at(i); }
 
 void User::set_operand(int i, Value* v)
 {
-	assert(i < u2iNegThrow(operands_.size()) && "set_operand out of index");
+	ASSERT(i < u2iNegThrow(operands_.size()) && "set_operand out of index");
 	if (operands_[i])
 	{
 		// old operand
@@ -89,7 +89,7 @@ void User::set_operand(int i, Value* v)
 
 void User::add_operand(Value* v)
 {
-	assert(v != nullptr && "bad use: add_operand(nullptr)");
+	ASSERT(v != nullptr && "bad use: add_operand(nullptr)");
 	v->add_use(this, u2iNegThrow(operands_.size()));
 	operands_.push_back(v);
 }
@@ -110,7 +110,7 @@ void User::remove_all_operands()
 void User::remove_operand(int idx)
 {
 	int size = u2iNegThrow(operands_.size());
-	assert(idx < size && "remove_operand out of index");
+	ASSERT(idx < size && "remove_operand out of index");
 	// influence on other operands
 	for (int i = idx + 1; i < size; ++i)
 	{

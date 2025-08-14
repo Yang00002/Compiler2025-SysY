@@ -487,7 +487,7 @@ Instruction* InstructionList::erase(const InstructionListIterator& iterator)
 
 void InstructionList::emplace_back_common_inst(Instruction* instruction)
 {
-	assert(!instruction->is_phi() && !instruction->is_alloca() &&
+	ASSERT(!instruction->is_phi() && !instruction->is_alloca() &&
 		"Phi or alloca is not common instruction");
 	const auto node = new InstructionListNode{instruction, end_node_, end_node_->pre};
 	end_node_->pre->next = node;
@@ -498,7 +498,7 @@ void InstructionList::emplace_back_common_inst(Instruction* instruction)
 
 void InstructionList::emplace_back_phi_alloca_inst(Instruction* instruction)
 {
-	assert((instruction->is_phi() || instruction->is_alloca()) &&
+	ASSERT((instruction->is_phi() || instruction->is_alloca()) &&
 		"Instruction not phi or alloca");
 	const auto node = new InstructionListNode{instruction, common_inst_begin_, common_inst_begin_->pre};
 	common_inst_begin_->pre->next = node;
@@ -508,7 +508,7 @@ void InstructionList::emplace_back_phi_alloca_inst(Instruction* instruction)
 
 void InstructionList::emplace_front_phi_alloca_inst(Instruction* instruction)
 {
-	assert((instruction->is_phi() || instruction->is_alloca()) &&
+	ASSERT((instruction->is_phi() || instruction->is_alloca()) &&
 		"Instruction not phi or alloca");
 	const auto node = new InstructionListNode{instruction, end_node_->next, end_node_};
 	end_node_->next->pre = node;
@@ -518,7 +518,7 @@ void InstructionList::emplace_front_phi_alloca_inst(Instruction* instruction)
 
 void InstructionList::emplace_front_common_inst(Instruction* instruction)
 {
-	assert(!instruction->is_phi() && !instruction->is_alloca() &&
+	ASSERT(!instruction->is_phi() && !instruction->is_alloca() &&
 		"Phi or alloca is not common instruction");
 	const auto node = new InstructionListNode{instruction, common_inst_begin_, common_inst_begin_->pre};
 	common_inst_begin_->pre->next = node;

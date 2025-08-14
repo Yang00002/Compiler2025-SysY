@@ -80,13 +80,13 @@ int MBasicBlock::collapseBranch()
 	auto r = b->block2GoR();
 	if (l != nullptr && l->empty() && l->next_ != nullptr)
 	{
-		assert(l != l->next_);
+		ASSERT(l != l->next_);
 		l = l->next_;
 		b->replaceL(l);
 	}
 	if (r != nullptr && r->empty() && r->next_ != nullptr)
 	{
-		assert(r != r->next_);
+		ASSERT(r != r->next_);
 		r = r->next_;
 		b->replaceR(r);
 	}

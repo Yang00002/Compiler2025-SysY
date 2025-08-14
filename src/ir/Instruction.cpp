@@ -60,11 +60,11 @@ Value* ptrFrom(Value* ptr)
 				ptr = inst->get_operand(0);
 				inst = dynamic_cast<Instruction*>(ptr);
 				break;
-			default: assert(false);
+			default: ASSERT(false);
 				break;
 		}
 	}
-	assert(ptr != nullptr);
+	ASSERT(ptr != nullptr);
 	return ptr;
 }
 
@@ -97,7 +97,7 @@ void Instruction::replaceAllOperandMatchs(const Value* from, Value* to)
 IBinaryInst::IBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
 	: BaseInst<IBinaryInst>(INT, id, bb)
 {
-	assert(v1->get_type()==INT && v2->get_type()==INT&&
+	ASSERT(v1->get_type()==INT && v2->get_type()==INT&&
 		"IBinaryInst operands are not both i32");
 	add_operand(v1);
 	add_operand(v2);
@@ -165,7 +165,7 @@ void IBinaryInst::setOp(OpID id)
 FBinaryInst::FBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
 	: BaseInst<FBinaryInst>(FLOAT, id, bb)
 {
-	assert(v1->get_type()==FLOAT && v2->get_type()==FLOAT &&
+	ASSERT(v1->get_type()==FLOAT && v2->get_type()==FLOAT &&
 		"FBinaryInst operands are not both float");
 	add_operand(v1);
 	add_operand(v2);
@@ -213,7 +213,7 @@ void FBinaryInst::setOp(OpID id)
 ICmpInst::ICmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb)
 	: BaseInst<ICmpInst>(BOOL, id, bb)
 {
-	assert(lhs->get_type() == INT &&
+	ASSERT(lhs->get_type() == INT &&
 		rhs->get_type() == INT &&
 		"CmpInst operands are not both i32");
 	add_operand(lhs);
@@ -267,7 +267,7 @@ ICmpInst* ICmpInst::create_ne(Value* v1, Value* v2, BasicBlock* bb)
 FCmpInst::FCmpInst(OpID id, Value* lhs, Value* rhs, BasicBlock* bb)
 	: BaseInst<FCmpInst>(BOOL, id, bb)
 {
-	assert(lhs->get_type()== FLOAT &&
+	ASSERT(lhs->get_type()== FLOAT &&
 		rhs->get_type() == FLOAT &&
 		"FCmpInst operands are not both float");
 	add_operand(lhs);
@@ -292,10 +292,10 @@ MemCpyInst::MemCpyInst(Value* from, Value* to, int size, BasicBlock* bb) : BaseI
 {
 	auto t1 = from->get_type();
 	auto t2 = to->get_type();
-	assert(
+	ASSERT(
 		t1 == t2 && t1->isPointerType() && t1->toPointerType()->typeContained() == CHAR &&
 		"MemCpyInst operands are not both char*");
-	assert(size > 0 && "MemCpyInst should have size > 0");
+	ASSERT(size > 0 && "MemCpyInst should have size > 0");
 	add_operand(from);
 	add_operand(to);
 	length_ = size;
@@ -322,10 +322,10 @@ MemCpyInst* MemCpyInst::create_memcpy(Value* from, Value* to, int size, BasicBlo
 MemClearInst::MemClearInst(Value* target, int size, BasicBlock* bb) : BaseInst<MemClearInst>(VOID, memclear_, bb)
 {
 	auto t1 = target->get_type();
-	assert(
+	ASSERT(
 		t1->isPointerType() && t1->toPointerType()->typeContained() == CHAR &&
 		"MemClearInst operand is not char*");
-	assert(size > 0 && "MemClearInst should have size > 0");
+	ASSERT(size > 0 && "MemClearInst should have size > 0");
 	add_operand(target);
 	length_ = size;
 }
@@ -349,7 +349,7 @@ MemClearInst* MemClearInst::create_memclear(Value* target, int size, BasicBlock*
 
 Nump2CharpInst::Nump2CharpInst(Value* val, BasicBlock* bb) : BaseInst<Nump2CharpInst>(pointerType(CHAR), nump2charp, bb)
 {
-	assert(
+	ASSERT(
 		val->get_type()->isPointerType() && (val->get_type()->toPointerType()->typeContained() == FLOAT || val->get_type
 			()->toPointerType()->
 			typeContained() == INT) &&
@@ -431,14 +431,14 @@ FCmpInst* FCmpInst::create_fne(Value* v1, Value* v2, BasicBlock* bb)
 CallInst::CallInst(Function* func, const std::vector<Value*>& args, BasicBlock* bb)
 	: BaseInst<CallInst>(func->get_return_type(), call, bb)
 {
-	assert(func->get_type()->isFunctionType() && "Not a function");
+	ASSERT(func->get_type()->isFunctionType() && "Not a function");
 	int size = u2iNegThrow(args.size());
-	assert((func->get_num_of_args() == size) && "Wrong number of args");
+	ASSERT((func->get_num_of_args() == size) && "Wrong number of args");
 	add_operand(func);
 	auto func_type = dynamic_cast<FuncType*>(func->get_type());
 	for (int i = 0; i < size; i++)
 	{
-		assert(func_type->argumentType(i) == args[i]->get_type() &&
+		ASSERT(func_type->argumentType(i) == args[i]->get_type() &&
 			"CallInst: Wrong arg type");
 		add_operand(args[i]);
 	}
@@ -481,7 +481,7 @@ BranchInst::BranchInst(Value* cond, BasicBlock* if_true, BasicBlock* if_false,
 	if (cond == nullptr)
 	{
 		// conditionless jump
-		assert(if_false == nullptr && "Given false-bb on conditionless jump");
+		ASSERT(if_false == nullptr && "Given false-bb on conditionless jump");
 		add_operand(if_true);
 		// prev/succ
 		if_true->add_pre_basic_block(bb);
@@ -489,7 +489,7 @@ BranchInst::BranchInst(Value* cond, BasicBlock* if_true, BasicBlock* if_false,
 	}
 	else
 	{
-		assert(cond->get_type()==BOOL &&
+		ASSERT(cond->get_type()==BOOL &&
 			"BranchInst condition is not i1");
 		add_operand(cond);
 		add_operand(if_true);
@@ -550,13 +550,13 @@ ReturnInst::ReturnInst(Value* val, BasicBlock* bb)
 {
 	if (val == nullptr)
 	{
-		assert(bb->get_parent()->get_return_type()==VOID);
+		ASSERT(bb->get_parent()->get_return_type()==VOID);
 	}
 	else
 	{
-		assert(bb->get_parent()->get_return_type()!=VOID &&
+		ASSERT(bb->get_parent()->get_return_type()!=VOID &&
 			"Void function returning a value");
-		assert(bb->get_parent()->get_return_type() == val->get_type() &&
+		ASSERT(bb->get_parent()->get_return_type() == val->get_type() &&
 			"ReturnInst type is different from function return type");
 		add_operand(val);
 	}
@@ -594,7 +594,7 @@ GetElementPtrInst::GetElementPtrInst(Value* ptr, const std::vector<Value*>& idxs
 	add_operand(ptr);
 	for (auto idx : idxs)
 	{
-		assert(idx->get_type() == INT && "Index is not integer");
+		ASSERT(idx->get_type() == INT && "Index is not integer");
 		add_operand(idx);
 	}
 }
@@ -621,11 +621,11 @@ Instruction* GetElementPtrInst::copy(std::unordered_map<Value*, Value*>& valMap)
 Type* GetElementPtrInst::get_element_type(const Value* ptr,
                                           const std::vector<Value*>& idxs)
 {
-	assert(ptr->get_type()->isPointerType() &&
+	ASSERT(ptr->get_type()->isPointerType() &&
 		"GetElementPtrInst ptr is not a pointer");
 
 	Type* ty = dynamic_cast<PointerType*>(ptr->get_type())->typeContained();
-	assert(
+	ASSERT(
 		"GetElementPtrInst ptr is wrong type" &&
 		(ty->isArrayType() || ty == INT || ty == FLOAT));
 	if (ty->isArrayType())
@@ -637,7 +637,7 @@ Type* GetElementPtrInst::get_element_type(const Value* ptr,
 			ty = arr_ty->getSubType(1);
 			if (i < size - 1)
 			{
-				assert(ty->isArrayType() && "Index error!");
+				ASSERT(ty->isArrayType() && "Index error!");
 			}
 			if (ty->isArrayType())
 			{
@@ -663,7 +663,7 @@ GetElementPtrInst* GetElementPtrInst::create_gep(Value* ptr,
 StoreInst::StoreInst(Value* val, Value* ptr, BasicBlock* bb)
 	: BaseInst<StoreInst>(VOID, store, bb)
 {
-	assert((ptr->get_type()->toPointerType()->typeContained() == val->get_type()) &&
+	ASSERT((ptr->get_type()->toPointerType()->typeContained() == val->get_type()) &&
 		"StoreInst ptr is not a pointer to val type");
 	add_operand(val);
 	add_operand(ptr);
@@ -717,7 +717,7 @@ LoadInst::LoadInst(Value* ptr, BasicBlock* bb)
 	: BaseInst<LoadInst>(ptr->get_type()->toPointerType()->typeContained(), load,
 	                     bb)
 {
-	assert((get_type() == INT or get_type() == FLOAT or
+	ASSERT((get_type() == INT or get_type() == FLOAT or
 			get_type()->isPointerType()) &&
 		"Should not load value with type except int/float");
 	add_operand(ptr);
@@ -746,7 +746,7 @@ AllocaInst::AllocaInst(Type* ty, BasicBlock* bb)
 	static constexpr std::array<TypeIDs, 4> allowed_alloc_type = {
 		TypeIDs::Integer, TypeIDs::Float, TypeIDs::Array, TypeIDs::Pointer
 	};
-	assert(std::find(allowed_alloc_type.begin(), allowed_alloc_type.end(),
+	ASSERT(std::find(allowed_alloc_type.begin(), allowed_alloc_type.end(),
 			ty->getTypeID()) != allowed_alloc_type.end() &&
 		"Not allowed type for alloca");
 }
@@ -774,9 +774,9 @@ Type* AllocaInst::get_alloca_type() const
 ZextInst::ZextInst(Value* val, Type* ty, BasicBlock* bb)
 	: BaseInst<ZextInst>(ty, zext, bb)
 {
-	assert(val->get_type() == BOOL &&
+	ASSERT(val->get_type() == BOOL &&
 		"ZextInst operand is not bool");
-	assert(ty == INT && "ZextInst destination type is not integer");
+	ASSERT(ty == INT && "ZextInst destination type is not integer");
 	add_operand(val);
 }
 
@@ -800,9 +800,9 @@ ZextInst* ZextInst::create_zext_to_i32(Value* val, BasicBlock* bb)
 FpToSiInst::FpToSiInst(Value* val, Type* ty, BasicBlock* bb)
 	: BaseInst<FpToSiInst>(ty, fptosi, bb)
 {
-	assert(val->get_type() == FLOAT &&
+	ASSERT(val->get_type() == FLOAT &&
 		"FpToSiInst operand is not float");
-	assert(ty == INT &&
+	ASSERT(ty == INT &&
 		"FpToSiInst destination type is not integer");
 	add_operand(val);
 }
@@ -832,9 +832,9 @@ FpToSiInst* FpToSiInst::create_fptosi_to_i32(Value* val, BasicBlock* bb)
 SiToFpInst::SiToFpInst(Value* val, Type* ty, BasicBlock* bb)
 	: BaseInst<SiToFpInst>(ty, sitofp, bb)
 {
-	assert(val->get_type() == INT &&
+	ASSERT(val->get_type() == INT &&
 		"SiToFpInst operand is not integer");
-	assert(ty == FLOAT && "SiToFpInst destination type is not float");
+	ASSERT(ty == FLOAT && "SiToFpInst destination type is not float");
 	add_operand(val);
 }
 
@@ -859,12 +859,12 @@ PhiInst::PhiInst(Type* ty, const std::vector<Value*>& vals,
                  const std::vector<BasicBlock*>& val_bbs, BasicBlock* bb)
 	: BaseInst<PhiInst>(ty, phi)
 {
-	assert(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
+	ASSERT(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
 	int size = u2iNegThrow(vals.size());
 	for (int i = 0; i < size; i++)
 	{
 		ASSERT(val_bbs[i]);
-		assert(ty == vals[i]->get_type() && "Bad type for phi");
+		ASSERT(ty == vals[i]->get_type() && "Bad type for phi");
 		add_operand(vals[i]);
 		add_operand(val_bbs[i]);
 	}

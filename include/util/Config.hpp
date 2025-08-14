@@ -36,7 +36,7 @@ extern int maxCopyInstCountToInlineMemclr;
 extern bool use64BitsMathOperationInPointerOp;
 // 是否像普通寄存器一样使用零寄存器, 因此生成的一些指令 ADD W0, WZR, #2 在某些环境下会报错
 extern bool useZRRegisterAsCommonRegister;
-// 当开启时, 忽略图着色中的部分 assert 检查
+// 当开启时, 忽略图着色中的部分 ASSERT 检查
 extern bool graphColoringWeakNodeCheck;
 // 测试 AST, 生成 C 文件
 extern bool emitAST;

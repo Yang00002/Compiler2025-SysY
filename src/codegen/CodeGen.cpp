@@ -37,7 +37,7 @@ namespace
 
 	long long upAlignTo16(long long of)
 	{
-		assert(of >= 0);
+		ASSERT(of >= 0);
 		return ((of + 15) >> 4) << 4;
 	}
 
@@ -349,15 +349,15 @@ void CodeGen::fdiv(const Register* to, const Register* l, const Register* r, Cod
 
 void CodeGen::stp(const Register* a, const Register* b, const Register* c, int offset, int len, CodeString* toStr)
 {
-	assert(len == 32 || len == 64);
-	assert(len == 32 ? inImm7L2(offset) : inImm7L3(offset));
+	ASSERT(len == 32 || len == 64);
+	ASSERT(len == 32 ? inImm7L2(offset) : inImm7L3(offset));
 	return toStr->addInstruction("STP", regName(a, len), regName(b, len), regDataOffset(c, offset));
 }
 
 void CodeGen::str(const Register* a, const Register* c, long long offset, int len, CodeString* toStr)
 {
-	assert(len == 32 || len == 64 || len == 128);
-	assert(len == 32 ? align4(offset) : align8(offset));
+	ASSERT(len == 32 || len == 64 || len == 128);
+	ASSERT(len == 32 ? align4(offset) : align8(offset));
 	if (inImm9(offset)) return toStr->addInstruction("STR", regName(a, len), regDataOffset(c, u2iNegThrow(offset)));
 	long long absOff = offset < 0 ? -offset : offset;
 	int maxMov = m_countr_zero(ll2ullKeepBits(absOff));
@@ -379,7 +379,7 @@ void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, C
 		releaseIP(l);
 		return;
 	}
-	assert(dynamic_cast<const Immediate*>(stackLike) == nullptr);
+	ASSERT(dynamic_cast<const Immediate*>(stackLike) == nullptr);
 	if (const GlobalAddress* i = dynamic_cast<const GlobalAddress*>(stackLike); i != nullptr)
 	{
 		const Register* l = op2reg(regLike, len, toStr);
@@ -406,7 +406,7 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, Cod
 	{
 		if (len == 128)
 		{
-			assert(!fromr->isIntegerRegister());
+			ASSERT(!fromr->isIntegerRegister());
 			return fromr;
 		}
 		if (fromr->isIntegerRegister() != useIntReg)
@@ -417,7 +417,7 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, Cod
 		}
 		return fromr;
 	}
-	assert(len == 32 || len == 64);
+	ASSERT(len == 32 || len == 64);
 	auto r = useIntReg ? getIP() : getFIP();
 	copy(r, op, len, toStr);
 	return r;
@@ -429,12 +429,12 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, CodeString* appendS
 	{
 		if (len == 128)
 		{
-			assert(!fromr->isIntegerRegister());
+			ASSERT(!fromr->isIntegerRegister());
 			return fromr;
 		}
 		return fromr;
 	}
-	assert(len == 32 || len == 64);
+	ASSERT(len == 32 || len == 64);
 	auto r = getIP();
 	copy(r, op, len, appendSlot);
 	return r;
@@ -442,15 +442,15 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, CodeString* appendS
 
 void CodeGen::ldp(const Register* a, const Register* b, const Register* c, int offset, int len, CodeString* toStr)
 {
-	assert(len == 32 || len == 64);
-	assert(len == 32 ? inImm7L2(offset) : inImm7L3(offset));
+	ASSERT(len == 32 || len == 64);
+	ASSERT(len == 32 ? inImm7L2(offset) : inImm7L3(offset));
 	return toStr->addInstruction("LDP", regName(a, len), regName(b, len), regDataOffset(c, offset));
 }
 
 void CodeGen::ldr(const Register* a, const Register* baseOffsetReg, long long offset, int len, CodeString* toStr)
 {
-	assert(len == 32 || len == 64 || len == 128);
-	assert(len == 32 ? align4(offset) : align8(offset));
+	ASSERT(len == 32 || len == 64 || len == 128);
+	ASSERT(len == 32 ? align4(offset) : align8(offset));
 	if (inImm9(offset))
 		return toStr->addInstruction("LDR", regName(a, len),
 		                             regDataOffset(baseOffsetReg, u2iNegThrow(offset)));
@@ -469,13 +469,13 @@ void CodeGen::ldr(const MOperand* a, const MOperand* stackLike, int len, CodeStr
 {
 	list<string> ret;
 	auto l = dynamic_cast<const Register*>(a);
-	assert(l != nullptr);
+	ASSERT(l != nullptr);
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
 		ldr(l, i, 0, len, toStr);
 		return;
 	}
-	assert(dynamic_cast<const Immediate*>(stackLike) == nullptr);
+	ASSERT(dynamic_cast<const Immediate*>(stackLike) == nullptr);
 	if (const GlobalAddress* i = dynamic_cast<const GlobalAddress*>(stackLike); i != nullptr)
 	{
 		auto r = op2reg(i, 64, toStr);
@@ -515,9 +515,9 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
                        int len, CodeString* toStr)
 {
 	auto target = dynamic_cast<const Register*>(t);
-	assert(op >= Instruction::add && op <= Instruction::fdiv);
-	assert(op <= Instruction::srem || len != 64);
-	assert(target != nullptr);
+	ASSERT(op >= Instruction::add && op <= Instruction::fdiv);
+	ASSERT(op <= Instruction::srem || len != 64);
+	ASSERT(target != nullptr);
 	bool flt = op >= Instruction::fadd;
 	auto immL = dynamic_cast<const Immediate*>(l);
 	auto immR = dynamic_cast<const Immediate*>(r);
@@ -531,7 +531,7 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	}
 	if (immL && immR)
 	{
-		assert(op <= Instruction::and_ || len != 64);
+		ASSERT(op <= Instruction::and_ || len != 64);
 		if (op <= Instruction::and_)
 		{
 			if (len == 32)
@@ -756,7 +756,7 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	}
 	if (op == Instruction::shl)
 	{
-		assert(immR);
+		ASSERT(immR);
 		if (len == 32) lsl32(target, regL, immR->asInt(), toStr);
 		else lsl64(target, regL, immR->as64BitsInt(), toStr);
 		releaseIP(regL);
@@ -764,7 +764,7 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	}
 	if (op == Instruction::ashr)
 	{
-		assert(immR);
+		ASSERT(immR);
 		if (len == 32) asr32(target, regL, immR->asInt(), toStr);
 		else asr64(target, regL, immR->as64BitsInt(), toStr);
 		releaseIP(regL);
@@ -772,7 +772,7 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	}
 	if (op == Instruction::and_)
 	{
-		assert(immR);
+		ASSERT(immR);
 		if (len == 32) and32(target, regL, immR->asInt(), toStr);
 		else and64(target, regL, immR->as64BitsInt(), toStr);
 		releaseIP(regL);
@@ -893,35 +893,35 @@ void CodeGen::add32(const Register* to, const Register* l, int imm, CodeString* 
 
 void CodeGen::lsl32(const Register* to, const Register* l, int imm, CodeString* toStr)
 {
-	assert(imm >= 0);
+	ASSERT(imm >= 0);
 	if (imm == 0) return copy(to, l, 32, toStr);
 	toStr->addInstruction("LSL", regName(to, 32), regName(l, 32), immediate(imm));
 }
 
 void CodeGen::lsl64(const Register* to, const Register* l, long long imm, CodeString* toStr)
 {
-	assert(imm >= 0);
+	ASSERT(imm >= 0);
 	if (imm == 0) return copy(to, l, 64, toStr);
 	toStr->addInstruction("LSL", regName(to, 64), regName(l, 64), immediate(imm));
 }
 
 void CodeGen::asr32(const Register* to, const Register* l, int imm, CodeString* toStr)
 {
-	assert(imm >= 0);
+	ASSERT(imm >= 0);
 	if (imm == 0) return copy(to, l, 32, toStr);
 	toStr->addInstruction("ASR", regName(to, 32), regName(l, 32), immediate(imm));
 }
 
 void CodeGen::asr64(const Register* to, const Register* l, long long imm, CodeString* toStr)
 {
-	assert(imm >= 0);
+	ASSERT(imm >= 0);
 	if (imm == 0) return copy(to, l, 64, toStr);
 	toStr->addInstruction("ASR", regName(to, 64), regName(l, 64), immediate(imm));
 }
 
 void CodeGen::and32(const Register* to, const Register* l, int imm, CodeString* toStr)
 {
-	assert(imm >= 0);
+	ASSERT(imm >= 0);
 	if (imm == 0) return copy(to, l, 32, toStr);
 	if (inUImm12(imm))
 	{
@@ -941,7 +941,7 @@ void CodeGen::and32(const Register* to, const Register* l, int imm, CodeString* 
 
 void CodeGen::and64(const Register* to, const Register* l, long long imm, CodeString* toStr)
 {
-	assert(imm >= 0);
+	ASSERT(imm >= 0);
 	if (imm == 0) return copy(to, l, 64, toStr);
 	if (inUImm12(imm))
 	{
@@ -1048,11 +1048,11 @@ void CodeGen::sub64(const Register* to, const Register* l, long long imm, CodeSt
 void CodeGen::call(const MOperand* address, CodeString* toStr)
 {
 	auto f = dynamic_cast<const FuncAddress*>(address);
-	assert(f != nullptr);
+	ASSERT(f != nullptr);
 	toStr->addInstruction("BL", f->function()->name());
 	if (func2Call_ != nullptr)
 	{
-		assert(f->function() == func2Call_);
+		ASSERT(f->function() == func2Call_);
 		add64(sp(), sp(), func2Call_->fix_move_offset(), toStr);
 		LOG(color::cyan("call, eliminate func2Call ") + func2Call_->print());
 		func2Call_ = nullptr;
@@ -1071,7 +1071,7 @@ void CodeGen::cset(const MOperand* to, Instruction::OpID cond, CodeString* toStr
 	if (cond == Instruction::sub)
 		return makeI32Immediate(0, dynamic_cast<const Register*>(to), toStr);
 	auto bb = dynamic_cast<const Register*>(to);
-	assert(bb != nullptr);
+	ASSERT(bb != nullptr);
 	return toStr->addInstruction("CSET", regName(bb, 32), condName(cond));
 }
 
@@ -1080,13 +1080,13 @@ void CodeGen::extend32To64(const MOperand* from, const MOperand* to, CodeString*
 {
 	auto f = dynamic_cast<const Register*>(from);
 	auto t = dynamic_cast<const Register*>(to);
-	assert(t);
+	ASSERT(t);
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
 		long long i = imm->asInt();
 		return makeI64Immediate(i, t, toStr);
 	}
-	assert(f);
+	ASSERT(f);
 	return toStr->addInstruction("SXTW", regName(t, 64), regName(f, 32));
 }
 
@@ -1094,13 +1094,13 @@ void CodeGen::f2i(const MOperand* from, const MOperand* to, CodeString* toStr)
 {
 	auto f = dynamic_cast<const Register*>(from);
 	auto t = dynamic_cast<const Register*>(to);
-	assert(t);
+	ASSERT(t);
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
 		int i = static_cast<int>(imm->asFloat());
 		return makeI32Immediate(i, t, toStr);
 	}
-	assert(f);
+	ASSERT(f);
 	return toStr->addInstruction("FCVTZS", regName(t, 32), regName(f, 32));
 }
 
@@ -1108,13 +1108,13 @@ void CodeGen::i2f(const MOperand* from, const MOperand* to, CodeString* toStr)
 {
 	auto f = dynamic_cast<const Register*>(from);
 	auto t = dynamic_cast<const Register*>(to);
-	assert(t);
+	ASSERT(t);
 	if (auto imm = dynamic_cast<const Immediate*>(from); imm != nullptr)
 	{
 		float i = static_cast<float>(imm->asInt());
 		return makeF32Immediate(i, t, toStr);
 	}
-	assert(f);
+	ASSERT(f);
 	return toStr->addInstruction("SCVTF", regName(t, 32), regName(f, 32));
 }
 
@@ -1124,8 +1124,8 @@ void CodeGen::compare(const MCMP* inst, const MOperand* l, const MOperand* r, bo
 	auto rm = dynamic_cast<const Immediate*>(r);
 	auto lr = dynamic_cast<const Register*>(l);
 	auto rr = dynamic_cast<const Register*>(r);
-	assert(lm != nullptr || lr != nullptr);
-	assert(rm != nullptr || rr != nullptr);
+	ASSERT(lm != nullptr || lr != nullptr);
+	ASSERT(rm != nullptr || rr != nullptr);
 	if (flt)
 	{
 		if (lm && rm)
@@ -1232,7 +1232,7 @@ void CodeGen::reverseCmpOp(const MCMP* inst)
 		bcc->op_ = lrShiftOp(bcc->op_);
 		return;
 	}
-	assert(false);
+	ASSERT(false);
 }
 
 void CodeGen::sub32(const Register* to, const Register* l, int imm, CodeString* toStr)
@@ -1296,7 +1296,7 @@ void CodeGen::copy(const Register* to, const Register* from, int len, CodeString
 	if (to == from) return;
 	if (to->isIntegerRegister() && from->isIntegerRegister())
 		return toStr->addInstruction("MOV", regName(to, len), regName(from, len));
-	assert(len == 32);
+	ASSERT(len == 32);
 	return toStr->addInstruction("FMOV", regName(to, len), regName(from, len));
 }
 
@@ -1312,9 +1312,9 @@ void CodeGen::copy(const Register* to, const Immediate* from, int len, CodeStrin
 
 void CodeGen::copy(const MOperand* to, const MOperand* from, int len, CodeString* toStr)
 {
-	assert(len == 32 || len == 64);
+	ASSERT(len == 32 || len == 64);
 	auto tor = dynamic_cast<const Register*>(to);
-	assert(tor);
+	ASSERT(tor);
 	if (const Register* fromr = dynamic_cast<const Register*>(from); fromr != nullptr)
 	{
 		copy(tor, fromr, len, toStr);
@@ -1340,7 +1340,7 @@ void CodeGen::copy(const MOperand* to, const MOperand* from, int len, CodeString
 
 void CodeGen::copy(const Register* to, const GlobalAddress* from, int len, CodeString* toStr)
 {
-	assert(len == 64);
+	ASSERT(len == 64);
 	return toStr->addInstruction("LDR", regName(to, 64), "=" + from->name_);
 }
 
@@ -1393,7 +1393,7 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 	{
 	}
 	else
-		assert(false);
+		ASSERT(false);
 }
 
 std::string CodeGen::regName(const Register* reg, int len)
@@ -1457,7 +1457,7 @@ void CodeGen::decideCond(MInstruction* instruction, int cond)
 	if (b != nullptr) op = b->op_;
 	else
 	{
-		assert(cset);
+		ASSERT(cset);
 		op = cset->op_;
 	}
 	bool ok = false;
@@ -1670,14 +1670,14 @@ void CodeGen::makeF32Immediate(float i, const Register* placeIn, CodeString* toS
 
 void CodeGen::makeImmediate(const Immediate* i, bool flt, int len, const Register* placeIn, CodeString* toStr)
 {
-	assert(len == 32 || len == 64);
+	ASSERT(len == 32 || len == 64);
 	if (flt)
 	{
-		assert(len == 32);
-		assert(placeIn->isIntegerRegister() == false);
+		ASSERT(len == 32);
+		ASSERT(placeIn->isIntegerRegister() == false);
 		return makeF32Immediate(i->asFloat(), placeIn, toStr);
 	}
-	assert(placeIn->isIntegerRegister());
+	ASSERT(placeIn->isIntegerRegister());
 	return len == 32
 		       ? makeI32Immediate(i->asInt(), placeIn, toStr)
 		       : makeI64Immediate(i->as64BitsInt(), placeIn, toStr);
@@ -1794,10 +1794,10 @@ long long CodeGen::frameOffset(const FrameIndex* index, bool forCall, CodeString
 	{
 		if (!index->stack_t_fix_f() && forCall)
 		{
-			assert(index->func() == func2Call_);
+			ASSERT(index->func() == func2Call_);
 			return index->offset() - index->func()->stack_move_offset();
 		}
-		assert(index->func() == func_);
+		ASSERT(index->func() == func_);
 		return index->offset() + func2Call_->fix_move_offset();
 	}
 	if (!index->stack_t_fix_f() && forCall)
@@ -1807,7 +1807,7 @@ long long CodeGen::frameOffset(const FrameIndex* index, bool forCall, CodeString
 		func2Call_ = index->func();
 		return frameOffset(index, forCall, appendSlot);
 	}
-	assert(index->func() == func_);
+	ASSERT(index->func() == func_);
 	return index->offset();
 }
 
@@ -1899,21 +1899,21 @@ void CodeGen::releaseIP(const Register* r)
 
 void CodeGen::setBuf(int id, const MOperand* op)
 {
-	assert(op);
-	assert(!opbuffer[id]);
+	ASSERT(op);
+	ASSERT(!opbuffer[id]);
 	opbuffer[id] = op;
 }
 
 const MOperand* CodeGen::getBuf(int id) const
 {
-	assert(opbuffer[id]);
+	ASSERT(opbuffer[id]);
 	auto ret = opbuffer[id];
 	return ret;
 }
 
 void CodeGen::releaseBuf(int id)
 {
-	assert(opbuffer[id]);
+	ASSERT(opbuffer[id]);
 	opbuffer[id] = nullptr;
 }
 

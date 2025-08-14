@@ -137,13 +137,13 @@ public:
             auto v1 = get_mapped_val(i->get_operand(0));
             auto v2 = get_mapped_val(i->get_operand(1));
             if( v1.const_val_ && v2.const_val_ ){
-                assert( v1.is_const() && v2.is_const() && "Trying to fold variables" );
+                ASSERT( v1.is_const() && v2.is_const() && "Trying to fold variables" );
                 return constFold(i,v1.const_val_,v2.const_val_);
             }
         } else if (IS_UNARY(i)) {
             auto v = get_mapped_val(i->get_operand(0));
             if( v.const_val_ ){
-                assert( v.is_const() && "Trying to fold variables" );
+                ASSERT( v.is_const() && "Trying to fold variables" );
                 return constFold(i,v.const_val_);
             }
         }

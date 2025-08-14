@@ -256,7 +256,7 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 			for (auto& use : v->get_use_list())
 			{
 				auto inst = dynamic_cast<Instruction*>(use.val_);
-				assert(inst != nullptr);
+				ASSERT(inst != nullptr);
 				int idx = use.arg_no_;
 				switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 				{
@@ -270,7 +270,7 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 						break;
 					case Instruction::getelementptr:
 						{
-							assert(idx == 0);
+						ASSERT(idx == 0);
 							if (!visited.count(inst))
 							{
 								visited.emplace(inst);
@@ -296,7 +296,7 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 					case Instruction::memclear_:
 						break;
 					default:
-						assert(false);
+						ASSERT(false);
 						break;
 				}
 				if (haveLoad) break;
@@ -367,7 +367,7 @@ void DeadCode::mark(const Instruction* ins) const
 			continue;
 		if (work_list->marked[def])
 			continue;
-		assert(def->get_function() == ins->get_function());
+		ASSERT(def->get_function() == ins->get_function());
 		work_list->marked[def] = true;
 		work_list->work_list.push_back(def);
 	}
@@ -470,7 +470,7 @@ void DeadCode::eraseValue(const Value* val) const
 		}
 		if (!collected.count(inst))
 		{
-			assert(!inst->is_phi());
+			ASSERT(!inst->is_phi());
 			collected.emplace(inst);
 			worklist.emplace(inst);
 		}
@@ -491,7 +491,7 @@ void DeadCode::eraseValue(const Value* val) const
 			}
 			if (!collected.count(inst))
 			{
-				assert(!inst->is_phi());
+				ASSERT(!inst->is_phi());
 				collected.emplace(inst);
 				worklist.emplace(inst);
 			}

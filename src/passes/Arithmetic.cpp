@@ -825,7 +825,7 @@ Arithmetic::CCTuple Arithmetic::inferAdd(unsigned t, unsigned l, unsigned r)
 
 Arithmetic::CCTuple Arithmetic::inferShl(unsigned t, unsigned l, unsigned r)
 {
-	assert((r & 1) == 0);
+	ASSERT((r & 1) == 0);
 	l &= t;
 	t &= l;
 	return {t, l, r};
@@ -833,7 +833,7 @@ Arithmetic::CCTuple Arithmetic::inferShl(unsigned t, unsigned l, unsigned r)
 
 Arithmetic::CCTuple Arithmetic::inferAshr(unsigned t, unsigned l, unsigned r)
 {
-	assert((r & 1) == 0);
+	ASSERT((r & 1) == 0);
 	unsigned ll = l;
 	if (l & 4u) ll |= 2u;
 	t &= ll;

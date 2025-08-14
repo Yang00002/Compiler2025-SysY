@@ -31,7 +31,7 @@ void InstructionSelect::runInner()
 			LOG(use->print());
 			vector<Value*> nidx{inst->get_operands().begin() + 1, inst->get_operands().end()};
 			auto& opu = use->get_operands();
-			assert(
+			ASSERT(
 				dynamic_cast<Constant*>(opu[1]) && dynamic_cast<Constant*>(opu[1])->
 				getIntConstant() == 0);
 			int size = u2iNegThrow(opu.size());

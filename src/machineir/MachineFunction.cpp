@@ -68,8 +68,8 @@ FrameIndex* MFunction::getFix(int idx) const
 FrameIndex* MFunction::allocaFix(const Value* value)
 {
 	auto arg = dynamic_cast<const Argument*>(value);
-	assert(arg);
-	assert(arg->get_parent()->get_name() == name());
+	ASSERT(arg);
+	ASSERT(arg->get_parent()->get_name() == name());
 	FrameIndex* index = new FrameIndex{this, u2iNegThrow(fix_.size()), value->get_type()->sizeInBitsInArm64(), false};
 	fix_.emplace_back(index);
 	return index;
@@ -109,7 +109,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	int bbc = 0;
 	for (const auto& bb : bbs)
 	{
-		assert(bb != nullptr);
+		ASSERT(bb != nullptr);
 		const auto mbb = MBasicBlock::createBasicBlock(name_ + "_" + bb->get_name() + "_" + to_string(bbc), this);
 		mbb->id_ = bbc++;
 		blocks_.emplace_back(mbb);
@@ -223,8 +223,8 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 		{
 			auto val = getOperandFor(argC, opMap);
 			auto vr = dynamic_cast<VirtualRegister*>(val);
-			assert(vr != nullptr);
-			assert(this == frameIdx->func());
+			ASSERT(vr != nullptr);
+			ASSERT(this == frameIdx->func());
 			vr->replacePrefer_ = frameIdx;
 			auto cp = new MLDR{ entryMBB, val, frameIdx, u2iNegThrow(argC->get_type()->sizeInBitsInArm64()) };
 			parameterInsts.emplace_back(cp);
@@ -338,13 +338,13 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 				break;
 			}
 		}
-		assert(u != nullptr);
+		ASSERT(u != nullptr);
 		auto& insts = u->block()->instructions();
 		for (int i = 0, size = u2iNegThrow(insts.size()); i < size; i++)
 		{
 			if (insts[i] == u)
 			{
-				assert(u->operands()[0] == vreg && u->operands()[1] ==
+				ASSERT(u->operands()[0] == vreg && u->operands()[1] ==
 					paraStack);
 				insts.erase(insts.begin() + i);
 				removeUse(vreg, u);

@@ -41,7 +41,7 @@ void InterfereGraphNode::add(InterfereGraphNode* target)
 		LOG(color::red("duplicate add of ") + target->reg_->print());
 		return;
 	}
-	assert(target->parent_ == nullptr); // 不负责删除
+	ASSERT(target->parent_ == nullptr); // 不负责删除
 	target->parent_ = this;
 	target->next_ = this;
 	target->pre_ = pre_;
@@ -66,7 +66,7 @@ void InterfereGraphNode::remove(InterfereGraphNode* target) const
 			return;
 		}
 	}
-	assert(target->parent_ == this);
+	ASSERT(target->parent_ == this);
 	target->parent_ = nullptr;
 	target->pre_->next_ = target->next_;
 	target->next_->pre_ = target->pre_;
@@ -95,7 +95,7 @@ bool InterfereGraphNode::empty() const
 
 InterfereGraphNode* InterfereGraphNode::top() const
 {
-	assert(next_ != this);
+	ASSERT(next_ != this);
 	return pre_;
 }
 
@@ -109,7 +109,7 @@ InterfereGraphNode* InterfereGraphNode::alias()
 
 void MoveInstNode::add(MoveInstNode* target)
 {
-	assert(target->parent_ == nullptr); // 不负责删除
+	ASSERT(target->parent_ == nullptr); // 不负责删除
 	target->parent_ = this;
 	target->next_ = this;
 	target->pre_ = pre_;
@@ -119,7 +119,7 @@ void MoveInstNode::add(MoveInstNode* target)
 
 void MoveInstNode::remove(MoveInstNode* target) const
 {
-	assert(target->parent_ == this);
+	ASSERT(target->parent_ == this);
 	target->parent_ = nullptr;
 	target->pre_->next_ = target->next_;
 	target->next_->pre_ = target->pre_;
@@ -143,7 +143,7 @@ bool MoveInstNode::empty() const
 
 MoveInstNode* MoveInstNode::top() const
 {
-	assert(next_ != this);
+	ASSERT(next_ != this);
 	return pre_;
 }
 
@@ -323,7 +323,7 @@ void InterfereGraph::combine(InterfereGraphNode* u, InterfereGraphNode* v)
 		spillWorklist_.remove(v);
 	}
 	coalescedNodes_.add(v);
-	assert(v == v->alias());
+	ASSERT(v == v->alias());
 	v->alias_ = u;
 	// 合并传送指令关联
 	std::unordered_set<MoveInstNode*> g;
@@ -418,7 +418,7 @@ bool InterfereGraph::simplify()
 {
 	if (simplifyWorklist_.empty()) return false;
 	auto n = simplifyWorklist_.top();
-	assert(!moveRelated(n));
+	ASSERT(!moveRelated(n));
 	simplifyWorklist_.remove(n);
 	// 简化, 入栈
 	selectStack_.add(n);
@@ -497,7 +497,7 @@ bool InterfereGraph::selectSpill()
 	{
 		float f;
 		auto vreg = dynamic_cast<VirtualRegister*>(node->reg_);
-		assert(!node->preColored());
+		ASSERT(!node->preColored());
 		// 不能溢出无冲突/因为 spill 分配/ 128 位的虚拟寄存器
 		if (node->degree_ == 0 || vreg->spilled || vreg->size() == 128)
 			f = FLT_MAX;
@@ -510,7 +510,7 @@ bool InterfereGraph::selectSpill()
 				else
 				{
 					auto d = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
-					assert(d != nullptr);
+					ASSERT(d != nullptr);
 					if (d->isParameterFrame()) f *= fixFrameIndexParameterRegisterSpillPriority;
 					else if (logicalRightShift(d->size(), 3) >= bigAllocaVariableGate)
 						f *= bigAllocaRegisterSpillPriority;
@@ -531,7 +531,7 @@ bool InterfereGraph::selectSpill()
 		{
 			float f;
 			auto vreg = dynamic_cast<VirtualRegister*>(node->reg_);
-			assert(!node->preColored());
+			ASSERT(!node->preColored());
 			if (node->degree_ == 0 || vreg->size() == 128)
 				f = FLT_MAX;
 			else
@@ -543,7 +543,7 @@ bool InterfereGraph::selectSpill()
 					else
 					{
 						auto d = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
-						assert(d != nullptr);
+						ASSERT(d != nullptr);
 						if (d->isParameterFrame()) f *= fixFrameIndexParameterRegisterSpillPriority;
 						else if (logicalRightShift(d->size(), 3) >= bigAllocaVariableGate)
 							f *= bigAllocaRegisterSpillPriority;
@@ -558,7 +558,7 @@ bool InterfereGraph::selectSpill()
 			}
 		}
 	}
-	assert(m != nullptr);
+	ASSERT(m != nullptr);
 	spillWorklist_.remove(m);
 	simplifyWorklist_.add(m);
 	freezeMove(m);

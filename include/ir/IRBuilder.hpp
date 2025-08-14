@@ -173,7 +173,7 @@ public:
 
 	LoadInst* create_load(Value* ptr) const
 	{
-		assert(ptr->get_type()->isPointerType() &&
+		ASSERT(ptr->get_type()->isPointerType() &&
 			"ptr must be pointer type");
 		return LoadInst::create_load(ptr, this->BB_);
 	}

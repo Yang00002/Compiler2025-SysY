@@ -48,9 +48,9 @@ std::any Antlr2AstVisitor::visitCompUnit(SysYParser::CompUnitContext* context)
 		}
 	}
 	auto main_ = dynamic_cast<ASTFuncDecl*>(comp_unit->findScope("main", true));
-	assert(main_ != nullptr);
-	assert(main_->args().empty());
-	assert(main_->returnType() == INT);
+	ASSERT(main_ != nullptr);
+	ASSERT(main_->args().empty());
+	ASSERT(main_->returnType() == INT);
 	_structConstraint.pop_back();
 	returnSlot_.emplace(comp_unit);
 	POP;
@@ -125,8 +125,8 @@ std::any Antlr2AstVisitor::visitConstDef(SysYParser::ConstDefContext* context)
 	{
 		const_exp->accept(this);
 		const auto n = dynamic_cast<ASTNumber*>(poll());
-		assert(!n->isFloat());
-		assert(n->toInteger() > 0);
+		ASSERT(!n->isFloat());
+		ASSERT(n->toInteger() > 0);
 		dims.emplace_back(n->toInteger());
 		delete n;
 	}
@@ -156,7 +156,7 @@ std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* co
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->constExp() != nullptr)
 	{
-		assert(t->tensorBelong()->getShape().empty());
+		ASSERT(t->tensorBelong()->getShape().empty());
 		context->constExp()->accept(this);
 		const auto exp = dynamic_cast<ASTNumber*>(poll());
 		if (const auto exp2 = dynamic_cast<ASTNumber*>(exp->castTypeTo(dft.getExpressionType())); !t->append(
@@ -167,7 +167,7 @@ std::any Antlr2AstVisitor::visitConstInitVal(SysYParser::ConstInitValContext* co
 		POP;
 		return {};
 	}
-	assert(!t->tensorBelong()->getShape().empty());
+	ASSERT(!t->tensorBelong()->getShape().empty());
 	for (const auto& i : context->constArrayInitVal())
 	{
 		i->accept(this);
@@ -197,7 +197,7 @@ std::any Antlr2AstVisitor::visitConstArrayInitVal(SysYParser::ConstArrayInitValC
 		return {};
 	}
 	const auto tensor = t->makeSubTensor();
-	assert(tensor != nullptr);
+	ASSERT(tensor != nullptr);
 	_initTensorConstraint.push(tensor);
 	for (const auto& i : ctx->constArrayInitVal())
 	{
@@ -240,8 +240,8 @@ std::any Antlr2AstVisitor::visitVarDef(SysYParser::VarDefContext* context)
 	{
 		const_exp->accept(this);
 		const auto n = dynamic_cast<ASTNumber*>(poll());
-		assert(!n->isFloat());
-		assert(n->toInteger() > 0);
+		ASSERT(!n->isFloat());
+		ASSERT(n->toInteger() > 0);
 		dims.emplace_back(n->toInteger());
 		delete n;
 	}
@@ -282,10 +282,10 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 	const auto dft = t->tensorBelong()->defaultValue();
 	if (context->exp() != nullptr)
 	{
-		assert(t->tensorBelong()->getShape().empty());
+		ASSERT(t->tensorBelong()->getShape().empty());
 		context->exp()->accept(this);
 		const auto exp = dynamic_cast<ASTExpression*>(poll());
-		assert(_structConstraint.size() != 1 || dynamic_cast<ASTNumber*>(exp) != nullptr);
+		ASSERT(_structConstraint.size() != 1 || dynamic_cast<ASTNumber*>(exp) != nullptr);
 		const auto exp2 = exp->castTypeTo(dft.getExpressionType());
 		if (const auto num = dynamic_cast<ASTNumber*>(exp2); num != nullptr)
 		{
@@ -305,7 +305,7 @@ std::any Antlr2AstVisitor::visitInitVal(SysYParser::InitValContext* context)
 		POP;
 		return {};
 	}
-	assert(!t->tensorBelong()->getShape().empty());
+	ASSERT(!t->tensorBelong()->getShape().empty());
 	for (const auto& i : context->arrayInitVal())
 	{
 		i->accept(this);
@@ -324,8 +324,8 @@ std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ct
 	{
 		ctx->exp()->accept(this);
 		const auto exp = dynamic_cast<ASTExpression*>(poll());
-		assert(_structConstraint.size() != 1 || dynamic_cast<ASTNumber*>(exp) != nullptr);
-		assert(exp->getExpressionType() != FLOAT || dft.getExpressionType() != INT);
+		ASSERT(_structConstraint.size() != 1 || dynamic_cast<ASTNumber*>(exp) != nullptr);
+		ASSERT(exp->getExpressionType() != FLOAT || dft.getExpressionType() != INT);
 		const auto exp2 = exp->castTypeTo(dft.getExpressionType(),
 		                                  TypeCastEnvironment::INITIALIZE_LIST);
 		if (const auto num = dynamic_cast<ASTNumber*>(exp2); num != nullptr)
@@ -347,7 +347,7 @@ std::any Antlr2AstVisitor::visitArrayInitVal(SysYParser::ArrayInitValContext* ct
 		return {};
 	}
 	const auto tensor = t->makeSubTensor();
-	assert(tensor != nullptr);
+	ASSERT(tensor != nullptr);
 	_initTensorConstraint.push(tensor);
 	for (const auto& i : ctx->arrayInitVal())
 	{
@@ -426,10 +426,10 @@ std::any Antlr2AstVisitor::visitFuncFParam(SysYParser::FuncFParamContext* contex
 		i->accept(this);
 		const auto exp = dynamic_cast<ASTExpression*>(poll());
 		const auto num = dynamic_cast<ASTNumber*>(exp);
-		assert(num != nullptr);
-		assert(num->getExpressionType() == INT);
+		ASSERT(num != nullptr);
+		ASSERT(num->getExpressionType() == INT);
 		int n = num->toInteger();
-		assert(n > 0);
+		ASSERT(n > 0);
 		dims.emplace_back(n);
 		delete num;
 	}
@@ -487,8 +487,8 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 		ASTExpression* exp = dynamic_cast<ASTExpression*>(returnSlot_.front());
 		returnSlot_.pop();
 		const auto rv = dynamic_cast<ASTRVal*>(exp);
-		assert(rv != nullptr);
-		assert(!rv->getDeclaration()->isConst());
+		ASSERT(rv != nullptr);
+		ASSERT(!rv->getDeclaration()->isConst());
 		const auto lv = rv->toLVal();
 		context->exp()->accept(this);
 		auto v = dynamic_cast<ASTExpression*>(poll());
@@ -685,7 +685,7 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 	if (context->BREAK() != nullptr)
 	{
 		auto get = _whileConstraint.top();
-		returnSlot_.emplace(new ASTBreak{ get });
+		returnSlot_.emplace(new ASTBreak{get});
 		POP;
 		return {};
 	}
@@ -700,12 +700,12 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 	{
 		if (context->exp() == nullptr)
 		{
-			assert(_currentFunction->returnType() == VOID);
+			ASSERT(_currentFunction->returnType() == VOID);
 			returnSlot_.emplace(new ASTReturn{nullptr, _currentFunction});
 			POP;
 			return {};
 		}
-		assert(_currentFunction->returnType() != VOID);
+		ASSERT(_currentFunction->returnType() != VOID);
 		context->exp()->accept(this);
 		auto ret = dynamic_cast<ASTExpression*>(returnSlot_.front());
 		returnSlot_.pop();
@@ -757,7 +757,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 	LOG(color::cyan("visitLVal ") + context->ID()->toString());
 	PUSH;
 	const auto d = findScope(context->ID()->toString(), false);
-	assert(d != nullptr);
+	ASSERT(d != nullptr);
 	const auto decl = dynamic_cast<ASTVarDecl*>(d);
 	const auto indexCount = u2iNegThrow(context->exp().size());
 	if (decl->getType()->isArrayType())
@@ -765,7 +765,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 		const auto ar = dynamic_cast<ArrayType*>(decl->getType());
 		const int ori = u2iNegThrow(ar->dimensions().size()) +
 		                (ar->getTypeID() == TypeIDs::ArrayInParameter ? 1 : 0);
-		assert(ori >= indexCount);
+		ASSERT(ori >= indexCount);
 		vector<ASTExpression*> indexes;
 		bool allConst = decl->isConst();
 		int dimIdx = 0;
@@ -774,7 +774,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 			i->accept(this);
 			const auto idx = dynamic_cast<ASTExpression*>(returnSlot_.front());
 			returnSlot_.pop();
-			assert(idx->getExpressionType() == INT);
+			ASSERT(idx->getExpressionType() == INT);
 			if (const auto num = dynamic_cast<ASTNumber*>(idx); num != nullptr)
 			{
 				int m = INT_MAX;
@@ -784,7 +784,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 				}
 				else if (dimIdx > 0)
 					m = ar->dimensions()[dimIdx - 1];
-				assert(num->toInteger() >= 0 && num->toInteger() < m);
+				ASSERT(num->toInteger() >= 0 && num->toInteger() < m);
 			}
 			else allConst = false;
 			indexes.emplace_back(idx);
@@ -810,7 +810,7 @@ std::any Antlr2AstVisitor::visitLVal(SysYParser::LValContext* context)
 		POP;
 		return {};
 	}
-	assert(indexCount <= 0);
+	ASSERT(indexCount <= 0);
 	if (decl->isConst())
 	{
 		returnSlot_.emplace(new ASTNumber{decl->_initList->getData()->getElement({})});
@@ -910,13 +910,13 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 		}
 		if (special)
 		{
-			assert(getArgs.empty());
+			ASSERT(getArgs.empty());
 			const int line = u2iNegThrow(context->rParen()->getStart()->getLine());
 			auto arg = new ASTNumber{line};
 			getArgs.emplace_back(arg);
 		}
 		const auto typeArgs = func->args();
-		assert(typeArgs.size() == getArgs.size());
+		ASSERT(typeArgs.size() == getArgs.size());
 		const int size = u2iNegThrow(getArgs.size());
 		for (int i = 0; i < size; i++)
 		{
@@ -930,15 +930,17 @@ std::any Antlr2AstVisitor::visitUnaryExp(SysYParser::UnaryExpContext* context)
 			}
 			if (type->getTypeID() == TypeIDs::ArrayInParameter)
 			{
-				assert(getType->getTypeID() == TypeIDs::Array || getType->getTypeID() == TypeIDs::ArrayInParameter);
+				ASSERT(getType->getTypeID() == TypeIDs::Array || getType->getTypeID() == TypeIDs::ArrayInParameter);
 				const auto arT = dynamic_cast<ArrayType*>(type);
 				const auto arGT = dynamic_cast<ArrayType*>(getType);
-				assert(arT->typeContained() == arGT->typeContained());
+				ASSERT(arT->typeContained() == arGT->typeContained());
 				// 库函数的输入参数并不满足维度要求
 				if (func->isLibFunc()) continue;
 				if (const auto tlv = dynamic_cast<ASTLVal*>(get); tlv != nullptr)
-					assert(!tlv->getDeclaration()->isConst());
-				assert(arGT->canPassToFuncOf(arT));
+				{
+					ASSERT(!tlv->getDeclaration()->isConst());
+				}
+				ASSERT(arGT->canPassToFuncOf(arT));
 			}
 		}
 		const auto call = new ASTCall{func, getArgs};
@@ -1065,11 +1067,11 @@ std::any Antlr2AstVisitor::visitMulExp(SysYParser::MulExpContext* context)
 		if (op != MathOP::MUL)
 		{
 			const auto ty = r->getExpressionType();
-			assert(ty != FLOAT || rnum->toFloat() != 0.0f);
-			assert(ty != INT || rnum->toInteger() != 0);
+			ASSERT(ty != FLOAT || rnum->toFloat() != 0.0f);
+			ASSERT(ty != INT || rnum->toInteger() != 0);
 		}
 	}
-	assert(op != MathOP::MOD || tyT != FLOAT);
+	ASSERT(op != MathOP::MOD || tyT != FLOAT);
 	const auto lnum = dynamic_cast<ASTNumber*>(l);
 	const auto rnum = dynamic_cast<ASTNumber*>(r);
 	if (lnum != nullptr && rnum != nullptr)
@@ -1423,7 +1425,7 @@ std::any Antlr2AstVisitor::visitLAndExp(SysYParser::LAndExpContext* context)
 		i->accept(this);
 		auto exp = dynamic_cast<ASTExpression*>(returnSlot_.front());
 		returnSlot_.pop();
-		assert(exp != nullptr);
+		ASSERT(exp != nullptr);
 		exp = exp->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
 		if (auto num = dynamic_cast<ASTNumber*>(exp); num != nullptr)
 		{
@@ -1512,7 +1514,7 @@ std::any Antlr2AstVisitor::visitLOrExp(SysYParser::LOrExpContext* context)
 	{
 		i->accept(this);
 		auto exp = dynamic_cast<ASTExpression*>(returnSlot_.front());
-		assert(exp != nullptr);
+		ASSERT(exp != nullptr);
 		returnSlot_.pop();
 		exp = exp->castTypeTo(BOOL, TypeCastEnvironment::LOGIC_EXPRESSION);
 		if (auto num = dynamic_cast<ASTNumber*>(exp); num != nullptr)
@@ -1619,7 +1621,7 @@ std::any Antlr2AstVisitor::visitConstExp(SysYParser::ConstExpContext* context)
 	LOG(color::cyan("visitConstExp"));
 	PUSH;
 	context->addExp()->accept(this);
-	assert(dynamic_cast<ASTNumber*>(returnSlot_.front()) != nullptr);
+	ASSERT(dynamic_cast<ASTNumber*>(returnSlot_.front()) != nullptr);
 	POP;
 	return {};
 }

@@ -2,7 +2,7 @@
 #define UTIL_HPP
 #include <cassert>
 
-#define ifThenOrThrow(cond, ifCondThen, Message) assert(!(cond)  || (ifCondThen))
+#define ifThenOrThrow(cond, ifCondThen, Message) ASSERT(!(cond)  || (ifCondThen))
 
 #ifndef DEBUG
 #define DEBUG 0

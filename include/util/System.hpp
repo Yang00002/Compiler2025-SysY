@@ -1,8 +1,8 @@
 #pragma once
-#include <assert.h>
 #include <cstddef>
 #include <cstring>
 #include <climits>
+#include "Util.hpp"
 
 // 系统是大端还是小端
 namespace system_about
@@ -80,7 +80,7 @@ inline long long ULL2LLKeepBits(unsigned long long i)
 template<typename TYT>
 int u2iNegThrow(TYT i)
 {
-	assert((sizeof(TYT) == 4) ?( (i & 0x80000000) == 0) :((i & 0xFFFFFFFF80000000) == 0));
+	ASSERT((sizeof(TYT) == 4) ?( (i & 0x80000000) == 0) :((i & 0xFFFFFFFF80000000) == 0));
 	return static_cast<int>(i);
 }
 
@@ -93,14 +93,14 @@ inline long long u2llNegThrow(unsigned i)
 // 将无符号转换为 8 字节整型, 如果是负的或溢出就报错, 例如用于转换 size_t
 inline long long u2llNegThrow(unsigned long long i)
 {
-	assert((i & 0x8000000000000000ull) == 0);
+	ASSERT((i & 0x8000000000000000ull) == 0);
 	return static_cast<long long>(i);
 }
 
 // 逻辑右移
 inline int logicalRightShift(int i, int amount)
 {
-	assert(amount >= 0 && amount < 32);
+	ASSERT(amount >= 0 && amount < 32);
 #if RIGHTSHIFTINMATH
 	unsigned i2 = i2uKeepBits(i);
 	i2 >>= amount;
@@ -112,7 +112,7 @@ inline int logicalRightShift(int i, int amount)
 // 逻辑右移
 inline long long logicalRightShift(long long i, int amount)
 {
-	assert(amount >= 0 && amount < 64);
+	ASSERT(amount >= 0 && amount < 64);
 #if RIGHTSHIFTINMATH
 	unsigned long long i2 = ll2ullKeepBits(i);
 	i2 >>= amount;
@@ -124,20 +124,20 @@ inline long long logicalRightShift(long long i, int amount)
 // 逻辑右移
 inline unsigned int logicalRightShift(unsigned int i, int amount)
 {
-	assert(amount >= 0 && amount < 32);
+	ASSERT(amount >= 0 && amount < 32);
 	return i >> amount;
 }
 // 逻辑右移
 inline unsigned long long logicalRightShift(unsigned long long i, int amount)
 {
-	assert(amount >= 0 && amount < 64);
+	ASSERT(amount >= 0 && amount < 64);
 	return i >> amount;
 }
 
 // 算数右移
 inline int arithmeticRightShift(int i, int amount)
 {
-	assert(amount >= 0 && amount < 32);
+	ASSERT(amount >= 0 && amount < 32);
 #if RIGHTSHIFTINMATH
 	return i >> amount;
 #else
@@ -148,7 +148,7 @@ inline int arithmeticRightShift(int i, int amount)
 // 算数右移
 inline long long arithmeticRightShift(long long i, int amount)
 {
-	assert(amount >= 0 && amount < 64);
+	ASSERT(amount >= 0 && amount < 64);
 #if RIGHTSHIFTINMATH
 	return i >> amount;
 #else
@@ -159,14 +159,14 @@ inline long long arithmeticRightShift(long long i, int amount)
 // 算数右移
 inline unsigned int arithmeticRightShift(unsigned int i, int amount)
 {
-	assert(amount >= 0 && amount < 32);
+	ASSERT(amount >= 0 && amount < 32);
 	if (!(i & 0X80000000U)) return i >> amount;
 	return ~((~i) >> amount);
 }
 // 算数右移
 inline unsigned long long arithmeticRightShift(unsigned long long i, int amount)
 {
-	assert(amount >= 0 && amount < 64);
+	ASSERT(amount >= 0 && amount < 64);
 	if (!(i & 0X8000000000000000U)) return i >> amount;
 	return ~((~i) >> amount);
 }
