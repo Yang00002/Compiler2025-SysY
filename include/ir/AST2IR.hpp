@@ -4,8 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "Util.hpp"
-
 class ASTContinue;
 class ASTNode;
 class ASTStmt;
@@ -69,22 +67,7 @@ public:
 		return result.second;
 	}
 
-	Value* find(const std::string& name)
-	{
-		for (auto s = inner.rbegin(); s != inner.rend(); ++s)
-		{
-			auto iter = s->find(name);
-			if (iter != s->end())
-			{
-				return iter->second;
-			}
-		}
-
-		// Name not found: handled here?
-		ASSERT(false && "Name not found in scope");
-
-		return nullptr;
-	}
+	Value* find(const std::string& name);
 
 private:
 	std::vector<std::map<std::string, Value*>> inner;

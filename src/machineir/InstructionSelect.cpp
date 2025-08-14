@@ -4,12 +4,12 @@
 #include "Constant.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 0
+#define DEBUG 1
 #include "Util.hpp"
 
 using namespace std;
 
-void InstructionSelect::runInner()
+void InstructionSelect::runInner() const
 {
 	LOG(color::cyan("InstructionSelect On ") + f_->get_name() + color::cyan(" Block ") + b_->get_name());
 	auto& insts = b_->get_instructions();
@@ -46,6 +46,51 @@ void InstructionSelect::runInner()
 			b_->erase_instr(use);
 			delete use;
 			delete it.replaceWith(ninst);
+			continue;
+		}
+		if (inst->is_mul())
+		{
+			if (use->is_sub())
+			{
+				if (id != 1) continue;
+				LOG(color::yellow("Merge"));
+				LOG(inst->print());
+				LOG(use->print());
+				auto ninst = MSubInst::create_msub(use->get_operand(0), inst->get_operand(0), inst->get_operand(1),
+				                                   nullptr);
+				ninst->set_parent(b_);
+				use->replace_all_use_with(ninst);
+				LOG(color::green("Get"));
+				LOG(ninst->print());
+				LOG("");
+				--it;
+				b_->erase_instr(use);
+				delete use;
+				delete it.replaceWith(ninst);
+			}
+			continue;
+		}
+		if (inst->is_fmul())
+		{
+			if (use->is_fsub())
+			{
+				if (id != 1) continue;
+				LOG(color::yellow("Merge"));
+				LOG(inst->print());
+				LOG(use->print());
+				auto ninst = MSubInst::create_msub(use->get_operand(0), inst->get_operand(0), inst->get_operand(1),
+					nullptr);
+				ninst->set_parent(b_);
+				use->replace_all_use_with(ninst);
+				LOG(color::green("Get"));
+				LOG(ninst->print());
+				LOG("");
+				--it;
+				b_->erase_instr(use);
+				delete use;
+				delete it.replaceWith(ninst);
+			}
+			continue;
 		}
 	}
 }

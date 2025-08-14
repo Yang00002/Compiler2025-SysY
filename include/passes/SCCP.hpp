@@ -132,23 +132,7 @@ public:
     auto& get_value_worklist() { return value_worklist; }
 
     // 常量折叠
-    Constant* constFold(Instruction* i) {
-        if(IS_BINARY(i)){
-            auto v1 = get_mapped_val(i->get_operand(0));
-            auto v2 = get_mapped_val(i->get_operand(1));
-            if( v1.const_val_ && v2.const_val_ ){
-                ASSERT( v1.is_const() && v2.is_const() && "Trying to fold variables" );
-                return constFold(i,v1.const_val_,v2.const_val_);
-            }
-        } else if (IS_UNARY(i)) {
-            auto v = get_mapped_val(i->get_operand(0));
-            if( v.const_val_ ){
-                ASSERT( v.is_const() && "Trying to fold variables" );
-                return constFold(i,v.const_val_);
-            }
-        }
-        return nullptr;
-    }
+    Constant* constFold(Instruction* i);
     Constant* constFold(const Instruction* i, const Constant* op1, const Constant* op2) const;
     Constant* constFold(const Instruction* i, const Constant* op) const;
 };

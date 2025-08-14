@@ -223,7 +223,7 @@ void CodeGen::functionPrefix()
 	if (canLSInOneSPMove(calleeSaved))
 	{
 		sub64(sp(), sp(), func_->stack_move_offset(), toStr);
-		if (lc & 1) str(calleeSaved[0].first, sp(), calleeSaved[0].second, 64,  toStr);
+		if (lc & 1) str(calleeSaved[0].first, sp(), calleeSaved[0].second, 64, toStr);
 		if (lc >= 2)
 		{
 			for (int i = lc & 1; i < lc; i += 2)
@@ -232,7 +232,7 @@ void CodeGen::functionPrefix()
 				    64, toStr);
 			}
 		}
-		if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64,  toStr);
+		if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second, 64, toStr);
 		if (rc >= 2)
 		{
 			for (int i = rc & 1; i < rc; i += 2)
@@ -256,7 +256,7 @@ void CodeGen::functionPrefix()
 			    u2iNegThrow(calleeSaved[i].second - nextOffset), 64, toStr);
 		}
 	}
-	if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64,  toStr);
+	if (rc & 1) str(calleeSaved[lc].first, sp(), calleeSaved[lc].second - nextOffset, 64, toStr);
 	if (rc >= 2)
 	{
 		for (int i = rc & 1; i < rc; i += 2)
@@ -375,7 +375,7 @@ void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, C
 	if (const Register* i = dynamic_cast<const Register*>(stackLike); i != nullptr)
 	{
 		const Register* l = op2reg(regLike, len, toStr);
-		str(l, i, 0ll, len,  toStr);
+		str(l, i, 0ll, len, toStr);
 		releaseIP(l);
 		return;
 	}
@@ -1286,6 +1286,26 @@ void CodeGen::mathRRInst(const Register* to, const Register* l, const Register* 
 	throw runtime_error("unexpected");
 }
 
+
+void CodeGen::msub(MOperand* to, MOperand* s, MOperand* l, MOperand* r, CodeString* toStr)
+{
+	auto tor = dynamic_cast<Register*>(to);
+	ASSERT(tor != nullptr);
+	auto si = dynamic_cast<Immediate*>(s);
+	auto li = dynamic_cast<Immediate*>(l);
+	auto ri = dynamic_cast<Immediate*>(r);
+	ASSERT(si == nullptr || li == nullptr || ri == nullptr);
+	const Register* sr = dynamic_cast<Register*>(s);
+	const Register* lr = dynamic_cast<Register*>(l);
+	const Register* rr = dynamic_cast<Register*>(r);
+	ASSERT((si || sr) && (li || lr) && (ri || rr));
+	bool isI = tor->isIntegerRegister();
+	sr = op2reg(s, 32, isI, toStr);
+	lr = op2reg(l, 32, isI, toStr);
+	rr = op2reg(r, 32, isI, toStr);
+	toStr->addInstruction(isI ? "MSUB" : "FMSUB", regName(tor, 32), regName(lr, 32), regName(rr, 32), regName(sr, 32));
+}
+
 void CodeGen::fsub(const Register* to, const Register* l, const Register* r, CodeString* toStr)
 {
 	return toStr->addInstruction("FSUB", regName(to, 32), regName(l, 32), regName(r, 32));
@@ -1392,6 +1412,8 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 	else if (auto i10 = dynamic_cast<MB*>(instruction); i10 != nullptr)
 	{
 	}
+	else if (auto i11 = dynamic_cast<MMSUB*>(instruction); i11 != nullptr)
+		msub(i11->operand(0), i11->operand(1), i11->operand(2), i11->operand(3), toStr);
 	else
 		ASSERT(false);
 }

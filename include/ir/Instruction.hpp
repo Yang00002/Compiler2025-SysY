@@ -78,7 +78,10 @@ public:
 		nump2charp,
 		// 转换数组全局变量的类型以适应它应该有的类型
 		// llvm 的全局变量定义会导致其类型与预期不一致(仅仅是形状)
-		global_fix
+		global_fix,
+
+		// 乘减, 这个指令永远不会在 LLVM IR 出现
+		msub
 	};
 
 	/**
@@ -143,6 +146,7 @@ public:
 	[[nodiscard]] bool is_memcpy() const { return op_id_ == memcpy_; }
 	[[nodiscard]] bool is_memclear() const { return op_id_ == memclear_; }
 	[[nodiscard]] bool is_nump2charp() const { return op_id_ == nump2charp; }
+	[[nodiscard]] bool is_msub() const { return op_id_ == msub; }
 
 	[[nodiscard]] bool isBinary() const
 	{
@@ -567,6 +571,20 @@ public:
 		}
 		return res;
 	}
+
+	std::string print() override;
+};
+
+class MSubInst : public BaseInst<MSubInst>
+{
+	friend BaseInst<MSubInst>;
+
+	MSubInst(Value* s, Value* ml, Value* mr, Type* ty, BasicBlock* bb);
+
+public:
+	Instruction* copy(BasicBlock* parent) override;
+	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
+	static MSubInst* create_msub(Value* val, Value* ml, Value* mr, BasicBlock* bb);
 
 	std::string print() override;
 };

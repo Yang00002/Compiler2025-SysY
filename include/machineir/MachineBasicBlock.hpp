@@ -87,6 +87,7 @@ public:
 	void acceptReturnInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptBranchInst(Instruction* instruction, std::map<BasicBlock*, MBasicBlock*>& bmap, MBasicBlock* block);
 	void acceptMathInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
+	void acceptMSubInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand*>& opMap,
 	                       std::map<BasicBlock*, MBasicBlock*>& bmap);
 	void acceptLoadInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);

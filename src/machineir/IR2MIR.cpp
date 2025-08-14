@@ -11,6 +11,7 @@
 #include "MachineInstruction.hpp"
 #include "MachineOperand.hpp"
 #include "Type.hpp"
+#include "Util.hpp"
 
 using namespace std;
 
@@ -103,6 +104,9 @@ void MBasicBlock::accept(BasicBlock* block,
 			case Instruction::global_fix:
 				acceptCopyInst(inst, opMap, this);
 				break;
+			case Instruction::msub:
+				acceptMSubInst(inst, opMap, this);
+				break;
 		}
 	}
 }
@@ -162,6 +166,18 @@ void MBasicBlock::acceptMathInst(Instruction* instruction, std::map<Value*, MOpe
 	instructions_.emplace_back(m);
 }
 
+void MBasicBlock::acceptMSubInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
+{
+	auto s0 = instruction->get_operand(0);
+	auto l0 = instruction->get_operand(1);
+	auto r0 = instruction->get_operand(2);
+	auto s = block->function()->getOperandFor(s0, opMap);
+	auto l = block->function()->getOperandFor(l0, opMap);
+	auto r = block->function()->getOperandFor(r0, opMap);
+	auto t = block->function()->getOperandFor(instruction, opMap);
+	auto m = new MMSUB{block, t, l, r, s};
+	instructions_.emplace_back(m);
+}
 
 namespace
 {
@@ -263,7 +279,8 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
                                  std::map<Function*, MFunction*>& funcMap, MBasicBlock* block)
 {
 	Instruction* next = nullptr;
-	if(o1Optimization){
+	if (o1Optimization)
+	{
 		auto p = instruction->get_parent();
 		auto it = p->get_instructions().begin();
 		auto ed = p->get_instructions().end();

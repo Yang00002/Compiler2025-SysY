@@ -8,7 +8,6 @@
 
 #include <iostream>
 
-#define OPEN_ASSERT 0
 #define DEBUG 0
 #include "Util.hpp"
 
@@ -35,6 +34,7 @@ namespace
 {
 	bool checkFunc(MFunction* f)
 	{
+		int idx = 0;
 		for (auto i : f->blocks())
 		{
 			ASSERT(i->id() == idx++);
@@ -256,7 +256,7 @@ namespace
 	};
 }
 
-void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
+void BlockLayout::merge(BBNode* from, BBNode* to, DynamicBitset& care)
 {
 	LOG(color::yellow("Merge Nodes ") + from->print() + color::yellow(" and ") + to->print());
 	map<pair<unsigned, unsigned>, EdgeModifier> added;
@@ -341,6 +341,7 @@ void BlockLayout::merge(BBNode* from, BBNode* to, const DynamicBitset& care)
 	}
 	from->size_ += to->size_;
 	from->len_ = to->len_;
+	care.reset(static_cast<int>(to->id_));
 }
 
 unsigned BlockLayout::lenOf(BBNode* node)

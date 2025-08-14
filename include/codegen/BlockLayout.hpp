@@ -95,7 +95,7 @@ class BlockLayout final : public MachinePass
 	void addEdge(BBNode* from, BBNode* to, unsigned cost) const;
 	void addEdge(BBNode* from, BBNode* to, unsigned hash, unsigned cost) const;
 	unsigned cost(const BBNode* from, const BBNode* to) const;
-	void merge(BBNode* from, BBNode* to, const DynamicBitset& care);
+	void merge(BBNode* from, BBNode* to, DynamicBitset& care);
 	static unsigned lenOf(BBNode* node);
 
 public:

@@ -2,6 +2,8 @@
 
 #include <cassert>
 
+#include "Util.hpp"
+
 Value::Value(Type* ty, std::string name)
 	: type_(ty), name_(std::move(name))
 {

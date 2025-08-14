@@ -95,11 +95,7 @@ public:
 	Function* get_parent() { return parent_; }
 
 	// For example in "void foo(int a, float b)" a is 0 and b is 1.
-	[[nodiscard]] int get_arg_no() const
-	{
-		ASSERT(parent_ && "can't get number of unparented arg");
-		return arg_no_;
-	}
+	[[nodiscard]] int get_arg_no() const;
 
 	void set_arg_no(int arg_no)
 	{

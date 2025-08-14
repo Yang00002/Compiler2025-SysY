@@ -338,7 +338,7 @@ public:
 class MMSUB final : public MInstruction
 {
 public:
-	explicit MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s);
+	explicit MMSUB(MBasicBlock* block, MOperand* t, MOperand* s, MOperand* l, MOperand* r);
 	std::string print() override;
 	void replace(MOperand* from, MOperand* to, MFunction* parent) override;
 	void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;

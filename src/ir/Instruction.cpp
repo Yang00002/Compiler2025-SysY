@@ -12,7 +12,6 @@
 #include <string>
 #include <vector>
 
-#define OPEN_ASSERT 0
 #include <iostream>
 #include <unordered_set>
 
@@ -942,4 +941,30 @@ void PhiInst::remove_phi_operand(const Value* pre_bb, int opId)
 		this->remove_operand(opId - 1);
 	}
 	ASSERT(allOpNotNull());
+}
+
+MSubInst::MSubInst(Value* s, Value* ml, Value* mr, Type* ty, BasicBlock* bb) : BaseInst(ty, msub)
+{
+	ASSERT(s->get_type() == ty);
+	ASSERT(ml->get_type() == ty);
+	ASSERT(mr->get_type() == ty);
+	ASSERT(ty == Types::FLOAT || ty == Types::INT);
+	add_operand(s);
+	add_operand(ml);
+	add_operand(mr);
+}
+
+Instruction* MSubInst::copy(BasicBlock* parent)
+{
+	return nullptr;
+}
+
+Instruction* MSubInst::copy(std::unordered_map<Value*, Value*>& valMap)
+{
+	return nullptr;
+}
+
+MSubInst* MSubInst::create_msub(Value* val, Value* ml, Value* mr, BasicBlock* bb)
+{
+	return create(val, ml, mr, val->get_type(), bb);
 }

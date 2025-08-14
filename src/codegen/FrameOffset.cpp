@@ -7,6 +7,7 @@
 #include "MachineBasicBlock.hpp"
 #include "MachineInstruction.hpp"
 #include "MachineOperand.hpp"
+#include "Util.hpp"
 
 using namespace std;
 

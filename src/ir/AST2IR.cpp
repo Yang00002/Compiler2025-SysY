@@ -5,10 +5,28 @@
 #include "Module.hpp"
 #include "IRBuilder.hpp"
 #include "BasicBlock.hpp"
+#include "Util.hpp"
 
 using namespace std;
 using namespace Types;
 
+
+Value* Scope::find(const std::string& name)
+{
+	for (auto s = inner.rbegin(); s != inner.rend(); ++s)
+	{
+		auto iter = s->find(name);
+		if (iter != s->end())
+		{
+			return iter->second;
+		}
+	}
+
+	// Name not found: handled here?
+	ASSERT(false && "Name not found in scope");
+
+	return nullptr;
+}
 
 AST2IRVisitor::AST2IRVisitor()
 {

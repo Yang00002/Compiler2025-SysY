@@ -6,6 +6,7 @@
 #include "Instruction.hpp"
 #include "Value.hpp"
 #include "Type.hpp"
+#include "Util.hpp"
 
 class IRBuilder
 {
@@ -171,12 +172,7 @@ public:
 		return StoreInst::create_store(val, ptr, this->BB_);
 	}
 
-	LoadInst* create_load(Value* ptr) const
-	{
-		ASSERT(ptr->get_type()->isPointerType() &&
-			"ptr must be pointer type");
-		return LoadInst::create_load(ptr, this->BB_);
-	}
+	LoadInst* create_load(Value* ptr) const;
 
 	AllocaInst* create_alloca(Type* ty) const
 	{
@@ -274,3 +270,10 @@ public:
 		return Constant::create(m_, i.getBoolConstant());
 	}
 };
+
+inline LoadInst* IRBuilder::create_load(Value* ptr) const
+{
+	ASSERT(ptr->get_type()->isPointerType() &&
+		"ptr must be pointer type");
+	return LoadInst::create_load(ptr, this->BB_);
+}

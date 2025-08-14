@@ -16,6 +16,7 @@
 #include "MachineModule.hpp"
 #include "Module.hpp"
 #include "Type.hpp"
+#include "Util.hpp"
 
 using namespace std;
 

@@ -7,7 +7,7 @@ class InstructionSelect : public Pass
 {
 	Function* f_;
 	BasicBlock* b_;
-	void runInner() ;
+	void runInner() const;
 public:
 
 	explicit InstructionSelect(Module* m)

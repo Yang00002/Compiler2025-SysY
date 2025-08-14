@@ -78,6 +78,7 @@ class CodeGen : public MachinePass
 	static void sub(const Register* to, const Register* l, const Register* r, int len, CodeString* toStr);
 	void mathRRInst(const Register* to, const Register* l, const Register* r, Instruction::OpID op,
 	                int len, CodeString* toStr);
+	void msub(MOperand* to, MOperand* s, MOperand* l, MOperand* r, CodeString* toStr);
 	static void fsub(const Register* to, const Register* l, const Register* r, CodeString* toStr);
 	static void copy(const Register* to, const Register* from, int len, CodeString* toStr);
 	void copy(const Register* to, const Immediate* from, int len, CodeString* toStr);

@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "Instruction.hpp"
+#include <Util.hpp>
 
 InstructionListNode::InstructionListNode(Instruction* instruction, InstructionListNode* next, InstructionListNode* pre)
 	: instruction(instruction),

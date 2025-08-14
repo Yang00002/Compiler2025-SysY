@@ -7,6 +7,8 @@
 #include <GlobalVariable.hpp>
 #include <cassert>
 
+#include "Util.hpp"
+
 std::string print_as_op(Value* v, bool print_ty)
 {
 	std::string op_ir;
@@ -114,6 +116,8 @@ std::string print_instr_op_name(Instruction::OpID id)
 			return "memcpy";
 		case Instruction::memclear_:
 			return "memclear";
+		case Instruction::msub:
+			return "msub";
 	}
 	// mem 系列指令是某些复杂指令的包装, 单独获得指令名称不具有相同意义
 	ASSERT(false && "Must be bug");
@@ -146,6 +150,24 @@ static std::string print_binary_inst(const BinInst& inst)
 
 std::string IBinaryInst::print() { return print_binary_inst(*this); }
 std::string FBinaryInst::print() { return print_binary_inst(*this); }
+
+std::string MSubInst::print()
+{
+	std::string instr_ir;
+	instr_ir += "%";
+	instr_ir += get_name();
+	instr_ir += " = ";
+	instr_ir +=  get_instr_op_name();
+	instr_ir += " ";
+	instr_ir +=  get_operand(0)->get_type()->print();
+	instr_ir += " ";
+	instr_ir += print_as_op(get_operand(0), false);
+	instr_ir += ", ";
+	instr_ir += print_as_op(get_operand(1), false);
+	instr_ir += ", ";
+	instr_ir += print_as_op(get_operand(2), false);
+	return instr_ir;
+}
 
 template <class CMP>
 static std::string print_cmp_inst(const CMP& inst)

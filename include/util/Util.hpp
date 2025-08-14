@@ -2,8 +2,6 @@
 #define UTIL_HPP
 #include <cassert>
 
-#define ifThenOrThrow(cond, ifCondThen, Message) ASSERT(!(cond)  || (ifCondThen))
-
 #ifndef DEBUG
 #define DEBUG 0
 #endif
@@ -71,7 +69,7 @@ GAP
 
 
 #ifndef OPEN_ASSERT
-#define OPEN_ASSERT 0
+#define OPEN_ASSERT 1
 #endif
 
 #if OPEN_ASSERT == 1
@@ -80,3 +78,5 @@ GAP
 #if OPEN_ASSERT != 1
 #define ASSERT(a) 
 #endif
+
+#define ifThenOrThrow(cond, ifCondThen, Message) ASSERT(!(cond)  || (ifCondThen))

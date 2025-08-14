@@ -8,6 +8,7 @@
 
 #include "MachineBasicBlock.hpp"
 #include "System.hpp"
+#include "Util.hpp"
 
 Function::Function(FuncType* ty, const std::string& name, Module* parent, const bool is_lib)
 	: Value(ty, name), parent_(parent), seq_cnt_(0), is_lib_(is_lib)
@@ -216,6 +217,12 @@ void Function::removeArgUse(int id) const
 		auto call = dynamic_cast<CallInst*>(use.val_);
 		call->remove_operand(id + 1);
 	}
+}
+
+int Argument::get_arg_no() const
+{
+	ASSERT(parent_ && "can't get number of unparented arg");
+	return arg_no_;
 }
 
 std::string Argument::print()

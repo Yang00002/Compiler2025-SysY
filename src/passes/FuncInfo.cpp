@@ -5,6 +5,7 @@
 #include "Function.hpp"
 #include "Instruction.hpp"
 #include "Type.hpp"
+#include "Util.hpp"
 
 void FuncInfo::UseMessage::add(Value* val)
 {
