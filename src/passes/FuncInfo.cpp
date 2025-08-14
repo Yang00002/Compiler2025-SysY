@@ -165,6 +165,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 	while (!q.empty())
 	{
 		auto v = q.front();
+		assert(v->get_type()->isPointerType());
 		q.pop();
 		for (auto& use : v->get_use_list())
 		{
@@ -180,6 +181,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 					}
 				case Instruction::store:
 					{
+						assert(dynamic_cast<StoreInst*>(inst));
 						assert(idx == 1);
 						stores[f].add(val);
 						break;

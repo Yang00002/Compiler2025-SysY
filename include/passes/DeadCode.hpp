@@ -27,6 +27,9 @@ class DeadCode final : public Pass {
     // 删除可达基本块中 Phi 包括不可达基本块的定值
     // 可达基本块无法被不可达支配 -> 可达基本块中包含不可达的定值一定有 Phi 定值 -> 删除 Phi 定值就删除了所有的定值
 	static bool clear_basic_blocks(Function *func);
-    bool is_critical(Instruction *ins) const;
+    // 删除无用的 alloca
+    // 无用的 alloca 不存在任何的 load, 其作为函数参数参与函数调用时, 也不存在任何的 load
+	bool clear_not_use_allocas(Function* func);
+	bool is_critical(Instruction *ins) const;
     void sweep_globally() const;
 };

@@ -13,7 +13,6 @@
 #include "Util.hpp"
 
 
-
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run()
 {
@@ -84,7 +83,7 @@ bool DeadCode::clear_basic_blocks(Function* func)
 		}
 	}
 
-	for (auto i : toRM)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	for (auto i : toRM) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
 		for (const auto& use : i->get_use_list())
 		{
@@ -98,6 +97,12 @@ bool DeadCode::clear_basic_blocks(Function* func)
 	POP;
 	return changed;
 }
+
+bool DeadCode::clear_not_use_allocas(Function* func)
+{
+	return false;
+}
+
 
 void DeadCode::mark(Function* func)
 {
@@ -175,14 +180,14 @@ bool DeadCode::sweep(Function* func)
 
 bool DeadCode::is_critical(Instruction* ins) const
 {
-	// 对纯函数的无用调用也可以在删除之列
+	// 删除未存储值也调用 impure 库的函数调用
 	if (ins->is_call())
 	{
 		auto call_inst = dynamic_cast<CallInst*>(ins);
 		auto callee = dynamic_cast<Function*>(call_inst->get_operand(0));
-		if (func_info->is_pure_function(callee))
-			return false;
-		return true;
+		if (func_info->useOrIsImpureLib(callee) || !func_info->storeDetail(callee).empty())
+			return true;
+		return false;
 	}
 	if (ins->is_memcpy() || ins->is_memclear())
 		return true;
