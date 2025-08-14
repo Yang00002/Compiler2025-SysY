@@ -133,49 +133,6 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 
 	lrGuard_ = VirtualRegister::createVirtualIRegister(this, 64);
 
-	int ic = 0;
-	int fc = 0;
-	int idx = 0;
-	for (auto& argC : function->get_args())
-	{
-		auto argv = &argC;
-		if (argv->get_type() != Types::FLOAT)
-		{
-			if (ic < 8)
-			{
-				auto cp = new MCopy{
-					entryMBB, Register::getIParameterRegister(ic, module_),
-					getOperandFor(argv, opMap),
-					u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
-				};
-				entryMBB->instructions_.emplace_back(cp);
-				++ic;
-				continue;
-			}
-		}
-		else
-		{
-			if (fc < 8)
-			{
-				auto cp = new MCopy{
-					entryMBB, Register::getFParameterRegister(fc, module_),
-					getOperandFor(argv, opMap),
-					u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
-				};
-				entryMBB->instructions_.emplace_back(cp);
-				++fc;
-				continue;
-			}
-		}
-		auto val = getOperandFor(argv, opMap);
-		auto vr = dynamic_cast<VirtualRegister*>(val);
-		assert(vr != nullptr);
-		auto frameIdx = getFix(idx++);
-		assert(this == frameIdx->func());
-		vr->replacePrefer_ = frameIdx;
-		auto cp = new MLDR{entryMBB, val, frameIdx, u2iNegThrow(argC.get_type()->sizeInBitsInArm64())};
-		entryMBB->instructions_.emplace_back(cp);
-	}
 	LoopDetection detection{function->get_parent()};
 	detection.only_run_on_func(function);
 
@@ -220,6 +177,63 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	{
 		mbb->mergePhiCopies(cp);
 	}
+
+
+	int ic = 0;
+	int fc = 0;
+	int idx = 0;
+	vector<MInstruction*> parameterInsts;
+	for (auto& argC : function->get_args())
+	{
+		auto argv = &argC;
+		if (argv->get_type() != Types::FLOAT)
+		{
+			if (ic < 8)
+			{
+				if (!argv->get_use_list().empty())
+				{
+					auto cp = new MCopy{
+					entryMBB, Register::getIParameterRegister(ic, module_),
+					getOperandFor(argv, opMap),
+					u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
+					};
+					parameterInsts.emplace_back(cp);
+				}
+				++ic;
+				continue;
+			}
+		}
+		else
+		{
+			if (fc < 8)
+			{
+				if (!argv->get_use_list().empty())
+				{
+					auto cp = new MCopy{
+						entryMBB, Register::getFParameterRegister(fc, module_),
+						getOperandFor(argv, opMap),
+						u2iNegThrow(argC.get_type()->sizeInBitsInArm64())
+					};
+					parameterInsts.emplace_back(cp);
+				}
+				++fc;
+				continue;
+			}
+		}
+		auto frameIdx = getFix(idx++);
+		if (!argv->get_use_list().empty())
+		{
+			auto val = getOperandFor(argv, opMap);
+			auto vr = dynamic_cast<VirtualRegister*>(val);
+			assert(vr != nullptr);
+			assert(this == frameIdx->func());
+			vr->replacePrefer_ = frameIdx;
+			auto cp = new MLDR{ entryMBB, val, frameIdx, u2iNegThrow(argC.get_type()->sizeInBitsInArm64()) };
+			parameterInsts.emplace_back(cp);
+		}
+	}
+
+	entryMBB->instructions_.insert(entryMBB->instructions_.begin(), parameterInsts.begin(), parameterInsts.end());
 
 	auto eb = new MBasicBlock{function->get_name() + "_prolog", this};
 	eb->instructions_.emplace_back(new MCopy{entryMBB, Register::getLR(module_), lrGuard_, 64});

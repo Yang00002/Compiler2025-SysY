@@ -210,7 +210,9 @@ void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand
 
 void MBasicBlock::acceptLoadInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
-	auto regLike = block->function()->getOperandFor(instruction, opMap);
+	auto regLike = dynamic_cast<VirtualRegister*>(block->function()->getOperandFor(instruction, opMap));
+	assert(regLike != nullptr);
+	regLike->sinked = true;
 	auto stackLike = block->function()->getOperandFor(instruction->get_operand(0), opMap);
 	auto ret = new MLDR{block, regLike, stackLike, u2iNegThrow(instruction->get_type()->sizeInBitsInArm64())};
 	instructions_.emplace_back(ret);

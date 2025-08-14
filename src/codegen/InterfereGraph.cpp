@@ -180,7 +180,6 @@ void InterfereGraph::addEdge(int i, int j)
 		adjSet_.set(j, i);
 		auto ri = parent_->live_message()->getReg(i);
 		auto rj = parent_->live_message()->getReg(j);
-		LOG(color::green("addEdge ") + ri->print() + " " + rj->print());
 		auto vri = getOrCreateRegNode(ri);
 		auto vrj = getOrCreateRegNode(rj);
 		if (ri->isVirtualRegister())
@@ -204,7 +203,6 @@ void InterfereGraph::combineAddEdge(int i, int noAdd)
 		adjSet_.set(noAdd, i);
 		auto ri = parent_->live_message()->getReg(i);
 		auto rj = parent_->live_message()->getReg(noAdd);
-		LOG(color::green("addEdge ") + ri->print() + " " + rj->print());
 		auto vri = getOrCreateRegNode(ri);
 		auto vrj = getOrCreateRegNode(rj);
 		if (ri->isVirtualRegister())
@@ -228,8 +226,6 @@ bool InterfereGraph::moveRelated(const InterfereGraphNode* node) const
 
 void InterfereGraph::decrementDegree(InterfereGraphNode* node)
 {
-	LOG(color::green("decrementDegree " ) + node->reg_->print());
-	PUSH;
 	auto d = node->degree_;
 	node->degree_--;
 	// 从高度数到低度数
@@ -239,34 +235,25 @@ void InterfereGraph::decrementDegree(InterfereGraphNode* node)
 		// 与其相邻的节点的传送指令都有可能会可合并, 需要重新计算
 		for (auto m : node->adjList_)
 			if (inGraph(m)) enableMoves(m);
-		LOG(color::pink("spillWorklist_ - ") + node->reg_->print());
 		// 从高度数节点表移除节点
 		spillWorklist_.remove(node);
 		if (moveRelated(node))
 		{
-			LOG(color::pink("freezeWorklist_ + ") + node->reg_->print());
 			freezeWorklist_.add(node);
 		}
 		else
 		{
-			LOG(color::pink("simplifyWorklist_ + ") + node->reg_->print());
 			simplifyWorklist_.add(node);
 		}
 	}
-	POP;
 }
 
 void InterfereGraph::addWorkList(InterfereGraphNode* node)
 {
 	if (node->degree_ < K_ && !node->preColored() && !moveRelated(node))
 	{
-		LOG(color::green("addWorkList ") + node->reg_->print());
-		PUSH;
-		LOG(color::pink("freezeWorklist_ - ") + node->reg_->print());
 		freezeWorklist_.remove(node);
-		LOG(color::pink("simplifyWorklist_ + ") + node->reg_->print());
 		simplifyWorklist_.add(node);
-		POP;
 	}
 }
 
@@ -326,20 +313,15 @@ bool InterfereGraph::isCareCopy(MInstruction* inst) const
 
 void InterfereGraph::combine(InterfereGraphNode* u, InterfereGraphNode* v)
 {
-	LOG(color::green("combine ") + u->reg_->print() + " " + v->reg_->print());
-	PUSH;
 	// 不可能是传送无关节点
 	if (freezeWorklist_.contain(v))
 	{
-		LOG(color::pink("freezeWorklist_ - ") + v->reg_->print());
 		freezeWorklist_.remove(v);
 	}
 	else
 	{
-		LOG(color::pink("spillWorklist_ - ") + v->reg_->print());
 		spillWorklist_.remove(v);
 	}
-	LOG(color::pink("coalescedNodes_ + ") + v->reg_->print());
 	coalescedNodes_.add(v);
 	assert(v == v->alias());
 	v->alias_ = u;
@@ -359,12 +341,9 @@ void InterfereGraph::combine(InterfereGraphNode* u, InterfereGraphNode* v)
 	}
 	if (u->degree_ >= K_ && freezeWorklist_.contain(u))
 	{
-		LOG(color::pink("freezeWorklist_ - ") + u->reg_->print());
 		freezeWorklist_.remove(u);
-		LOG(color::pink("spillWorklist_ + ") + u->reg_->print());
 		spillWorklist_.add(u);
 	}
-	POP;
 }
 
 int InterfereGraph::regIdOf(const InterfereGraphNode* n) const
@@ -386,8 +365,6 @@ void InterfereGraph::enableMoves(const InterfereGraphNode* u)
 
 void InterfereGraph::freezeMove(InterfereGraphNode* u)
 {
-	LOG(color::green("freezeMove ") + u->reg_->print());
-	PUSH;
 	for (auto m : u->moveList_)
 	{
 		if (inGraph(m))
@@ -402,14 +379,11 @@ void InterfereGraph::freezeMove(InterfereGraphNode* u)
 			frozenMoves_.add(m);
 			if (v->degree_ < K_ && !moveRelated(v))
 			{
-				LOG(color::pink("freezeWorklist_ - ") + v->reg_->print());
 				freezeWorklist_.remove(v);
-				LOG(color::pink("simplifyWorklist_ + ") + v->reg_->print());
 				simplifyWorklist_.add(v);
 			}
 		}
 	}
-	POP;
 }
 
 bool InterfereGraph::inGraph(const MoveInstNode* n) const
@@ -443,28 +417,21 @@ bool InterfereGraph::shouldRepeat() const
 bool InterfereGraph::simplify()
 {
 	if (simplifyWorklist_.empty()) return false;
-	LOG(color::cyan("simplify"));
-	PUSH;
 	auto n = simplifyWorklist_.top();
 	assert(!moveRelated(n));
-	LOG(color::pink("simplifyWorklist_ - ") + n->reg_->print());
 	simplifyWorklist_.remove(n);
-	LOG(color::pink("selectStack_ + ") + n->reg_->print());
 	// 简化, 入栈
 	selectStack_.add(n);
 	// 减少相邻节点的边数量
 	for (auto adj : n->adjList_)
 		if (inGraph(adj) && !adj->preColored()) decrementDegree(adj);
 	//  if (inGraph(adj)) decrementDegree(adj);
-	POP;
 	return true;
 }
 
 bool InterfereGraph::coalesce()
 {
 	if (worklistMoves_.empty()) return false;
-	LOG(color::cyan("coalesce"));
-	PUSH;
 	auto m = worklistMoves_.top();
 	// 如果源属于物理寄存器, 则是源, 否则是目标
 	auto x = m->toX_->alias();
@@ -508,30 +475,22 @@ bool InterfereGraph::coalesce()
 			activeMoves_.add(m);
 		}
 	}
-	POP;
 	return true;
 }
 
 bool InterfereGraph::freeze()
 {
 	if (freezeWorklist_.empty()) return false;
-	LOG(color::cyan("freeze"));
-	PUSH;
 	auto u = freezeWorklist_.top();
-	LOG(color::pink("freezeWorklist_ - ") + u->reg_->print());
 	freezeWorklist_.remove(u);
-	LOG(color::pink("simplifyWorklist_ + ") + u->reg_->print());
 	simplifyWorklist_.add(u);
 	freezeMove(u);
-	POP;
 	return true;
 }
 
 bool InterfereGraph::selectSpill()
 {
 	if (spillWorklist_.empty()) return false;
-	LOG(color::cyan("selectSpill"));
-	PUSH;
 	float mw = FLT_MAX;
 	InterfereGraphNode* m = nullptr;
 	for (auto node = spillWorklist_.next_; node != &spillWorklist_; node = node->next_)
@@ -600,9 +559,7 @@ bool InterfereGraph::selectSpill()
 		}
 	}
 	assert(m != nullptr);
-	LOG(color::pink("spillWorklist_ - ") + m->reg_->print());
 	spillWorklist_.remove(m);
-	LOG(color::pink("simplifyWorklist_ + ") + m->reg_->print());
 	simplifyWorklist_.add(m);
 	freezeMove(m);
 	POP;
@@ -611,8 +568,6 @@ bool InterfereGraph::selectSpill()
 
 void InterfereGraph::assignColors()
 {
-	LOG(color::cyan("assignColors"));
-	PUSH;
 	auto message = parent_->live_message();
 	DynamicBitset mask = message->physicalRegMask();
 	for (auto i : mask)
@@ -627,7 +582,6 @@ void InterfereGraph::assignColors()
 	while (!selectStack_.empty())
 	{
 		auto n = selectStack_.pre_;
-		LOG(color::pink("selectStack_ - ") + n->reg_->print());
 		selectStack_.remove(n);
 		DynamicBitset oks = mask;
 		for (auto w : n->adjList_)
@@ -637,7 +591,6 @@ void InterfereGraph::assignColors()
 		}
 		if (oks.allZeros())
 		{
-			LOG(color::pink("spilledNode_ + ") + n->reg_->print());
 			spilledNode_.add(n);
 		}
 		else
@@ -647,7 +600,6 @@ void InterfereGraph::assignColors()
 	{
 		it->color_ = it->alias()->color_;
 	}
-	POP;
 }
 
 bool InterfereGraph::needRewrite() const
@@ -657,6 +609,9 @@ bool InterfereGraph::needRewrite() const
 
 void InterfereGraph::rewriteProgram() const
 {
+	bool useSink = true;
+	LOG(color::cyan("RewriteProgram"));
+	PUSH;
 	auto dominators = parent_->dominators();
 	auto func = parent_->currentFunc();
 	std::list<VirtualRegister*> stillNeedWorks;
@@ -664,80 +619,114 @@ void InterfereGraph::rewriteProgram() const
 	for (auto it = spilledNode_.next_; it != &spilledNode_; it = it->next_)
 	{
 		auto reg = dynamic_cast<VirtualRegister*>(it->reg_);
-		if (reg->sinked)
+		if (useSink)
 		{
-			stillNeedWorks.emplace_back(reg);
-			continue;
-		}
-		auto uses = func->useList()[reg];
-		MInstruction* def = nullptr;
-		for (auto i : uses)
-		{
-			if (dynamic_cast<MCopy*>(i) != nullptr && reg == i->def(0))
-			{
-				def = i;
-				break;
-			}
-		}
-		for (auto i : def->use())
-		{
-			if (dynamic_cast<Register*>(def->operand(i)))
-			{
-				reg->sinked = true;
-				stillNeedWorks.emplace_back(reg);
-				break;
-			}
-		}
-		if (reg->sinked) continue;
-		uses.erase(def);
-		auto parent = dominators->latestCommonParent(uses);
-		if (!dominators->is_dominate(def->block(), parent))
-		{
-			reg->sinked = true;
-			stillNeedWorks.emplace_back(reg);
-			continue;
-		}
-		int idx = 0;
-		for (auto i : parent->instructions())
-		{
-			if (uses.count(i)) break;
-			idx++;
-		}
-		int preIdx = 0;
-		auto& insts = def->block()->instructions();
-		for (auto i : insts)
-		{
-			if (i == def) break;
-			preIdx++;
-		}
-		if (parent == def->block())
-		{
-			if (preIdx >= idx - 1)
+			if (reg->sinked)
 			{
 				stillNeedWorks.emplace_back(reg);
-				reg->sinked = true;
 				continue;
 			}
+			auto uses = func->useList()[reg];
+			MInstruction* def = nullptr;
+			for (auto i : uses)
+			{
+				if (!i->def().empty() && reg == i->def(0))
+				{
+					def = i;
+					break;
+				}
+			}
+			for (auto i : def->use())
+			{
+				if (dynamic_cast<Register*>(def->operand(i)))
+				{
+					reg->sinked = true;
+					stillNeedWorks.emplace_back(reg);
+					break;
+				}
+			}
+			if (reg->sinked) continue;
+			uses.erase(def);
+			auto parent = dominators->latestCommonParent(uses);
+			if (!dominators->is_dominate(def->block(), parent))
+			{
+				reg->sinked = true;
+				stillNeedWorks.emplace_back(reg);
+				continue;
+			}
+			int idx = 0;
+			auto& pinsts = parent->instructions();
+			for (auto i : pinsts)
+			{
+				if (uses.count(i)) break;
+				idx++;
+			}
+			int preIdx = 0;
+			auto& insts = def->block()->instructions();
+			for (auto i : insts)
+			{
+				if (i == def) break;
+				preIdx++;
+			}
+			if (parent == def->block())
+			{
+				if (idx == u2iNegThrow(insts.size()))
+				{
+					auto bcc = dynamic_cast<MB*>(insts.back());
+					if (bcc != nullptr && bcc->isCondBranch())
+					{
+						idx = u2iNegThrow(insts.size()) - 2;
+					}
+					else
+						idx = u2iNegThrow(insts.size()) - 1;
+				}
+				LOG(color::green("sink ") + def->print() + color::green(" to before ") + insts[idx]->print());
+				if (preIdx >= idx - 1)
+				{
+					stillNeedWorks.emplace_back(reg);
+					reg->sinked = true;
+					continue;
+				}
+				insts.erase(insts.begin() + preIdx);
+				idx--;
+				insts.emplace(insts.begin() + idx, def);
+				reg->sinked = true;
+				needSpill = false;
+				continue;
+			}
+			if (idx == u2iNegThrow(pinsts.size()))
+			{
+				auto bcc = dynamic_cast<MB*>(pinsts.back());
+				if (bcc != nullptr && bcc->isCondBranch())
+				{
+					idx = u2iNegThrow(pinsts.size()) - 2;
+				}
+				else
+					idx = u2iNegThrow(pinsts.size()) - 1;
+			}
+			LOG(color::green("sink ") + def->print() + color::green(" to before ") + pinsts[idx]->print());
 			insts.erase(insts.begin() + preIdx);
-			idx--;
-			insts.emplace(insts.begin() + idx, def);
+			parent->instructions().emplace(parent->instructions().begin() + idx, def);
+			def->block_ = parent;
 			reg->sinked = true;
 			needSpill = false;
-			continue;
 		}
-		insts.erase(insts.begin() + preIdx);
-		parent->instructions().emplace(parent->instructions().begin() + idx, def);
-		def->block_ = parent;
-		reg->sinked = true;
-		needSpill = false;
+		else
+		{
+			LOG(color::green("spill ") + reg->print());
+			func->spill(reg, parent_->live_message());
+		}
 	}
-	if (needSpill)
+	if (useSink && needSpill)
 	{
 		for (auto i : stillNeedWorks)
 		{
+			LOG(color::green("spill ") + i->print());
 			func->spill(i, parent_->live_message());
 		}
 	}
+	LOGIF(parent_->module()->print(), useSink && !needSpill);
+	POP;
 }
 
 void InterfereGraph::applyChanges()
@@ -772,8 +761,6 @@ void InterfereGraph::applyChanges()
 
 void InterfereGraph::build()
 {
-	LOG(color::cyan("build"));
-	PUSH;
 	auto& message = *parent_->live_message();
 	for (auto bb : parent_->currentFunc()->blocks())
 	{
@@ -831,13 +818,11 @@ void InterfereGraph::build()
 			live |= use;
 		}
 	}
-	POP;
 }
 
 void InterfereGraph::flush()
 {
 	LOG(color::yellow("flush"));
-	PUSH;
 	for (auto& [i, j] : regNodes_) delete j;
 	for (auto& [i, j] : moveNodes_) delete j;
 	regNodes_.clear();
@@ -862,40 +847,31 @@ void InterfereGraph::flush()
 		auto r = parent_->live_message()->getReg(i);
 		if (r->isVirtualRegister())
 		{
-			LOG(color::pink("initial_ + ") + r->print());
 			initial_.add(getOrCreateRegNode(r));
 		}
 		else K_++;
 	}
 	adjSet_ = AdjSet{rc};
-	POP;
 }
 
 void InterfereGraph::makeWorklist()
 {
-	LOG(color::cyan("makeWorklist"));
-	PUSH;
 	for (auto it = initial_.next_, itp = it->next_; it != &initial_; it = itp, itp = itp->next_)
 	{
-		LOG(color::pink("initial_ - ") + it->reg_->print());
 		initial_.remove(it);
 		if (it->degree_ >= K_)
 		{
-			LOG(color::pink("spillWorklist_ + ") + it->reg_->print());
 			spillWorklist_.add(it);
 		}
 		else if (!it->moveList_.empty()) // 传送指令均未分类
 		{
-			LOG(color::pink("freezeWorklist_ + ") + it->reg_->print());
 			freezeWorklist_.add(it);
 		}
 		else
 		{
-			LOG(color::pink("simplifyWorklist_ + ") + it->reg_->print());
 			simplifyWorklist_.add(it);
 		}
 	}
-	POP;
 }
 
 
