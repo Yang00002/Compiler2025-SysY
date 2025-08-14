@@ -183,7 +183,10 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 					{
 						assert(dynamic_cast<StoreInst*>(inst));
 						assert(inst->get_operands().size() == 2);
-						assert(inst->get_operand(1) == v);
+						if (idx != 1)
+						{
+							assert(inst->get_operand(0) == v);
+						}
 						assert(idx == 1);
 						stores[f].add(val);
 						break;
