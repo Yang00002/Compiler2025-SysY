@@ -3,9 +3,16 @@
 #include "LiveMessage.hpp"
 #include "MachinePassManager.hpp"
 
+class MachineDominators;
+
 class RegisterAllocate : public MachinePass
 {
 public:
+	[[nodiscard]] MachineDominators* dominators() const
+	{
+		return dominator_;
+	}
+
 	[[nodiscard]] LiveMessage* live_message() const
 	{
 		return liveMessage_;
@@ -21,6 +28,7 @@ private:
 	MModule* module_;
 	LiveMessage* liveMessage_ = nullptr;
 	MFunction* currentFunc_ = nullptr;
+	MachineDominators* dominator_ = nullptr;
 	void runOn(MFunction* function);
 
 public:

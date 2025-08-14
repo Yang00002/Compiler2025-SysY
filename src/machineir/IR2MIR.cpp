@@ -242,11 +242,14 @@ void MBasicBlock::acceptPhiInst(Instruction* instruction, std::map<Value*, MOper
 {
 	auto phi = dynamic_cast<PhiInst*>(instruction);
 	auto pairs = phi->get_phi_pairs();
+	auto dest = dynamic_cast<VirtualRegister*>(block->function()->getOperandFor(phi, opMap));
+	assert(dest != nullptr);
+	dest->sinked = true;
 	for (auto& [val, bb] : pairs)
 	{
 		auto mbb = bmap[bb];
 		auto cp = new MCopy{
-			mbb, block->function()->getOperandFor(val, opMap), block->function()->getOperandFor(phi, opMap),
+			mbb, block->function()->getOperandFor(val, opMap), dest,
 			u2iNegThrow(val->get_type()->sizeInBitsInArm64())
 		};
 		phiMap[mbb].emplace_back(cp);
@@ -653,7 +656,9 @@ void MBasicBlock::acceptZextInst(Instruction* instruction, std::map<Value*, MOpe
 {
 	auto op0 = dynamic_cast<Instruction*>(instruction->get_operand(0));
 	auto op = asCmpGetOp(op0);
-	auto t = function()->getOperandFor(instruction, opMap);
+	auto t = dynamic_cast<VirtualRegister*>(function()->getOperandFor(instruction, opMap));
+	assert(t != nullptr);
+	t->sinked = true;
 	auto inst = dynamic_cast<MCMP*>(block->instructions().back());
 	assert(inst != nullptr);
 	auto cmp = new MCSET{block, op, t};

@@ -3,12 +3,14 @@
 #include "Config.hpp"
 #include "MachineOperand.hpp"
 #include "MachineFunction.hpp"
+#include "MachineDominator.hpp"
 
 // toStr: SPILL 后的一些 LDR 不是必须的
 // 例如形如 STR X1 %F; LDR X2 %F 可以被替代为 STR X1 %F; MOV X2 X1
 
 void RegisterAllocate::runOn(MFunction* function)
 {
+	dominator_->run_on_func(function);
 	LiveMessage liveMessage{function};
 	liveMessage_ = &liveMessage;
 	currentFunc_ = function;
@@ -120,7 +122,7 @@ void RegisterAllocate::runOn(MFunction* function)
 	}
 }
 
-RegisterAllocate::RegisterAllocate(MModule* module): MachinePass(module), interfereGraph_(this), module_(module)
+RegisterAllocate::RegisterAllocate(MModule* module): MachinePass(module), interfereGraph_(this), module_(module), dominator_(new MachineDominators(m_))
 {
 }
 
@@ -165,4 +167,5 @@ void RegisterAllocate::run()
 		func->rewriteCallsDefList();
 		runOn(func);
 	}
+	delete dominator_;
 }

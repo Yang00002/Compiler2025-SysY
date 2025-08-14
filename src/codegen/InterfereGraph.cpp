@@ -3,6 +3,8 @@
 #include <cassert>
 #include <unordered_set>
 #include <cfloat>
+#include <vector>
+#include <algorithm>
 
 #include "Config.hpp"
 #include "RegisterAllocate.hpp"
@@ -15,6 +17,7 @@
 #include <algorithm>
 #include <iostream>
 
+#include "MachineDominator.hpp"
 #include "Util.hpp"
 
 InterfereGraph::InterfereGraph(RegisterAllocate* parent) : parent_(parent), worklistMoves_(), activeMoves_(),
@@ -654,11 +657,86 @@ bool InterfereGraph::needRewrite() const
 
 void InterfereGraph::rewriteProgram() const
 {
+	auto dominators = parent_->dominators();
 	auto func = parent_->currentFunc();
+	std::list<VirtualRegister*> stillNeedWorks;
+	bool needSpill = true;
 	for (auto it = spilledNode_.next_; it != &spilledNode_; it = it->next_)
 	{
 		auto reg = dynamic_cast<VirtualRegister*>(it->reg_);
-		func->spill(reg, parent_->live_message());
+		if (reg->sinked)
+		{
+			stillNeedWorks.emplace_back(reg);
+			continue;
+		}
+		auto uses = func->useList()[reg];
+		MInstruction* def = nullptr;
+		for (auto i : uses)
+		{
+			if (dynamic_cast<MCopy*>(i) != nullptr && reg == i->def(0))
+			{
+				def = i;
+				break;
+			}
+		}
+		for (auto i : def->use())
+		{
+			if (dynamic_cast<Register*>(def->operand(i)))
+			{
+				reg->sinked = true;
+				stillNeedWorks.emplace_back(reg);
+				break;
+			}
+		}
+		if (reg->sinked) continue;
+		uses.erase(def);
+		auto parent = dominators->latestCommonParent(uses);
+		if (!dominators->is_dominate(def->block(), parent))
+		{
+			reg->sinked = true;
+			stillNeedWorks.emplace_back(reg);
+			continue;
+		}
+		int idx = 0;
+		for (auto i : parent->instructions())
+		{
+			if (uses.count(i)) break;
+			idx++;
+		}
+		int preIdx = 0;
+		auto& insts = def->block()->instructions();
+		for (auto i : insts)
+		{
+			if (i == def) break;
+			preIdx++;
+		}
+		if (parent == def->block())
+		{
+			if (preIdx >= idx - 1)
+			{
+				stillNeedWorks.emplace_back(reg);
+				reg->sinked = true;
+				continue;
+			}
+			insts.erase(insts.begin() + preIdx);
+			idx--;
+			insts.emplace(insts.begin() + idx, def);
+			reg->sinked = true;
+			needSpill = false;
+			continue;
+		}
+		insts.erase(insts.begin() + preIdx);
+		parent->instructions().emplace(parent->instructions().begin() + idx, def);
+		def->block_ = parent;
+		reg->sinked = true;
+		needSpill = false;
+	}
+	if (needSpill)
+	{
+		for (auto i : stillNeedWorks)
+		{
+			func->spill(i, parent_->live_message());
+		}
 	}
 }
 

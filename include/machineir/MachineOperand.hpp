@@ -66,7 +66,8 @@ private:
 
 public:
 	bool spilled = false;
-
+	// 是否被下沉, 当 vr 需要被 spill 时, 首先尝试将它的计算下沉到需要它的基本块的共同支配树祖先, 这有时能避免 spill
+	bool sinked = false;
 private:
 	explicit VirtualRegister(int id, bool ireg_t_freg_f, int size);
 
