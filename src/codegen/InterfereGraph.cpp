@@ -609,7 +609,6 @@ bool InterfereGraph::needRewrite() const
 
 void InterfereGraph::rewriteProgram() const
 {
-	bool useSink = true;
 	LOG(color::cyan("RewriteProgram"));
 	PUSH;
 	auto dominators = parent_->dominators();
@@ -619,7 +618,7 @@ void InterfereGraph::rewriteProgram() const
 	for (auto it = spilledNode_.next_; it != &spilledNode_; it = it->next_)
 	{
 		auto reg = dynamic_cast<VirtualRegister*>(it->reg_);
-		if (useSink)
+		if (useSinkForVirtualRegister)
 		{
 			if (reg->sinked)
 			{
@@ -717,7 +716,7 @@ void InterfereGraph::rewriteProgram() const
 			func->spill(reg, parent_->live_message());
 		}
 	}
-	if (useSink && needSpill)
+	if (useSinkForVirtualRegister && needSpill)
 	{
 		for (auto i : stillNeedWorks)
 		{
@@ -725,7 +724,6 @@ void InterfereGraph::rewriteProgram() const
 			func->spill(i, parent_->live_message());
 		}
 	}
-	LOGIF(parent_->module()->print(), useSink && !needSpill);
 	POP;
 }
 

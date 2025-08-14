@@ -263,28 +263,30 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
                                  std::map<Function*, MFunction*>& funcMap, MBasicBlock* block)
 {
 	Instruction* next = nullptr;
-	auto p = instruction->get_parent();
-	auto it = p->get_instructions().begin();
-	auto ed = p->get_instructions().end();
-	while (it != ed)
-	{
-		if (*it == instruction)
+	if(o1Optimization){
+		auto p = instruction->get_parent();
+		auto it = p->get_instructions().begin();
+		auto ed = p->get_instructions().end();
+		while (it != ed)
 		{
+			if (*it == instruction)
+			{
+				++it;
+				next = *it;
+				break;
+			}
 			++it;
-			next = *it;
-			break;
 		}
-		++it;
-	}
-	if (next != nullptr && next->is_ret())
-	{
-		auto ret = dynamic_cast<ReturnInst*>(next);
-		if ((ret->get_type() == Types::VOID || ret->get_operand(0) == instruction) && instruction->get_operand(0) ==
-		    instruction->get_parent()->get_parent())
-			ret->discarded_ = true;
+		if (next != nullptr && next->is_ret())
+		{
+			auto ret = dynamic_cast<ReturnInst*>(next);
+			if ((ret->get_type() == Types::VOID || ret->get_operand(0) == instruction) && instruction->get_operand(0) ==
+			    instruction->get_parent()->get_parent())
+				ret->discarded_ = true;
+			else next = nullptr;
+		}
 		else next = nullptr;
 	}
-	else next = nullptr;
 	auto func = dynamic_cast<Function*>(instruction->get_operand(0));
 	auto mfunc = funcMap[func];
 	int ic = 0;

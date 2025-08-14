@@ -28,3 +28,4 @@ int funcInlineGate = 2;
 int epilogShouldMerge = 9;
 bool dangerousSignalInfer = true;
 bool ignoreNegativeArrayIndexes = true;
+bool useSinkForVirtualRegister = true;
