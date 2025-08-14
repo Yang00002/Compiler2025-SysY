@@ -18,7 +18,7 @@
 
 void DeadCode::WorkList::addClearParameters(Function* f)
 {
-	if (o1Optimization && in_clear_parameters_.count(f))
+	if (o1Optimization && !in_clear_parameters_.count(f))
 	{
 		in_clear_parameters_.emplace(f);
 		clear_parameters_.emplace(f);
@@ -27,7 +27,7 @@ void DeadCode::WorkList::addClearParameters(Function* f)
 
 void DeadCode::WorkList::addClearNotUseAllocas(Function* f)
 {
-	if (o1Optimization && in_clear_not_use_allocas_.count(f))
+	if (o1Optimization && !in_clear_not_use_allocas_.count(f))
 	{
 		in_clear_not_use_allocas_.emplace(f);
 		clear_not_use_allocas_.emplace(f);
@@ -42,6 +42,7 @@ DeadCode::~DeadCode()
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run()
 {
+	PREPARE_PASS_MSG;
 	LOG(color::cyan("Run DeadCode Pass"));
 	PUSH;
 	func_info->run();
@@ -55,9 +56,10 @@ void DeadCode::run()
 		work_list->addClearParameters(f);
 	}
 
-	bool change = false;
+	bool change;
 	do
 	{
+		change = false;
 		while (!work_list->clear_basic_blocks_.empty())
 		{
 			auto b = work_list->clear_basic_blocks_.front();
@@ -231,8 +233,11 @@ void DeadCode::clear_parameters(Function* func) const
 
 void DeadCode::clear_not_use_allocas(Function* func) const
 {
+	LOG(color::blue("Begin Clean Not Use Alloca of ") + func->get_name());
+	PUSH;
 	auto et = func->get_entry_block();
-	auto insts = et->get_instructions().phi_and_allocas();
+	auto insts = InstructionList{};
+	insts.addAllPhiAndAllocas(et->get_instructions());
 	auto it = insts.begin();
 	auto ed = insts.end();
 	while (it != ed)
@@ -240,8 +245,8 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 		auto alloc = dynamic_cast<AllocaInst*>(it.get_and_add());
 		bool haveLoad = false;
 
-		std::unordered_set<Value*> visited;
-		std::queue<Value*> q;
+		std::unordered_set<Instruction*> visited;
+		std::queue<Instruction*> q;
 		visited.emplace(alloc);
 		q.emplace(alloc);
 		while (!q.empty())
@@ -251,6 +256,7 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 			for (auto& use : v->get_use_list())
 			{
 				auto inst = dynamic_cast<Instruction*>(use.val_);
+				assert(inst != nullptr);
 				int idx = use.arg_no_;
 				switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 				{
@@ -278,7 +284,6 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 							break;
 						}
 					case Instruction::nump2charp:
-					case Instruction::global_fix:
 						{
 							if (!visited.count(inst))
 							{
@@ -287,6 +292,9 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 							}
 							break;
 						}
+					case Instruction::store:
+					case Instruction::memclear_:
+						break;
 					default:
 						assert(false);
 						break;
@@ -298,12 +306,14 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 
 		if (!haveLoad)
 		{
-			it.remove_pre();
+			LOG(color::green("Remove Alloca ") + alloc->print());
+			et->erase_instr(alloc);
 			eraseValue(alloc);
 			delete alloc;
 			work_list->addClearInstructions(func);
 		}
 	}
+	POP;
 }
 
 // -> clear_parameters + / clear_not_use_allocas + / clear_instructions +

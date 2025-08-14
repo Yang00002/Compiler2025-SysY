@@ -303,6 +303,26 @@ void InstructionList::addAll(const InstructionList& instructions)
 	}
 }
 
+void InstructionList::addAllPhiAndAllocas(const InstructionList& instructions)
+{
+	if (instructions.phi_alloca_size_ > 0)
+	{
+		auto appendNode = common_inst_begin_->pre;
+		phi_alloca_size_ += instructions.phi_alloca_size_;
+		auto b = instructions.end_node_->next;
+		auto e = instructions.common_inst_begin_;
+		while (b != e)
+		{
+			InstructionListNode* node = new InstructionListNode{ b->instruction, nullptr, appendNode };
+			appendNode->next = node;
+			appendNode = node;
+			b = b->next;
+		}
+		appendNode->next = common_inst_begin_;
+		common_inst_begin_->pre = appendNode;
+	}
+}
+
 bool InstructionList::remove_first(const Instruction* instruction)
 {
 	if (instruction->is_alloca() || instruction->is_phi())

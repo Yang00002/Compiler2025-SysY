@@ -26,7 +26,7 @@ class DeadCode final : public Pass
 
 		void addClearBasicBlock(Function* f)
 		{
-			if (in_clear_basic_blocks_.count(f))
+			if (!in_clear_basic_blocks_.count(f))
 			{
 				in_clear_basic_blocks_.emplace(f);
 				clear_basic_blocks_.emplace(f);
@@ -39,7 +39,7 @@ class DeadCode final : public Pass
 
 		void addClearInstructions(Function* f)
 		{
-			if (in_clear_instructions_.count(f))
+			if (!in_clear_instructions_.count(f))
 			{
 				in_clear_instructions_.emplace(f);
 				clear_instructions_.emplace(f);

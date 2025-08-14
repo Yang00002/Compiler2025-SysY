@@ -409,29 +409,29 @@ void ARMCodeGen::allocate()
 	// 为参数分配栈空间
 	for (auto& arg : context.func->get_args())
 	{
-		if (arg.get_type() == Types::FLOAT && farg_count < 8)
+		if (arg->get_type() == Types::FLOAT && farg_count < 8)
 		{
 			// 从寄存器读参数到栈上
-			offset += NUMBYTES(arg.get_type()->sizeInBitsInArm64());
-			context.offset_map[&arg] = -offset;
+			offset += NUMBYTES(arg->get_type()->sizeInBitsInArm64());
+			context.offset_map[arg] = -offset;
 			++farg_count;
 		}
 		else if (iarg_count < 8)
 		{
 			// 从寄存器读参数到栈上
-			offset += arg.get_type() == Types::BOOL
+			offset += arg->get_type() == Types::BOOL
 				          ? NUMBYTES(Types::INT->sizeInBitsInArm64())
-				          : NUMBYTES(arg.get_type()->sizeInBitsInArm64());
-			context.offset_map[&arg] = -offset;
+				          : NUMBYTES(arg->get_type()->sizeInBitsInArm64());
+			context.offset_map[arg] = -offset;
 			++iarg_count;
 		}
 		else
 		{
 			// 从 caller 栈帧读参数
-			context.offset_map[&arg] = PROLOGUE_OFFSET_BASE + arg_offset;
-			arg_offset += arg.get_type() == Types::BOOL
+			context.offset_map[arg] = PROLOGUE_OFFSET_BASE + arg_offset;
+			arg_offset += arg->get_type() == Types::BOOL
 				              ? NUMBYTES(Types::INT->sizeInBitsInArm64())
-				              : NUMBYTES(arg.get_type()->sizeInBitsInArm64());
+				              : NUMBYTES(arg->get_type()->sizeInBitsInArm64());
 		}
 	}
 
@@ -1172,18 +1172,18 @@ void ARMCodeGen::gen_prologue()
 	for (auto& arg : context.func->get_args())
 	{
 		// 加载不在 caller 栈帧上的参数
-		if (arg.get_type() == Types::FLOAT && flt_id < 8)
+		if (arg->get_type() == Types::FLOAT && flt_id < 8)
 		{
-			MemAccess m = {"X29", "#" + std::to_string(context.offset_map.at(&arg))};
-			auto sz = arg.get_type()->sizeInBitsInArm64();
+			MemAccess m = {"X29", "#" + std::to_string(context.offset_map.at(arg))};
+			auto sz = arg->get_type()->sizeInBitsInArm64();
 			append_inst("STR", fvWidthPrefix.at(sz) + std::to_string(flt_id++), m);
 		}
 		else if (int_id < 8)
 		{
-			MemAccess m = {"X29", "#" + std::to_string(context.offset_map.at(&arg))};
-			auto sz = arg.get_type() == Types::BOOL
+			MemAccess m = {"X29", "#" + std::to_string(context.offset_map.at(arg))};
+			auto sz = arg->get_type() == Types::BOOL
 				          ? Types::INT->sizeInBitsInArm64()
-				          : arg.get_type()->sizeInBitsInArm64();
+				          : arg->get_type()->sizeInBitsInArm64();
 			append_inst("STR", iWidthPrefix.at(sz) + std::to_string(int_id++), m);
 		}
 	}

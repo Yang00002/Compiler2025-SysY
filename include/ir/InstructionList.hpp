@@ -225,6 +225,7 @@ public:
 	 * 作为单纯的容器使用时, 将另一个列表中所有元素添加进来. 不会检查重复和排序.
 	 */
 	void addAll(const InstructionList& instructions);
+	void addAllPhiAndAllocas(const InstructionList& instructions);
 	/**
 	 * 去除第一个匹配的指令.
 	 * @param instruction 要去除的指令
