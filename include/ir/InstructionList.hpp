@@ -61,6 +61,10 @@ public:
 	 * @return 获取的指令, 如果不存在则返回 nullptr
 	 */
 	[[nodiscard]] Instruction* get_and_sub();
+	/**
+	 * 将目前的指令用输入指令取代, 返回取代的指令. 必须在指向特定指令时才能进行取代
+	 */
+	[[nodiscard]] Instruction* replaceWith(Instruction* inst) const;
 
 private:
 	InstructionList* parent_;

@@ -19,6 +19,7 @@
 #include "GCM.hpp"
 #include "GVN.hpp"
 #include "Inline.hpp"
+#include "InstructionSelect.hpp"
 #include "LICM.hpp"
 #include "MachineModule.hpp"
 #include "Mem2Reg.hpp"
@@ -148,6 +149,7 @@ void ir(std::string infile, std::string outfile) {
     pm->add_pass<Arithmetic>();
     pm->add_pass<GlobalCodeMotion>();
     pm->add_pass<DeadCode>();
+   // pm->add_pass<InstructionSelect>();
     pm->run();
     delete pm;
   }
@@ -220,7 +222,6 @@ void compiler(std::string infile, std::string outfile) {
     pm->add_pass<GlobalCodeMotion>();
     pm->add_pass<DeadCode>();
 
-	
     pm->add_pass<Mem2Reg>();
     pm->add_pass<DeadCode>();
     pm->add_pass<Arithmetic>();
@@ -237,6 +238,7 @@ void compiler(std::string infile, std::string outfile) {
     pm->add_pass<DeadCode>();
   pm->add_pass<CriticalEdgeRemove>();
   pm->add_pass<CmpCombine>();
+  pm->add_pass<InstructionSelect>();
   pm->run();
 
   auto mir = new MModule();

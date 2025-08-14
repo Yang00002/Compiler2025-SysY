@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <map>
-#include <memory>
 #include <set>
 #include <stdexcept>
 #include <vector>
@@ -26,6 +25,8 @@ LoopInvariantCodeMotion::~LoopInvariantCodeMotion()
 
 void LoopInvariantCodeMotion::run()
 {
+	PREPARE_PASS_MSG;
+	PASS_SUFFIX;
 	LOG(color::cyan("Run LICM Pass"));
 	PUSH;
 	delete loop_detection_;
@@ -154,9 +155,9 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 				dirtyValues.emplace(src);
 				continue;
 			}
-			if (inst->is_call())
+			if (inst->is_call() && !dynamic_cast<Function*>(inst->get_operand(0))->is_lib_)
 			{
-				auto& storeDetails = func_info_->storeDetail(inst->get_parent()->get_parent());
+				auto& storeDetails = func_info_->storeDetail(dynamic_cast<Function*>(inst->get_operand(0)));
 				for (auto g : storeDetails.globals_) dirtyValues.emplace(g);
 				for (auto arg : storeDetails.arguments_)
 				{
@@ -196,7 +197,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 			// load 的指针是循环不变量, 并且内容没有在循环中变过
 			if (inst->is_load())
 			{
-				if (dirtyValues.count(inst->get_operand(0)))
+				if (dirtyValues.count(ptrFrom(inst->get_operand(0))))
 				{
 					loop_variant.insert(inst);
 					it.remove_pre();
@@ -234,7 +235,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 			if (inst->is_call())
 			{
 				const auto call = dynamic_cast<CallInst*>(inst);
-				auto func = call->get_function();
+				auto func = dynamic_cast<Function*>(call->get_operand(0));
 				if (func_info_->useOrIsImpureLib(func))
 				{
 					PUSH;

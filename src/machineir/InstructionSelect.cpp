@@ -4,7 +4,7 @@
 #include "Constant.hpp"
 #include "Instruction.hpp"
 
-#define DEBUG 1
+#define DEBUG 0
 #include "Util.hpp"
 
 using namespace std;
@@ -29,25 +29,30 @@ void InstructionSelect::runInner()
 			LOG(color::yellow("Merge"));
 			LOG(inst->print());
 			LOG(use->print());
+			vector<Value*> nidx{inst->get_operands().begin() + 1, inst->get_operands().end()};
 			auto& opu = use->get_operands();
 			assert(
 				dynamic_cast<Constant*>(opu[1]) && dynamic_cast<Constant*>(opu[1])->
 				getIntConstant() == 0);
 			int size = u2iNegThrow(opu.size());
-			for (int i = 2; i < size; i++) inst->add_operand(opu[i]);
-			use->replace_all_use_with(inst);
+			for (int i = 2; i < size; i++) nidx.emplace_back(opu[i]);
+			auto ninst = GetElementPtrInst::create_gep(inst->get_operand(0), nidx, nullptr);
+			ninst->set_parent(b_);
+			use->replace_all_use_with(ninst);
 			LOG(color::green("Get"));
-			LOG(inst->print());
+			LOG(ninst->print());
 			LOG("");
 			--it;
 			b_->erase_instr(use);
 			delete use;
+			delete it.replaceWith(ninst);
 		}
 	}
 }
 
 void InstructionSelect::run()
 {
+	PASS_SUFFIX;
 	PREPARE_PASS_MSG;
 	LOG(color::cyan("Run InstructionSelect Pass"));
 	PUSH;

@@ -70,6 +70,14 @@ Instruction* InstructionListIterator::get_and_sub()
 	return ret;
 }
 
+Instruction* InstructionListIterator::replaceWith(Instruction* inst) const
+{
+	if (current_->instruction == nullptr) return nullptr;
+	auto ret = current_->instruction;
+	current_->instruction = inst;
+	return ret;
+}
+
 
 InstructionListView::InstructionListView(InstructionListNode* begin, InstructionListNode* end,
                                          InstructionList* instructions): begin_(begin), end_(end), parent_(instructions)

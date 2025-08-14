@@ -22,7 +22,7 @@ bool FuncInfo::UseMessage::have(Value* val) const
 {
 	auto g = dynamic_cast<GlobalVariable*>(val);
 	if (g != nullptr) return globals_.count(g);
-	return arguments_.count(dynamic_cast<Argument*>(g));
+	return arguments_.count(dynamic_cast<Argument*>(val));
 }
 
 bool FuncInfo::UseMessage::empty() const
@@ -72,16 +72,16 @@ void FuncInfo::run()
 			for (auto i : rld.globals_) lld.globals_.emplace(i);
 			for (auto i : rst.globals_) lst.globals_.emplace(i);
 			auto& ops = inst->get_operands();
-			for (auto& carg : cf->get_args())
+			for (auto& arg : f->get_args())
 			{
-				if (carg.get_type()->isPointerType())
+				if (arg.get_type()->isPointerType())
 				{
-					auto arg = ops[carg.get_arg_no() + 1];
-					auto traceP = spMap.find(arg);
+					auto carg = ops[arg.get_arg_no() + 1];
+					auto traceP = spMap.find(carg);
 					if (traceP == spMap.end()) continue;
 					auto trace = traceP->second;
-					if (rld.have(&carg)) lld.add(trace);
-					if (rst.have(&carg)) lst.add(trace);
+					if (rld.have(&arg)) lld.add(trace);
+					if (rst.have(&arg)) lst.add(trace);
 				}
 			}
 			if (lld.globals_.size() + lld.arguments_.size() + lst.globals_.size() + lst.arguments_.size() != ps)
@@ -149,7 +149,7 @@ bool FuncInfo::is_pure_function(Function* func)
 
 bool FuncInfo::useOrIsImpureLib(Function* function)
 {
-	if (function->is_lib_) return false;
+	if (function->is_lib_) return true;
 	return useImpureLibs[function];
 }
 

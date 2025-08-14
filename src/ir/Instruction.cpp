@@ -53,7 +53,7 @@ Value* ptrFrom(Value* ptr)
 		switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 		{
 			case Instruction::alloca_:
-				return inst->get_operand(0);
+				return inst;
 			case Instruction::getelementptr:
 			case Instruction::nump2charp:
 			case Instruction::global_fix:
