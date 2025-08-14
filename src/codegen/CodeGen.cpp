@@ -1287,7 +1287,7 @@ void CodeGen::mathRRInst(const Register* to, const Register* l, const Register* 
 }
 
 
-void CodeGen::msub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, CodeString* toStr)
+void CodeGen::maddsub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, bool isAdd, CodeString* toStr)
 {
 	auto tor = dynamic_cast<Register*>(to);
 	ASSERT(tor != nullptr);
@@ -1303,8 +1303,30 @@ void CodeGen::msub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, CodeStri
 	lr = op2reg(l, 32, isI, toStr);
 	rr = op2reg(r, 32, isI, toStr);
 	sr = op2reg(s, 32, isI, toStr);
-	toStr->addInstruction(isI ? "MSUB" : "FMSUB", regName(tor, 32), regName(lr, 32), regName(rr, 32), regName(sr, 32));
+	if (isAdd)
+		toStr->addInstruction(isI ? "MADD" : "FMADD", regName(tor, 32), regName(lr, 32), regName(rr, 32),
+		                      regName(sr, 32));
+	else
+		toStr->addInstruction(isI ? "MSUB" : "FMSUB", regName(tor, 32), regName(lr, 32), regName(rr, 32),
+		                      regName(sr, 32));
 	releaseIP(sr);
+	releaseIP(lr);
+	releaseIP(rr);
+}
+
+void CodeGen::mneg(MOperand* to, MOperand* l, MOperand* r, CodeString* toStr)
+{
+	auto tor = dynamic_cast<Register*>(to);
+	ASSERT(tor != nullptr);
+	auto li = dynamic_cast<Immediate*>(l);
+	auto ri = dynamic_cast<Immediate*>(r);
+	const Register* lr = dynamic_cast<Register*>(l);
+	const Register* rr = dynamic_cast<Register*>(r);
+	ASSERT((li || lr) && (ri || rr));
+	bool isI = tor->isIntegerRegister();
+	lr = op2reg(l, 32, isI, toStr);
+	rr = op2reg(r, 32, isI, toStr);
+	toStr->addInstruction("MNEG", regName(tor, 32), regName(lr, 32), regName(rr, 32));
 	releaseIP(lr);
 	releaseIP(rr);
 }
@@ -1415,8 +1437,10 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 	else if (auto i10 = dynamic_cast<MB*>(instruction); i10 != nullptr)
 	{
 	}
-	else if (auto i11 = dynamic_cast<MMSUB*>(instruction); i11 != nullptr)
-		msub(i11->operand(0), i11->operand(1), i11->operand(2), i11->operand(3), toStr);
+	else if (auto i11 = dynamic_cast<MMAddSUB*>(instruction); i11 != nullptr)
+		maddsub(i11->operand(0), i11->operand(1), i11->operand(2), i11->operand(3), i11->add_, toStr);
+	else if (auto i17 = dynamic_cast<MNeg*>(instruction); i17 != nullptr)
+		mneg(i17->operand(0), i17->operand(1), i17->operand(2), toStr);
 	else
 		ASSERT(false);
 }

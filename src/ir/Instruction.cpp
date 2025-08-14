@@ -15,6 +15,7 @@
 #include <iostream>
 #include <unordered_set>
 
+#include "Constant.hpp"
 #include "Util.hpp"
 
 using namespace Types;
@@ -943,7 +944,8 @@ void PhiInst::remove_phi_operand(const Value* pre_bb, int opId)
 	ASSERT(allOpNotNull());
 }
 
-MSubInst::MSubInst( Value* ml, Value* mr, Value* s, Type* ty, BasicBlock* bb) : BaseInst(ty, msub)
+MulIntegratedInst::MulIntegratedInst(Value* ml, Value* mr, Value* s, Type* ty, OpID op,
+                                     BasicBlock* bb) : BaseInst(ty, op, bb)
 {
 	ASSERT(s->get_type() == ty);
 	ASSERT(ml->get_type() == ty);
@@ -954,17 +956,43 @@ MSubInst::MSubInst( Value* ml, Value* mr, Value* s, Type* ty, BasicBlock* bb) : 
 	add_operand(s);
 }
 
-Instruction* MSubInst::copy(BasicBlock* parent)
+MulIntegratedInst::MulIntegratedInst(Value* ml, Value* mr, Type* ty, OpID op, BasicBlock* bb) : BaseInst(
+	ty, op, bb)
+{
+	ASSERT(ml->get_type() == ty);
+	ASSERT(mr->get_type() == ty);
+	ASSERT(ty == Types::FLOAT || ty == Types::INT);
+	add_operand(ml);
+	add_operand(mr);
+}
+
+Instruction* MulIntegratedInst::copy(BasicBlock* parent)
 {
 	return nullptr;
 }
 
-Instruction* MSubInst::copy(std::unordered_map<Value*, Value*>& valMap)
+Instruction* MulIntegratedInst::copy(std::unordered_map<Value*, Value*>& valMap)
 {
 	return nullptr;
 }
 
-MSubInst* MSubInst::create_msub( Value* ml, Value* mr, Value* val, BasicBlock* bb)
+MulIntegratedInst* MulIntegratedInst::create_msub(Value* ml, Value* mr, Value* val, BasicBlock* bb)
 {
-	return create(ml, mr, val, val->get_type(), bb);
+	if (auto d = dynamic_cast<Constant*>(val); d != nullptr && ((val->get_type() == INT)
+		                                                            ? (d->getIntConstant() == 0)
+		                                                            : (d->getFloatConstant() == 0)))
+	{
+		return create(ml, mr, ml->get_type(), mneg, bb);
+	}
+	return create(ml, mr, val, val->get_type(), msub, bb);
+}
+
+MulIntegratedInst* MulIntegratedInst::create_madd(Value* ml, Value* mr, Value* val, BasicBlock* bb)
+{
+	return create(ml, mr, val, val->get_type(), madd, bb);
+}
+
+MulIntegratedInst* MulIntegratedInst::create_mneg(Value* ml, Value* mr, BasicBlock* bb)
+{
+	return create(ml, mr, ml->get_type(), mneg, bb);
 }

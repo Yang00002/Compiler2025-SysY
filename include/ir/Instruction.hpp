@@ -81,7 +81,11 @@ public:
 		global_fix,
 
 		// 乘减, 这个指令永远不会在 LLVM IR 出现
-		msub
+		msub,
+		// 乘加
+		madd,
+		// 乘取反
+		mneg
 	};
 
 	/**
@@ -147,6 +151,8 @@ public:
 	[[nodiscard]] bool is_memclear() const { return op_id_ == memclear_; }
 	[[nodiscard]] bool is_nump2charp() const { return op_id_ == nump2charp; }
 	[[nodiscard]] bool is_msub() const { return op_id_ == msub; }
+	[[nodiscard]] bool is_madd() const { return op_id_ == madd; }
+	[[nodiscard]] bool is_mneg() const { return op_id_ == mneg; }
 
 	[[nodiscard]] bool isBinary() const
 	{
@@ -575,16 +581,19 @@ public:
 	std::string print() override;
 };
 
-class MSubInst : public BaseInst<MSubInst>
+class MulIntegratedInst : public BaseInst<MulIntegratedInst>
 {
-	friend BaseInst<MSubInst>;
+	friend BaseInst<MulIntegratedInst>;
 
-	MSubInst( Value* ml, Value* mr, Value* s, Type* ty, BasicBlock* bb);
+	MulIntegratedInst(Value* ml, Value* mr, Value* s, Type* ty, OpID op, BasicBlock* bb);
+	MulIntegratedInst(Value* ml, Value* mr, Type* ty, OpID op, BasicBlock* bb);
 
 public:
 	Instruction* copy(BasicBlock* parent) override;
 	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
-	static MSubInst* create_msub( Value* ml, Value* mr, Value* val, BasicBlock* bb);
+	static MulIntegratedInst* create_msub(Value* ml, Value* mr, Value* val, BasicBlock* bb);
+	static MulIntegratedInst* create_madd(Value* ml, Value* mr, Value* val, BasicBlock* bb);
+	static MulIntegratedInst* create_mneg(Value* ml, Value* mr,  BasicBlock* bb);
 
 	std::string print() override;
 };

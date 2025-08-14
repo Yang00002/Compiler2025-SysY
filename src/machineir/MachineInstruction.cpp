@@ -598,7 +598,8 @@ std::string MSXTW::print()
 	return operands_[1]->print() + " = SXTW " + operands_[0]->print();
 }
 
-MMSUB::MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s) : MInstruction(block)
+MMAddSUB::MMAddSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s, bool isAdd) : MInstruction(
+		block), add_(isAdd)
 {
 	operands_.resize(4);
 	operands_[0] = t;
@@ -617,13 +618,14 @@ MMSUB::MMSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand
 	func->addUse(s, this);
 }
 
-std::string MMSUB::print()
+std::string MMAddSUB::print()
 {
-	return operands_[0]->print() + " = MSUB " + operands_[1]->print() + " " + operands_[2]->print() + " " + operands_[3]
+	return operands_[0]->print() + (add_ ? " = MADD " : " = MSUB ") + operands_[1]->print() + " " + operands_[2]->
+	       print() + " " + operands_[3]
 	       ->print();
 }
 
-void MMSUB::replace(MOperand* from, MOperand* to, MFunction* parent)
+void MMAddSUB::replace(MOperand* from, MOperand* to, MFunction* parent)
 {
 	MInstruction::replace(from, to, parent);
 	if (use_.size() == 1) return;
@@ -645,7 +647,7 @@ void MMSUB::replace(MOperand* from, MOperand* to, MFunction* parent)
 	}
 }
 
-void MMSUB::onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
+void MMAddSUB::onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
 {
 	MInstruction::onlyAddUseReplace(from, to, parent);
 	if (use_.size() == 1) return;
@@ -667,7 +669,7 @@ void MMSUB::onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* par
 	}
 }
 
-void MMSUB::stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
+void MMAddSUB::stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
 {
 	MInstruction::stayUseReplace(from, to, parent);
 	if (use_.size() == 1) return;
@@ -687,4 +689,47 @@ void MMSUB::stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent
 	{
 		use_.pop_back();
 	}
+}
+
+MNeg::MNeg(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r): MInstruction(
+	block)
+{
+	operands_.resize(3);
+	operands_[0] = t;
+	operands_[1] = l;
+	operands_[2] = r;
+	def_.resize(1);
+	def_[0] = 0;
+	use_.emplace_back(1);
+	if (r != l) use_.emplace_back(2);
+	auto func = block->function();
+	func->addUse(t, this);
+	func->addUse(l, this);
+	func->addUse(r, this);
+}
+
+std::string MNeg::print()
+{
+	return operands_[0]->print() + " = MNEG " + operands_[1]->print() + " " + operands_[2]->print();
+}
+
+void MNeg::replace(MOperand* from, MOperand* to, MFunction* parent)
+{
+	MInstruction::replace(from, to, parent);
+	if (use_.size() == 2 && operands_[1] == operands_[2])
+		use_.pop_back();
+}
+
+void MNeg::onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
+{
+	MInstruction::onlyAddUseReplace(from, to, parent);
+	if (use_.size() == 2 && operands_[1] == operands_[2])
+		use_.pop_back();
+}
+
+void MNeg::stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent)
+{
+	MInstruction::stayUseReplace(from, to, parent);
+	if (use_.size() == 2 && operands_[1] == operands_[2])
+		use_.pop_back();
 }

@@ -151,7 +151,7 @@ static std::string print_binary_inst(const BinInst& inst)
 std::string IBinaryInst::print() { return print_binary_inst(*this); }
 std::string FBinaryInst::print() { return print_binary_inst(*this); }
 
-std::string MSubInst::print()
+std::string MulIntegratedInst::print()
 {
 	std::string instr_ir;
 	instr_ir += "%";

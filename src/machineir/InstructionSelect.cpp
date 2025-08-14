@@ -57,8 +57,29 @@ void InstructionSelect::runInner() const
 				LOG(color::yellow("Merge"));
 				LOG(inst->print());
 				LOG(use->print());
-				auto ninst = MSubInst::create_msub(inst->get_operand(0), inst->get_operand(1), use->get_operand(0),
-				                                   nullptr);
+				auto ninst = MulIntegratedInst::create_msub(inst->get_operand(0), inst->get_operand(1),
+				                                            use->get_operand(0),
+				                                            nullptr);
+				ninst->set_parent(b_);
+				use->replace_all_use_with(ninst);
+				LOG(color::green("Get"));
+				LOG(ninst->print());
+				LOG("");
+				--it;
+				b_->erase_instr(use);
+				delete use;
+				delete it.replaceWith(ninst);
+				continue;
+			}
+			if (use->is_add())
+			{
+				if (id != 1) continue;
+				LOG(color::yellow("Merge"));
+				LOG(inst->print());
+				LOG(use->print());
+				auto ninst = MulIntegratedInst::create_madd(inst->get_operand(0), inst->get_operand(1),
+				                                            use->get_operand(0),
+				                                            nullptr);
 				ninst->set_parent(b_);
 				use->replace_all_use_with(ninst);
 				LOG(color::green("Get"));
@@ -71,16 +92,61 @@ void InstructionSelect::runInner() const
 			}
 			continue;
 		}
-		if (mergeFloatBinaryInst && inst->is_fmul())
+		if (inst->is_fmul())
 		{
+			if (mergeFloatBinaryInst)
+			{
+				if (use->is_fsub())
+				{
+					if (id != 1) continue;
+					LOG(color::yellow("Merge"));
+					LOG(inst->print());
+					LOG(use->print());
+					auto ninst = MulIntegratedInst::create_msub(inst->get_operand(0), inst->get_operand(1),
+					                                            use->get_operand(0),
+					                                            nullptr);
+					ninst->set_parent(b_);
+					use->replace_all_use_with(ninst);
+					LOG(color::green("Get"));
+					LOG(ninst->print());
+					LOG("");
+					--it;
+					b_->erase_instr(use);
+					delete use;
+					delete it.replaceWith(ninst);
+					continue;
+				}
+				if (use->is_fadd())
+				{
+					if (id != 1) continue;
+					LOG(color::yellow("Merge"));
+					LOG(inst->print());
+					LOG(use->print());
+					auto ninst = MulIntegratedInst::create_madd(inst->get_operand(0), inst->get_operand(1),
+					                                            use->get_operand(0),
+					                                            nullptr);
+					ninst->set_parent(b_);
+					use->replace_all_use_with(ninst);
+					LOG(color::green("Get"));
+					LOG(ninst->print());
+					LOG("");
+					--it;
+					b_->erase_instr(use);
+					delete use;
+					delete it.replaceWith(ninst);
+				}
+				continue;
+			}
 			if (use->is_fsub())
 			{
 				if (id != 1) continue;
+				if (auto c = dynamic_cast<Constant*>(use->get_operand(0));
+					c == nullptr || c->getFloatConstant() != 0.0f)
+					continue;
 				LOG(color::yellow("Merge"));
 				LOG(inst->print());
 				LOG(use->print());
-				auto ninst = MSubInst::create_msub(inst->get_operand(0), inst->get_operand(1), use->get_operand(0),
-				                                   nullptr);
+				auto ninst = MulIntegratedInst::create_mneg(inst->get_operand(0), inst->get_operand(1), nullptr);
 				ninst->set_parent(b_);
 				use->replace_all_use_with(ninst);
 				LOG(color::green("Get"));
@@ -90,8 +156,8 @@ void InstructionSelect::runInner() const
 				b_->erase_instr(use);
 				delete use;
 				delete it.replaceWith(ninst);
+				continue;
 			}
-			continue;
 		}
 	}
 }

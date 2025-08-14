@@ -105,7 +105,11 @@ void MBasicBlock::accept(BasicBlock* block,
 				acceptCopyInst(inst, opMap, this);
 				break;
 			case Instruction::msub:
-				acceptMSubInst(inst, opMap, this);
+			case Instruction::madd:
+				acceptMAddSubInst(inst, opMap, this);
+				break;
+			case Instruction::mneg:
+				acceptMNegInst(inst, opMap, this);
 				break;
 		}
 	}
@@ -166,7 +170,7 @@ void MBasicBlock::acceptMathInst(Instruction* instruction, std::map<Value*, MOpe
 	instructions_.emplace_back(m);
 }
 
-void MBasicBlock::acceptMSubInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
+void MBasicBlock::acceptMAddSubInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
 {
 	auto l0 = instruction->get_operand(0);
 	auto r0 = instruction->get_operand(1);
@@ -175,7 +179,18 @@ void MBasicBlock::acceptMSubInst(Instruction* instruction, std::map<Value*, MOpe
 	auto l = block->function()->getOperandFor(l0, opMap);
 	auto r = block->function()->getOperandFor(r0, opMap);
 	auto s = block->function()->getOperandFor(s0, opMap);
-	auto m = new MMSUB{block, t, l, r, s};
+	auto m = new MMAddSUB{block, t, l, r, s, instruction->get_instr_type() == Instruction::madd};
+	instructions_.emplace_back(m);
+}
+
+void MBasicBlock::acceptMNegInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block)
+{
+	auto l0 = instruction->get_operand(0);
+	auto r0 = instruction->get_operand(1);
+	auto t = block->function()->getOperandFor(instruction, opMap);
+	auto l = block->function()->getOperandFor(l0, opMap);
+	auto r = block->function()->getOperandFor(r0, opMap);
+	auto m = new MNeg{block, t, l, r};
 	instructions_.emplace_back(m);
 }
 
