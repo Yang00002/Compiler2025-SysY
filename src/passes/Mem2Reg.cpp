@@ -1,5 +1,6 @@
 #include "Mem2Reg.hpp"
 
+#include <cassert>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -76,6 +77,16 @@ void Mem2Reg::run()
 	}
 	PASS_SUFFIX;
 	LOG(color::cyan("Mem2Reg Done"));
+	for(auto f : m_->get_functions()){
+		if(f->is_lib_) continue;
+		for(auto bb : f->get_basic_blocks()){
+			for(auto inst : bb->get_instructions()){
+				if(inst->is_store()){
+					assert(!inst->get_operand(0)->get_type()->isPointerType());
+				}
+			}
+		}
+	}
 }
 
 /**
