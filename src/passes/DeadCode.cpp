@@ -13,10 +13,6 @@
 #include "Util.hpp"
 
 
-// 基本块: 从入口扫描, 不可达基本块等待删除
-// 不可达基本块的指令删除:
-// 删除可达基本块中 Phi 包括不可达基本块的定值
-// 可达基本块无法被不可达支配 -> 可达基本块中包含不可达的定值一定有 Phi 定值 -> 删除 Phi 定值就删除了所有的定值
 
 // 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run()
@@ -88,7 +84,7 @@ bool DeadCode::clear_basic_blocks(Function* func)
 		}
 	}
 
-	for (auto i : toRM)
+	for (auto i : toRM)  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
 		for (const auto& use : i->get_use_list())
 		{
@@ -173,7 +169,6 @@ bool DeadCode::sweep(Function* func)
 		}
 		POP;
 	}
-	ins_count += count;
 	POP;
 	return count;
 }

@@ -1,7 +1,34 @@
 #include "FuncInfo.hpp"
+
+#include <queue>
+
 #include "Function.hpp"
 #include "Instruction.hpp"
 #include "Type.hpp"
+
+void FuncInfo::UseMessage::add(Value* val)
+{
+	auto g = dynamic_cast<GlobalVariable*>(val);
+	if (g != nullptr)
+	{
+		globals_.emplace(g);
+		return;
+	}
+	auto arg = dynamic_cast<Argument*>(val);
+	arguments_.emplace(arg);
+}
+
+bool FuncInfo::UseMessage::have(Value* val) const
+{
+	auto g = dynamic_cast<GlobalVariable*>(val);
+	if (g != nullptr) return globals_.count(g);
+	return arguments_.count(dynamic_cast<Argument*>(g));
+}
+
+bool FuncInfo::UseMessage::empty() const
+{
+	return globals_.empty() && arguments_.empty();
+}
 
 FuncInfo::FuncInfo(Module* m): Pass(m)
 {
@@ -9,121 +36,193 @@ FuncInfo::FuncInfo(Module* m): Pass(m)
 
 void FuncInfo::run()
 {
+	std::unordered_map<Value*, Value*> spMap;
+	for (auto glob : m_->get_global_variable())
+		spread(glob, spMap);
+	std::queue<Function*> worklist;
+	std::unordered_set<Function*> visited;
 	for (auto& func : m_->get_functions())
 	{
-		trivial_mark(func);
-		if (not is_pure[func])
-			worklist.push_back(func);
-	}
-	while (worklist.empty() == false)
-	{
-		const auto now = worklist.front();
-		worklist.pop_front();
-		process(now);
-	}
-}
-
-// ReSharper disable once CppParameterMayBeConstPtrOrRef
-bool FuncInfo::is_pure_function(Function* func) const
-{
-	return is_pure.at(func);
-}
-
-// 有 store 操作的函数非纯函数来处理
-void FuncInfo::trivial_mark(Function* func)
-{
-	if (func->is_declaration() or func->get_name() == "main")
-	{
-		is_pure[func] = false;
-		return;
-	}
-	// 只要传入数组，都作为非纯函数处理
-	for (const auto arg_type : func->get_function_type()->argumentTypes())
-	{
-		if (arg_type->isComplexType())
+		if (func->is_lib_) continue;
+		useImpureLibs[func] = false;
+		worklist.emplace(func);
+		visited.emplace(func);
+		for (auto& arg : func->get_args())
 		{
-			is_pure[func] = false;
-			return;
-		}
-	}
-	for (const auto& bb : func->get_basic_blocks())
-		for (auto inst : bb->get_instructions())
-		{
-			if (is_side_effect_inst(inst))
+			if (arg.get_type()->isPointerType())
 			{
-				is_pure[func] = false;
-				return;
-			}
-		}
-	is_pure[func] = true;
-}
-
-void FuncInfo::process(const Function* func)
-{
-	for (auto& use : func->get_use_list())
-	{
-		if (const auto inst = dynamic_cast<Instruction*>(use.val_))
-		{
-			if (auto f = inst->get_parent()->get_parent(); is_pure[f])
-			{
-				is_pure[f] = false;
-				worklist.push_back(f);
+				spread(&arg, spMap);
 			}
 		}
 	}
-}
-
-// 对局部变量进行 store 没有副作用
-bool FuncInfo::is_side_effect_inst(Instruction* inst)
-{
-	if (inst->is_store())
+	while (!worklist.empty())
 	{
-		if (is_local_store(dynamic_cast<StoreInst*>(inst)))
-			return false;
-		return true;
-	}
-	if (inst->is_load())
-	{
-		if (is_local_load(dynamic_cast<LoadInst*>(inst)))
-			return false;
-		return true;
-	}
-	// call 指令的副作用会在后续 bfs 中计算
-	return false;
-}
-
-bool FuncInfo::is_local_load(const LoadInst* inst)
-{
-	auto addr =
-		dynamic_cast<Instruction*>(get_first_addr(inst->get_operand(0)));
-	if (addr and addr->is_alloca())
-		return true;
-	return false;
-}
-
-bool FuncInfo::is_local_store(const StoreInst* inst)
-{
-	auto addr = dynamic_cast<Instruction*>(get_first_addr(inst->get_lval()));
-	if (addr and addr->is_alloca())
-		return true;
-	return false;
-}
-
-Value* FuncInfo::get_first_addr(Value* val)
-{
-	if (const auto inst = dynamic_cast<Instruction*>(val))
-	{
-		if (inst->is_alloca())
-			return inst;
-		if (inst->is_gep())
-			return get_first_addr(inst->get_operand(0));
-		if (inst->is_load())
-			return val;
-		for (const auto op : inst->get_operands())
+		auto f = worklist.front();
+		worklist.pop();
+		visited.erase(f);
+		for (auto& use : f->get_use_list())
 		{
-			if (op->get_type()->isPointerType())
-				return get_first_addr(op);
+			auto inst = dynamic_cast<CallInst*>(use.val_);
+			auto cf = inst->get_parent()->get_parent();
+			auto& lld = loads[cf];
+			auto& rld = loads[f];
+			auto& lst = stores[cf];
+			auto& rst = stores[f];
+			auto ps = lld.globals_.size() + lld.arguments_.size() + lst.globals_.size() + lst.arguments_.size();
+			for (auto i : rld.globals_) lld.globals_.emplace(i);
+			for (auto i : rst.globals_) lst.globals_.emplace(i);
+			auto& ops = inst->get_operands();
+			for (auto& carg : cf->get_args())
+			{
+				if (carg.get_type()->isPointerType())
+				{
+					auto arg = ops[carg.get_arg_no() + 1];
+					auto traceP = spMap.find(arg);
+					if (traceP == spMap.end()) continue;
+					auto trace = traceP->second;
+					if (rld.have(&carg)) lld.add(trace);
+					if (rst.have(&carg)) lst.add(trace);
+				}
+			}
+			if (lld.globals_.size() + lld.arguments_.size() + lst.globals_.size() + lst.arguments_.size() != ps)
+			{
+				if (!visited.count(cf))
+				{
+					visited.emplace(cf);
+					worklist.emplace(cf);
+				}
+			}
 		}
 	}
-	return val;
+
+	for (auto& func : m_->get_functions())
+	{
+		if (func->is_lib_)
+		{
+			for (auto& use : func->get_use_list())
+			{
+				auto call = dynamic_cast<CallInst*>(use.val_);
+				useImpureLibs[call->get_parent()->get_parent()] = true;
+			}
+		}
+		worklist.emplace(func);
+		visited.emplace(func);
+	}
+	while (!worklist.empty())
+	{
+		auto f = worklist.front();
+		worklist.pop();
+		visited.erase(f);
+		if (useImpureLibs[f])
+			for (auto& use : f->get_use_list())
+			{
+				auto inst = dynamic_cast<CallInst*>(use.val_);
+				auto cf = inst->get_parent()->get_parent();
+				if (!useImpureLibs[cf])
+				{
+					useImpureLibs[cf] = true;
+					if (!visited.count(cf))
+					{
+						visited.emplace(cf);
+						worklist.emplace(cf);
+					}
+				}
+			}
+	}
+}
+
+FuncInfo::UseMessage& FuncInfo::loadDetail(Function* function)
+{
+	return loads[function];
+}
+
+FuncInfo::UseMessage& FuncInfo::storeDetail(Function* function)
+{
+	return stores[function];
+}
+
+bool FuncInfo::is_pure_function(Function* func)
+{
+	if (func->is_lib_) return false;
+	return loads[func].empty() && stores[func].empty() && !useImpureLibs[func];
+}
+
+bool FuncInfo::useOrIsImpureLib(Function* function)
+{
+	if (function->is_lib_) return false;
+	return useImpureLibs[function];
+}
+
+void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
+{
+	auto glob = dynamic_cast<GlobalVariable*>(val);
+	if (glob != nullptr && glob->is_const()) return;
+	std::unordered_set<Value*> visited;
+	std::queue<Value*> q;
+	visited.emplace(val);
+	spMap[val] = val;
+	q.emplace(val);
+	while (!q.empty())
+	{
+		auto v = q.front();
+		q.pop();
+		for (auto& use : v->get_use_list())
+		{
+			auto inst = dynamic_cast<Instruction*>(use.val_);
+			auto f = inst->get_parent()->get_parent();
+			int idx = use.arg_no_;
+			switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
+			{
+				case Instruction::load:
+					{
+						loads[f].add(val);
+						break;
+					}
+				case Instruction::store:
+					{
+						assert(idx == 1);
+						stores[f].add(val);
+						break;
+					}
+				case Instruction::call:
+					break;
+				case Instruction::getelementptr:
+					{
+						assert(idx == 0);
+						if (!visited.count(inst))
+						{
+							visited.emplace(inst);
+							spMap[inst] = val;
+							q.emplace(inst);
+						}
+						break;
+					}
+				case Instruction::memcpy_:
+					{
+						if (idx == 0) loads[f].add(val);
+						else stores[f].add(val);
+						break;
+					}
+				case Instruction::memclear_:
+					{
+						stores[f].add(val);
+						break;
+					}
+				case Instruction::nump2charp:
+				case Instruction::global_fix:
+					{
+						if (!visited.count(inst))
+						{
+							visited.emplace(inst);
+							spMap[inst] = val;
+							q.emplace(inst);
+						}
+						break;
+					}
+				default:
+					assert(false);
+					break;
+			}
+		}
+	}
 }

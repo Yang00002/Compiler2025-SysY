@@ -91,7 +91,7 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 		int fill = 0;
 		for (auto i = ini->getIterator(); !i.isEnd(); ++i)
 		{
-			switch (i.getCurrentIterateType())  // NOLINT(clang-diagnostic-switch-enum)
+			switch (i.getCurrentIterateType()) // NOLINT(clang-diagnostic-switch-enum)
 			{
 				case TensorIterateType::VALUE:
 					{
@@ -350,15 +350,24 @@ Value* AST2IRVisitor::visit(ASTLVal* l_val)
 	{
 		// ? ** -> ? *
 		var = _builder->create_load(var);
-		vector<Value*> indexes;
-		indexes.reserve(idx.size());
-		for (auto& i : idx)
-			indexes.emplace_back(i->accept(this));
-		// [a x [b x ?]]* / i32*
-		if (!indexes.empty())
+		if (!idx.empty())
 		{
 			// [a x [b x ?]]* -> ?* / i32* -> i32*
+			vector<Value*> indexes;
+			indexes.reserve(2);
+			indexes.emplace_back(idx[0]->accept(this));
 			var = _builder->create_gep(var, indexes);
+			int size = u2iNegThrow(idx.size());
+			if (size > 1)
+			{
+				indexes.resize(2);
+				indexes[0] = Constant::create(_builder->get_module(), 0);
+				for (int i = 1; i < size; i++)
+				{
+					indexes[1] = idx[i]->accept(this);
+					var = _builder->create_gep(var, indexes);
+				}
+			}
 			return var;
 		}
 		// []* -> []*
@@ -369,11 +378,13 @@ Value* AST2IRVisitor::visit(ASTLVal* l_val)
 		// [a x [b x i32]]* -> [a x [b x i32]]*
 		return var;
 	vector<Value*> indexes;
-	indexes.reserve(idx.size() + 1);
-	indexes.emplace_back(_builder->create_constant(0));
-	for (auto& i : idx)
-		indexes.emplace_back(i->accept(this));
-	var = _builder->create_gep(var, indexes);
+	indexes.resize(2);
+	indexes[0] = Constant::create(_builder->get_module(), 0);
+	for (auto i : idx)
+	{
+		indexes[1] = i->accept(this);
+		var = _builder->create_gep(var, indexes);
+	}
 	return var;
 }
 
@@ -399,17 +410,26 @@ Value* AST2IRVisitor::visit(ASTRVal* r_val)
 		var_type = var_type->toPointerType()->typeContained();
 		// ? ** -> ? *
 		var = _builder->create_load(var);
-		int dimAll = (var_type->isArrayType() ? u2iNegThrow(var_type->toArrayType()->dimensions().size()) : 0) + 1;
-		int dimGet = u2iNegThrow(idx.size());
-		vector<Value*> indexes;
-		indexes.reserve(idx.size());
-		for (auto& i : idx)
-			indexes.emplace_back(i->accept(this));
-		// [a x [b x ?]]* / i32*
-		if (!indexes.empty())
+		if (!idx.empty())
 		{
+			int dimAll = (var_type->isArrayType() ? u2iNegThrow(var_type->toArrayType()->dimensions().size()) : 0) + 1;
+			int dimGet = u2iNegThrow(idx.size());
 			// [a x [b x ?]]* -> ?* / i32* -> i32*
+			vector<Value*> indexes;
+			indexes.reserve(2);
+			indexes.emplace_back(idx[0]->accept(this));
 			var = _builder->create_gep(var, indexes);
+			int size = u2iNegThrow(idx.size());
+			if (size > 1)
+			{
+				indexes.resize(2);
+				indexes[0] = Constant::create(_builder->get_module(), 0);
+				for (int i = 1; i < size; i++)
+				{
+					indexes[1] = idx[i]->accept(this);
+					var = _builder->create_gep(var, indexes);
+				}
+			}
 			// hit: [a x [b x i32]]* -> i32* -> i32
 			// mis: [a x [b x i32]]* -> [b x i32]*
 			if (dimAll == dimGet)
@@ -424,13 +444,15 @@ Value* AST2IRVisitor::visit(ASTRVal* r_val)
 		// [a x [b x i32]]* -> [a x [b x i32]]*
 		return var;
 	vector<Value*> indexes;
-	indexes.reserve(idx.size() + 1);
-	indexes.emplace_back(_builder->create_constant(0));
-	for (auto& i : idx)
-		indexes.emplace_back(i->accept(this));
+	indexes.resize(2);
+	indexes[0] = Constant::create(_builder->get_module(), 0);
+	for (auto i : idx)
+	{
+		indexes[1] = i->accept(this);
+		var = _builder->create_gep(var, indexes);
+	}
 	int dimAll = u2iNegThrow(var_type->toArrayType()->dimensions().size());
 	int dimGet = u2iNegThrow(idx.size());
-	var = _builder->create_gep(var, indexes);
 	// hit: [a x [b x i32]]* -> i32* -> i32
 	// mis: [a x [b x i32]]* -> [b x i32]*
 	if (dimAll == dimGet)

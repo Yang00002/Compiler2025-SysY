@@ -55,6 +55,7 @@ namespace
 GAP; \
 LOG(m_->print()); \
 GAP
+#define PREPARE_PASS_MSG m_->set_print_name()
 #endif
 #if DEBUG != 1
 #define LOG(a)
@@ -64,6 +65,7 @@ GAP
 #define PUSH
 #define POP
 #define PASS_SUFFIX
+#define PREPARE_PASS_MSG
 #endif
 #endif
 

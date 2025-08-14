@@ -13,6 +13,7 @@
 #include <vector>
 
 #define OPEN_ASSERT 0
+#include <iostream>
 #include <unordered_set>
 
 #include "Util.hpp"
@@ -38,6 +39,34 @@ namespace
 	}
 }
 
+
+Value* ptrFrom(Value* ptr)
+{
+	auto g = dynamic_cast<GlobalVariable*>(ptr);
+	if (g != nullptr) return g;
+	auto arg = dynamic_cast<Argument*>(ptr);
+	if (arg != nullptr) return g;
+	auto inst = dynamic_cast<Instruction*>(ptr);
+	while (inst != nullptr)
+	{
+		// ReSharper disable once CppIncompleteSwitchStatement
+		switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
+		{
+			case Instruction::alloca_:
+				return inst->get_operand(0);
+			case Instruction::getelementptr:
+			case Instruction::nump2charp:
+			case Instruction::global_fix:
+				ptr = inst->get_operand(0);
+				inst = dynamic_cast<Instruction*>(ptr);
+				break;
+			default: assert(false);
+				break;
+		}
+	}
+	assert(ptr != nullptr);
+	return ptr;
+}
 
 Function* Instruction::get_function() const { return parent_->get_parent(); }
 
@@ -638,6 +667,31 @@ StoreInst::StoreInst(Value* val, Value* ptr, BasicBlock* bb)
 		"StoreInst ptr is not a pointer to val type");
 	add_operand(val);
 	add_operand(ptr);
+}
+
+Value* StoreInst::traceStoreTo() const
+{
+	auto var = get_operand(0);
+	auto inst = dynamic_cast<Instruction*>(var);
+	while (inst != nullptr)
+	{
+		// ReSharper disable once CppIncompleteSwitchStatement
+		switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
+		{
+			case alloca_:
+				return inst->get_operand(0);
+			case load:
+				return nullptr;
+			case getelementptr:
+			case nump2charp:
+			case global_fix:
+				var = inst->get_operand(0);
+				inst = dynamic_cast<Instruction*>(var);
+				break;
+			default: break;
+		}
+	}
+	return var;
 }
 
 Instruction* StoreInst::copy(BasicBlock* parent)

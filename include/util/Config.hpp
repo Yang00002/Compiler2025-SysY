@@ -54,3 +54,5 @@ extern int funcInlineGate;
 extern int epilogShouldMerge;
 // 推断 srem 的左操作数和结果符号保持相同, 这并不总是有效的, 尤其是当 ar[op % 4], 此时推断 op >= 0, 但是其可能是 -4 的倍数
 extern bool dangerousSignalInfer;
+// 忽略可能存在的负数组偏移, 这代表不再使用 SXTW 将 getelement 的偏移计算从 32 拓展到 64 位
+extern bool ignoreNegativeArrayIndexes;

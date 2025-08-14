@@ -1,10 +1,8 @@
 #include "LICM.hpp"
 
 #include <algorithm>
-#include <iostream>
 #include <map>
 #include <memory>
-#include <ostream>
 #include <set>
 #include <stdexcept>
 #include <vector>
@@ -20,23 +18,30 @@
 #define DEBUG 0
 #include "Util.hpp"
 
+LoopInvariantCodeMotion::~LoopInvariantCodeMotion()
+{
+	delete loop_detection_;
+	delete func_info_;
+}
+
 void LoopInvariantCodeMotion::run()
 {
 	LOG(color::cyan("Run LICM Pass"));
 	PUSH;
-	loop_detection_ = std::make_unique<LoopDetection>(m_);
+	delete loop_detection_;
+	loop_detection_ = new LoopDetection{m_};
 	loop_detection_->run();
 	LOG(color::green("Loop Dection Done"));
 	GAP;
 	RUN(loop_detection_->print());
 	GAP;
-	func_info_ = std::make_unique<FuncInfo>(m_);
+	delete func_info_;
+	func_info_ = new FuncInfo(m_);
 	func_info_->run();
 	for (auto& loop : loop_detection_->get_loops())
 	{
 		is_loop_done_[loop] = false;
 	}
-
 	for (auto& loop : loop_detection_->get_loops())
 	{
 		traverse_loop(loop);
@@ -66,10 +71,6 @@ void LoopInvariantCodeMotion::traverse_loop(Loop* loop)
 }
 
 
-// 1. 遍历当前循环及其子循环的所有指令
-// 2. 收集所有指令到loop_instructions中
-// 3. 检查store指令是否修改了全局变量，如果是则添加到updated_global中
-// 4. 检查是否包含非纯函数调用，如果有则设置contains_impure_call为true
 void LoopInvariantCodeMotion::collect_loop_info(
 	Loop* loop, InstructionList& loop_instructions)
 {
@@ -93,6 +94,7 @@ public:
 	void insert(Value* v) { push_back(dynamic_cast<Instruction*>(v)); }
 };
 
+
 /**
  * @brief 对单个循环执行不变式外提优化
  * @param loop 要优化的循环
@@ -107,7 +109,6 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 	for (auto b : loop->get_blocks())
 		blocks.insert(b);
 	collect_loop_info(loop, loop_instructions);
-
 	std::unordered_set<Instruction*> in_loop_instructions;
 	for (auto i : loop_instructions) in_loop_instructions.insert(i);
 	std::unordered_set<Instruction*> loop_invariant;
@@ -116,9 +117,62 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 
 	// - 如果指令已被标记为不变式则跳过
 	// - 跳过 store、load、ret、br、phi 等指令与非纯函数调用
-	// - 特殊处理全局变量的  指令
+	// - 特殊处理全局变量的指令
 	// - 检查指令的所有操作数是否都是循环不变的
 	// - 如果有新的不变式被添加则注意更新 changed 标志，继续迭代
+
+	// 所有在循环中被存储过的值源(局部变量, 参数, 全局变量)
+	std::unordered_set<Value*> dirtyValues;
+	// 值的来源(各种变量 -> 局部变量, 参数, 全局变量)
+	std::unordered_map<Value*, Value*> valueSrc;
+
+	for (auto bb : loop->get_blocks())
+	{
+		for (auto inst : bb->get_instructions())
+		{
+			if (inst->is_store() || inst->is_memcpy())
+			{
+				auto op = inst->get_operand(1);
+				auto src = valueSrc[op];
+				if (src == nullptr)
+				{
+					src = ptrFrom(op);
+					valueSrc[op] = src;
+				}
+				dirtyValues.emplace(src);
+				continue;
+			}
+			if (inst->is_memclear())
+			{
+				auto op = inst->get_operand(0);
+				auto src = valueSrc[op];
+				if (src == nullptr)
+				{
+					src = ptrFrom(op);
+					valueSrc[op] = src;
+				}
+				dirtyValues.emplace(src);
+				continue;
+			}
+			if (inst->is_call())
+			{
+				auto& storeDetails = func_info_->storeDetail(inst->get_parent()->get_parent());
+				for (auto g : storeDetails.globals_) dirtyValues.emplace(g);
+				for (auto arg : storeDetails.arguments_)
+				{
+					auto op = inst->get_operand(arg->get_arg_no() + 1);
+					auto src = valueSrc[op];
+					if (src == nullptr)
+					{
+						src = ptrFrom(op);
+						valueSrc[op] = src;
+					}
+					dirtyValues.emplace(src);
+				}
+			}
+		}
+	}
+
 	bool changed;
 	do
 	{
@@ -129,7 +183,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 			auto inst = it.get_and_add();
 			LOG(color::pink("Checking ") + inst->print());
 			int idx = 0;
-			if (inst->is_store() || inst->is_load() || inst->is_ret() || inst->is_br() ||
+			if (inst->is_store() || inst->is_ret() || inst->is_br() ||
 			    inst->is_phi() || inst->is_memcpy() || inst->is_memclear())
 			{
 				loop_variant.insert(inst);
@@ -139,14 +193,98 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 				POP;
 				continue;
 			}
+			// load 的指针是循环不变量, 并且内容没有在循环中变过
+			if (inst->is_load())
+			{
+				if (dirtyValues.count(inst->get_operand(0)))
+				{
+					loop_variant.insert(inst);
+					it.remove_pre();
+					PUSH;
+					LOG(color::yellow("Dirty load from"));
+					POP;
+					continue;
+				}
+				auto from = dynamic_cast<Instruction*>(inst->get_operand(0));
+				if (from != nullptr)
+				{
+					if (loop_variant.count(from))
+					{
+						loop_variant.insert(inst);
+						it.remove_pre();
+						PUSH;
+						LOG(color::yellow("Impure load index"));
+						POP;
+						continue;
+					}
+					if (!loop_invariant.count(from))
+					{
+						LOG("Can not decide");
+						continue;
+					}
+				}
+				loop_invariant.insert(inst);
+				invariant_as_list.emplace_back(inst);
+				it.remove_pre();
+				changed = true;
+				LOG(color::green("Invariant"));
+				continue;
+			}
+			// (可能循环不变) -> 未使用 impure 库, call 未存储任何值, 并且加载的值在循环内未更改
 			if (inst->is_call())
 			{
 				const auto call = dynamic_cast<CallInst*>(inst);
 				auto func = call->get_function();
-				if (!func_info_->is_pure_function(func))
+				if (func_info_->useOrIsImpureLib(func))
 				{
 					PUSH;
 					LOG(color::yellow("Impure function call"));
+					POP;
+					it.remove_pre();
+					loop_variant.insert(inst);
+					continue;
+				}
+				if (!func_info_->storeDetail(func).empty())
+				{
+					PUSH;
+					LOG(color::yellow("Dirty function call"));
+					POP;
+					it.remove_pre();
+					loop_variant.insert(inst);
+					continue;
+				}
+				bool ok = true;
+				auto& ld = func_info_->loadDetail(func);
+				for (auto l : ld.globals_)
+				{
+					if (dirtyValues.count(l))
+					{
+						ok = false;
+						break;
+					}
+				}
+				if (ok)
+				{
+					for (auto arg : ld.arguments_)
+					{
+						auto op = inst->get_operand(arg->get_arg_no() + 1);
+						auto src = valueSrc[op];
+						if (src == nullptr)
+						{
+							src = ptrFrom(op);
+							valueSrc[op] = src;
+						}
+						if (dirtyValues.count(src))
+						{
+							ok = false;
+							break;
+						}
+					}
+				}
+				if (!ok)
+				{
+					PUSH;
+					LOG(color::yellow("Load dirty function call"));
 					POP;
 					it.remove_pre();
 					loop_variant.insert(inst);
@@ -162,14 +300,7 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 				auto& op = ops[i];
 				if (dynamic_cast<Constant*>(op) != nullptr) continue;
 				auto iop = dynamic_cast<Instruction*>(op);
-				if (iop == nullptr)
-				{
-					PUSH;
-					LOG(color::yellow("Contain global var, no invariant"));
-					POP;
-					c = -1;
-					break;
-				}
+				if (iop == nullptr) continue;
 				if (in_loop_instructions.count(iop) != 0 && loop_invariant.count(iop) == 0)
 				{
 					if (loop_variant.count(iop) != 0)

@@ -343,6 +343,9 @@ public:
 	[[nodiscard]] Value* get_rval() const { return this->get_operand(0); }
 	[[nodiscard]] Value* get_lval() const { return this->get_operand(1); }
 
+	// 追踪值究竟被存到了什么地方, 最终会返回 局部变量/全局变量/函数参数/ nullptr(代表无法溯源, 因为地址来自 load 或 phi 或 call)
+	// TODO phi 在所有值源相同时其实是可以溯源的, 但不知道何时出现这种情况, 目前不考虑
+	Value* traceStoreTo() const;
 	std::string print() override;
 };
 
@@ -567,3 +570,5 @@ public:
 
 	std::string print() override;
 };
+
+Value* ptrFrom(Value* ptr);

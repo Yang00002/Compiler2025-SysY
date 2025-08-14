@@ -1,5 +1,7 @@
 #pragma once
 
+#include <deque>
+
 #include "FuncInfo.hpp"
 #include "PassManager.hpp"
 
@@ -14,13 +16,16 @@ class DeadCode final : public Pass {
 
   private:
     std::shared_ptr<FuncInfo> func_info;
-    int ins_count{0}; // 用以衡量死代码消除的性能
     std::deque<Instruction *> work_list{};
     std::unordered_map<Instruction *, bool> marked{};
 
     void mark(Function *func);
     void mark(const Instruction *ins);
     bool sweep(Function *func);
+    // 删除不可达基本块
+    // 不可达基本块的指令删除:
+    // 删除可达基本块中 Phi 包括不可达基本块的定值
+    // 可达基本块无法被不可达支配 -> 可达基本块中包含不可达的定值一定有 Phi 定值 -> 删除 Phi 定值就删除了所有的定值
 	static bool clear_basic_blocks(Function *func);
     bool is_critical(Instruction *ins) const;
     void sweep_globally() const;

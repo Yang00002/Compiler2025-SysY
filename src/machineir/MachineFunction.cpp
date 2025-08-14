@@ -132,7 +132,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	auto entryMBB = cache[entryBB];
 
 	lrGuard_ = VirtualRegister::createVirtualIRegister(this, 64);
-	
+
 	int ic = 0;
 	int fc = 0;
 	int idx = 0;
@@ -221,9 +221,9 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 		mbb->mergePhiCopies(cp);
 	}
 
-	auto eb = new MBasicBlock{ function->get_name() + "_prolog", this };
-	eb->instructions_.emplace_back(new MCopy{ entryMBB, Register::getLR(module_), lrGuard_, 64 });
-	auto b = new MB{ eb, BlockAddress::get(entryMBB) };
+	auto eb = new MBasicBlock{function->get_name() + "_prolog", this};
+	eb->instructions_.emplace_back(new MCopy{entryMBB, Register::getLR(module_), lrGuard_, 64});
+	auto b = new MB{eb, BlockAddress::get(entryMBB)};
 	eb->instructions_.emplace_back(b);
 	eb->suc_bbs_.emplace(blocks_[0]);
 	blocks_[0]->pre_bbs_.emplace(eb);

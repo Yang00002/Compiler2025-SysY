@@ -16,16 +16,18 @@ public:
 
 	explicit LoopInvariantCodeMotion(Module* m) : Pass(m)
 	{
+		loop_detection_ = nullptr;
+		func_info_ = nullptr;
 	}
 
-	~LoopInvariantCodeMotion() override = default;
+	~LoopInvariantCodeMotion() override;
 
 	void run() override;
 
 private:
 	std::unordered_map<Loop*, bool> is_loop_done_;
-	std::unique_ptr<LoopDetection> loop_detection_;
-	std::unique_ptr<FuncInfo> func_info_;
+	LoopDetection* loop_detection_;
+	FuncInfo* func_info_;
 	void traverse_loop(Loop* loop);
 	void run_on_loop(Loop* loop) const;
 	static void collect_loop_info(Loop* loop,
