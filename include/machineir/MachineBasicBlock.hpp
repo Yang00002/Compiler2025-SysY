@@ -89,8 +89,7 @@ public:
 	void acceptMathInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptMAddSubInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptMNegInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
-	void acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand*>& opMap,
-	                       std::map<BasicBlock*, MBasicBlock*>& bmap);
+	void acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand*>& opMap) const;
 	void acceptLoadInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptStoreInst(const Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
 	void acceptCmpInst(const Instruction* instruction, std::map<Value*, MOperand*>& opMap, MBasicBlock* block);
@@ -112,6 +111,7 @@ public:
 	[[nodiscard]] int needBranchCount() const;
 	[[nodiscard]] bool empty() const;
 	void removeInst(MInstruction* inst);
+	void addInstBeforeLast(MInstruction* inst);
 	int collapseBranch();
 	[[nodiscard]] MModule* module() const;
 	[[nodiscard]] MFunction* function() const;

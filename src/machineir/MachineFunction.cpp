@@ -140,33 +140,16 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	{
 		for (auto bb : loop->get_blocks())
 		{
-			cache[bb]->weight_ *= 10;
+			cache[bb]->weight_ *= static_cast<float>(useMultiplierPerLoop);
 		}
 	}
 
 	map<MBasicBlock*, list<MCopy*>> phiMap;
 
-	entryMBB->acceptAllocaInsts(entryBB, opMap, cache);
+	entryMBB->acceptAllocaInsts(entryBB, opMap);
 
 	for (auto& [glob, mglob] : global_address)
-	{
-		auto& uses = glob->get_use_list();
-		int useCount = 0;
-		for (auto& i : uses)
-		{
-			auto user = dynamic_cast<Instruction*>(i.val_);
-			if (user->get_parent()->get_parent() == function)
-				useCount++;
-		}
-		if (useCount >= replaceGlobalAddressWithRegisterNeedUseCount)
-		{
-			auto reg = VirtualRegister::createVirtualIRegister(this, 64);
-			reg->replacePrefer_ = mglob;
-			entryMBB->instructions_.emplace_back(new MCopy{entryMBB, mglob, reg, 64});
-			opMap[glob] = reg;
-		}
-		else if (useCount > 0) opMap[glob] = mglob;
-	}
+		opMap[glob] = mglob;
 
 	for (auto& [bb, mbb] : cache)
 	{
@@ -192,9 +175,9 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 				if (!argC->get_use_list().empty())
 				{
 					auto cp = new MCopy{
-					entryMBB, Register::getIParameterRegister(ic, module_),
-					getOperandFor(argC, opMap),
-					u2iNegThrow(argC->get_type()->sizeInBitsInArm64())
+						entryMBB, Register::getIParameterRegister(ic, module_),
+						getOperandFor(argC, opMap),
+						u2iNegThrow(argC->get_type()->sizeInBitsInArm64())
 					};
 					parameterInsts.emplace_back(cp);
 				}
@@ -220,6 +203,7 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 			}
 		}
 		auto frameIdx = getFix(idx++);
+		// 需要先加载出来而非在 RegPrefill 加载, 否则 MIR 不知道一个参数是寄存器参数还是栈参数, 需不需要 load
 		if (!argC->get_use_list().empty())
 		{
 			auto val = getOperandFor(argC, opMap);
@@ -227,7 +211,9 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 			ASSERT(vr != nullptr);
 			ASSERT(this == frameIdx->func());
 			vr->replacePrefer_ = frameIdx;
-			auto cp = new MLDR{ entryMBB, val, frameIdx, u2iNegThrow(argC->get_type()->sizeInBitsInArm64()) };
+			vr->needLoad_ = true;
+			frameIdx->tiedWith_ = vr;
+			auto cp = new MLDR{entryMBB, val, frameIdx, u2iNegThrow(argC->get_type()->sizeInBitsInArm64())};
 			parameterInsts.emplace_back(cp);
 		}
 	}
@@ -303,13 +289,7 @@ MOperand* MFunction::getOperandFor(Value* value, std::map<Value*, MOperand*>& op
 void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 {
 	vreg->spilled = true;
-	FrameIndex* paraStack = nullptr;
-	if (vreg->replacePrefer_ != nullptr)
-	{
-		paraStack = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
-		if (paraStack != nullptr && !paraStack->isParameterFrame()) paraStack = nullptr;
-	}
-	if (vreg->replacePrefer_ != nullptr && paraStack == nullptr)
+	if (vreg->replacePrefer_ != nullptr && !vreg->needLoad_)
 	{
 		auto entry = blocks_[0];
 		auto& inst = entry->instructions();
@@ -328,10 +308,10 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 		replaceAllOperands(vreg, vreg->replacePrefer_);
 		return;
 	}
-	if (paraStack)
+	if (vreg->needLoad_)
 	{
 		MLDR* u = nullptr;
-		for (auto use : useList()[paraStack])
+		for (auto use : useList()[vreg->replacePrefer_])
 		{
 			if (auto inst = dynamic_cast<MLDR*>(use))
 			{
@@ -346,16 +326,16 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 			if (insts[i] == u)
 			{
 				ASSERT(u->operands()[0] == vreg && u->operands()[1] ==
-					paraStack);
+					vreg->replacePrefer_);
 				insts.erase(insts.begin() + i);
 				removeUse(vreg, u);
-				removeUse(paraStack, u);
+				removeUse(vreg->replacePrefer_, u);
 				delete u;
 				break;
 			}
 		}
 	}
-	auto to = paraStack;
+	auto to = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
 	if (to == nullptr)
 	{
 		to = allocaStack(vreg->size());
@@ -474,6 +454,11 @@ void MFunction::rewriteDestroyRegs()
 std::unordered_map<MOperand*, std::unordered_set<MInstruction*>>& MFunction::useList()
 {
 	return useList_;
+}
+
+std::unordered_set<MInstruction*>& MFunction::useList(MOperand* op)
+{
+	return useList_[op];
 }
 
 const std::vector<VirtualRegister*>& MFunction::IVRegs() const

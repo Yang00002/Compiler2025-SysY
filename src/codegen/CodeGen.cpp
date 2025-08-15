@@ -465,6 +465,24 @@ void CodeGen::ldr(const Register* a, const Register* baseOffsetReg, long long of
 	releaseIP(reg);
 }
 
+int CodeGen::ldrNeedInstCount(long long offset, int len)
+{
+	if (inImm9(offset)) return 4;
+	long long absOff = offset < 0 ? -offset : offset;
+	int maxMov = m_countr_zero(ll2ullKeepBits(absOff));
+	int lenLevel = m_countr_zero(i2uKeepBits(len)) - 3;
+	if (maxMov > lenLevel) maxMov = lenLevel;
+	offset = offset < 0 ? -(absOff >> maxMov) : (absOff >> maxMov);
+	return 4 + makeI64ImmediateNeedInstCount(offset);
+}
+
+int CodeGen::copyFrameNeedInstCount(long long offset)
+{
+	if (offset == 0) return 0;
+	if (inUImm12(offset) || inUImm12L12(offset)) return 1;
+	return 1 + makeI64ImmediateNeedInstCount(offset);
+}
+
 void CodeGen::ldr(const MOperand* a, const MOperand* stackLike, int len, CodeString* toStr)
 {
 	list<string> ret;
@@ -846,6 +864,78 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	releaseIP(regR);
 }
 
+bool CodeGen::mathInstImmediateCanInline(const MOperand* l, const MOperand* r,
+                                         Instruction::OpID op, int len)
+{
+	ASSERT(op >= Instruction::add && op <= Instruction::fdiv);
+	ASSERT(op <= Instruction::srem || len != 64);
+	bool flt = op >= Instruction::fadd;
+	auto immL = dynamic_cast<const Immediate*>(l);
+	auto immR = dynamic_cast<const Immediate*>(r);
+	if (immR && immR->isZero(flt, len)) return true;
+	if (immL && immR) return true;
+	if (immL && !immR)
+	{
+		if (op == Instruction::add || op == Instruction::mul || op == Instruction::fadd || op == Instruction::fmul)
+		{
+			immR = immL;
+			l = r;
+			r = immL;
+			immL = nullptr;
+		}
+	}
+	if (immL)
+	{
+		if (immL->isZero(flt, len))
+		{
+			if (op == Instruction::add || op == Instruction::fadd) return true;
+			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem || op == Instruction::fmul
+			    ||
+			    op == Instruction::fdiv || op == Instruction::shl || op == Instruction::and_ || op == Instruction::ashr)
+				return true;
+		}
+		if (immL->isNotFloatOne(flt, len))
+		{
+			if (op == Instruction::mul) return true;
+		}
+	}
+	if (immR)
+	{
+		if (immR->isZero(flt, len))
+		{
+			if (op == Instruction::add || op == Instruction::fadd || op == Instruction::shl || op == Instruction::ashr)
+				return true;
+			if (op == Instruction::mul || op == Instruction::fmul || op == Instruction::and_)return true;
+		}
+		if (immR->isNotFloatOne(flt, len))
+		{
+			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem)return true;
+		}
+	}
+	auto regL = dynamic_cast<const Register*>(l);
+	auto regR = dynamic_cast<const Register*>(r);
+	if (flt)
+	{
+		if (immL || immR) return false;
+		return true;
+	}
+	bool orl = regL || immL;
+	bool orr = regR || immR;
+	if ((!(orl || orr)) || (!(orl || orr) && op != Instruction::add && op != Instruction::sub && len != 64))
+		return true;
+	if (op == Instruction::shl) return true;
+	if (op == Instruction::ashr) return true;
+	if (op == Instruction::and_) return true;
+	if (immR && op == Instruction::srem) return false;
+	if (immR && (op == Instruction::add || op == Instruction::sub))
+	{
+		if (len == 32)
+			return immCanInlineInAddSub(immR->asInt());
+		return immCanInlineInAddSub(immR->as64BitsInt());
+	}
+	return false;
+}
+
 void CodeGen::ld1(const Register* stackLike, int count, int offset, CodeString* toStr)
 {
 	if (count == 1) return ldr(floatRegister(0), stackLike, 128, toStr);
@@ -869,6 +959,18 @@ void CodeGen::st1(const MOperand* stackLike, int count, int offset, CodeString* 
 		return st1(i, count, offset, toStr);
 	}
 	throw runtime_error("unexpected");
+}
+
+bool CodeGen::immCanInlineInAddSub(int imm)
+{
+	if (imm < 0) imm = -imm;
+	return imm == 0 || inUImm12(imm) || inUImm12L12(imm);
+}
+
+bool CodeGen::immCanInlineInAddSub(long long imm)
+{
+	if (imm < 0) imm = -imm;
+	return imm == 0 || inUImm12(imm) || inUImm12L12(imm);
 }
 
 void CodeGen::add32(const Register* to, const Register* l, int imm, CodeString* toStr)
@@ -1617,6 +1719,61 @@ void CodeGen::makeI64Immediate(long long i, const Register* placeIn, CodeString*
 				                      immediate(a[t]), leftShift(offset[t]));
 		}
 	}
+}
+
+
+int CodeGen::makeI64ImmediateNeedInstCount(long long i)
+{
+	if (i == 0) return 1;
+	if (useZRRegisterAsCommonRegister)
+	{
+		if (i > 0)
+		{
+			if (inUImm12(i) || inUImm12L12(i)) return 1;
+		}
+		else if (inUImm12(-i) || inUImm12L12(-i)) return 1;
+	}
+	unsigned a[4] = {
+		static_cast<unsigned>(ll2ullKeepBits((i >> 48) & 65535)),
+		static_cast<unsigned>(ll2ullKeepBits((i >> 32) & 65535)),
+		static_cast<unsigned>(ll2ullKeepBits((i >> 16) & 65535)),
+		static_cast<unsigned>(ll2ullKeepBits(i & 65535))
+	};
+	int nc = 0;
+	int zc = 0;
+	for (int t = 0; t < 3; t++)
+	{
+		if (a[t] == 65535u) nc++;
+		else if (a[t] == 0u) zc++;
+	}
+	bool uz = zc >= nc;
+	int count = 4 - (uz ? zc : nc);
+	if (count > useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan)
+	{
+		return 5;
+	}
+	int num = 0;
+	if (uz)
+	{
+		num++;
+		for (int t = 2; t > -1; t--)
+		{
+			if (a[t] != 0u)
+
+				num++;
+		}
+	}
+	else
+	{
+		num++;
+		for (int t = 2; t > -1; t--)
+		{
+			if (a[t] != 65535u)
+
+				num++;
+		}
+	}
+	return num;
 }
 
 void CodeGen::makeI32Immediate(int i, const Register* placeIn, CodeString* toStr)

@@ -75,7 +75,9 @@ public:
 	[[nodiscard]] int RegisterCount() const;
 	[[nodiscard]] const std::vector<Register*>& IRegs() const;
 	[[nodiscard]] const std::vector<Register*>& FRegs() const;
+	[[nodiscard]] std::vector<GlobalAddress*>& globalAddresses();
 	[[nodiscard]] std::vector<GlobalAddress*> constGlobalAddresses() const;
 	[[nodiscard]] std::vector<GlobalAddress*> ncnzGlobalAddresses() const;
 	[[nodiscard]] std::vector<GlobalAddress*> ncZeroGlobalAddresses() const;
+	std::map<unsigned long long, Immediate*>& immediates() ;
 };

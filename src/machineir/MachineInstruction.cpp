@@ -17,7 +17,7 @@ MInstruction::MInstruction(MBasicBlock* block) : block_(block)
 }
 
 
-bool MInstruction::haveUseOf(const VirtualRegister* reg) const
+bool MInstruction::haveUseOf(const MOperand* reg) const
 {
 	for (auto i : use_) // NOLINT(readability-use-anyofallof)
 	{
@@ -26,7 +26,7 @@ bool MInstruction::haveUseOf(const VirtualRegister* reg) const
 	return false;
 }
 
-bool MInstruction::haveDefOf(const VirtualRegister* reg) const
+bool MInstruction::haveDefOf(const MOperand* reg) const
 {
 	for (auto i : def_) // NOLINT(readability-use-anyofallof)
 	{

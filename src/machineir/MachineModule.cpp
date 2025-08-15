@@ -183,6 +183,11 @@ const std::vector<Register*>& MModule::FRegs() const
 	return fregs_;
 }
 
+std::vector<GlobalAddress*>& MModule::globalAddresses() 
+{
+	return globals_;
+}
+
 
 std::vector<GlobalAddress*> MModule::constGlobalAddresses() const
 {
@@ -212,6 +217,11 @@ std::vector<GlobalAddress*> MModule::ncZeroGlobalAddresses() const
 		if (!i->const_ && i->data_->segmentCount() == 1 && i->data_->segmentIsDefault(0)) v.emplace_back(i);
 	}
 	return v;
+}
+
+std::map<unsigned long long, Immediate*>& MModule::immediates() 
+{
+	return imm_cache_;
 }
 
 

@@ -72,6 +72,13 @@ void MBasicBlock::removeInst(MInstruction* inst)
 	delete inst;
 }
 
+void MBasicBlock::addInstBeforeLast(MInstruction* inst)
+{
+	auto b = instructions_.back();
+	instructions_.back() = inst;
+	instructions_.emplace_back(b);
+}
+
 int MBasicBlock::collapseBranch()
 {
 	auto b = dynamic_cast<MB*>(instructions_.back());

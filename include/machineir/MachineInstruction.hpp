@@ -93,8 +93,8 @@ public:
 	}
 
 	virtual std::string print() = 0;
-	bool haveUseOf(const VirtualRegister* reg) const;
-	bool haveDefOf(const VirtualRegister* reg) const;
+	bool haveUseOf(const MOperand* reg) const;
+	bool haveDefOf(const MOperand* reg) const;
 	virtual void replace(MOperand* from, MOperand* to, MFunction* parent);
 	virtual void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent);
 	virtual void stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent);
@@ -203,10 +203,10 @@ public:
 
 class MMathInst final : public MInstruction
 {
+public:
 	int width_;
 	Instruction::OpID op_;
 
-public:
 	[[nodiscard]] Instruction::OpID op() const
 	{
 		return op_;

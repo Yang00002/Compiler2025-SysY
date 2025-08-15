@@ -45,6 +45,11 @@ public:
 		return blocks_;
 	}
 
+	[[nodiscard]] MBasicBlock* block(int index) const
+	{
+		return blocks_[index];
+	}
+
 	~MFunction();
 
 private:
@@ -104,6 +109,11 @@ public:
 		return stack_;
 	}
 
+	[[nodiscard]] std::vector<FrameIndex*>& fixFrames()
+	{
+		return fix_;
+	}
+
 	[[nodiscard]] VirtualRegister* lr_guard() const
 	{
 		return lrGuard_;
@@ -143,6 +153,7 @@ public:
 	void rewriteCallsDefList() const;
 	void rewriteDestroyRegs();
 	std::unordered_map<MOperand*, std::unordered_set<MInstruction*>>& useList();
+	std::unordered_set<MInstruction*>& useList(MOperand* op);
 
 	[[nodiscard]] const std::vector<VirtualRegister*>& IVRegs() const;
 	[[nodiscard]] const std::vector<VirtualRegister*>& FVRegs() const;

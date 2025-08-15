@@ -55,8 +55,6 @@ class CodeGen : public MachinePass
 	void mathInst(const MMathInst* inst, const MOperand* t, const MOperand* l, const MOperand* r,
 	              Instruction::OpID op,
 	              int len, CodeString* toStr);
-	void st1(const Register* stackLike, int count, int offset, CodeString* toStr);
-	void st1(const MOperand* stackLike, int count, int offset, CodeString* toStr);
 	void add32(const Register* to, const Register* l, int imm, CodeString* toStr);
 	static void lsl32(const Register* to, const Register* l, int imm, CodeString* toStr);
 	static void lsl64(const Register* to, const Register* l, long long imm, CodeString* toStr);
@@ -126,8 +124,15 @@ class CodeGen : public MachinePass
 	void setBuf(int id, const MOperand* op);
 	[[nodiscard]] const MOperand* getBuf(int id) const;
 	void releaseBuf(int id);
-
+	void st1(const Register* stackLike, int count, int offset, CodeString* toStr);
+	void st1(const MOperand* stackLike, int count, int offset, CodeString* toStr);
 public:
+	static bool mathInstImmediateCanInline(const MOperand* l, const MOperand* r, Instruction::OpID op, int len);
+	static bool immCanInlineInAddSub(int imm);
+	static bool immCanInlineInAddSub(long long imm);
+	static int ldrNeedInstCount(long long offset, int len);
+	static int copyFrameNeedInstCount(long long offset);
+	static int makeI64ImmediateNeedInstCount(long long i);
 	CodeGen(MModule* m);
 	void run() override;
 };

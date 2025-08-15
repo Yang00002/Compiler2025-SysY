@@ -504,19 +504,7 @@ bool InterfereGraph::selectSpill()
 		else
 		{
 			f = node->weight_ / static_cast<float>(node->degree_);
-			if (vreg->replacePrefer_ != nullptr)
-			{
-				if (dynamic_cast<GlobalAddress*>(vreg->replacePrefer_)) f *= globalRegisterSpillPriority;
-				else
-				{
-					auto d = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
-					ASSERT(d != nullptr);
-					if (d->isParameterFrame()) f *= fixFrameIndexParameterRegisterSpillPriority;
-					else if (logicalRightShift(d->size(), 3) >= bigAllocaVariableGate)
-						f *= bigAllocaRegisterSpillPriority;
-					else f *= smallAllocaRegisterSpillPriority;
-				}
-			}
+			if (vreg->replacePrefer_ != nullptr) f *= vreg->spillCost_;
 		}
 		if (f < mw)
 		{
@@ -537,19 +525,7 @@ bool InterfereGraph::selectSpill()
 			else
 			{
 				f = node->weight_ / static_cast<float>(node->degree_);
-				if (vreg->replacePrefer_ != nullptr)
-				{
-					if (dynamic_cast<GlobalAddress*>(vreg->replacePrefer_)) f *= globalRegisterSpillPriority;
-					else
-					{
-						auto d = dynamic_cast<FrameIndex*>(vreg->replacePrefer_);
-						ASSERT(d != nullptr);
-						if (d->isParameterFrame()) f *= fixFrameIndexParameterRegisterSpillPriority;
-						else if (logicalRightShift(d->size(), 3) >= bigAllocaVariableGate)
-							f *= bigAllocaRegisterSpillPriority;
-						else f *= smallAllocaRegisterSpillPriority;
-					}
-				}
+				if (vreg->replacePrefer_ != nullptr) f *= vreg->spillCost_;
 			}
 			if (f < mw)
 			{

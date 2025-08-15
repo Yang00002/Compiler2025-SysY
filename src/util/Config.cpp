@@ -2,8 +2,9 @@
 
 int replaceGlobalAddressWithRegisterNeedUseCount = 2;
 int replaceAllocaAddressWithRegisterNeedUseCount = 3;
+int prefillConstantNeedWeight = 4;
 int useMultiplierPerLoop = 10;
-float globalRegisterSpillPriority = 0.8f;
+float globalRegisterSpillPriority = 1.0f;
 float bigAllocaRegisterSpillPriority = 0.8f;
 float smallAllocaRegisterSpillPriority = 0.6f;
 int bigAllocaVariableGate = 12;

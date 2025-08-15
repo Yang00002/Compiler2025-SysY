@@ -194,48 +194,17 @@ void MBasicBlock::acceptMNegInst(Instruction* instruction, std::map<Value*, MOpe
 	instructions_.emplace_back(m);
 }
 
-namespace
-{
-	struct FrameCond
-	{
-		FrameIndex* frame_index_;
-		AllocaInst* inst_;
-		float weight_;
-		bool cache_;
-	};
-}
-
 // ReSharper disable once CppMemberFunctionMayBeStatic
-void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand*>& opMap,
-                                    std::map<BasicBlock*, MBasicBlock*>& bmap)
+void MBasicBlock::acceptAllocaInsts(BasicBlock* block, std::map<Value*, MOperand*>& opMap) const
 {
-	vector<FrameCond> vec;
 	for (auto inst : block->get_instructions().phi_and_allocas())
 	{
 		auto alloc = dynamic_cast<AllocaInst*>(inst);
 		if (alloc != nullptr)
 		{
-			auto cost = Function::opWeight(alloc, bmap);
 			auto fi = function()->allocaStack(alloc);
-			vec.emplace_back(FrameCond{fi, alloc, cost, false});
+			opMap[alloc] = fi;
 		}
-	}
-	for (auto& i : vec)
-		if (i.weight_ >= static_cast<float>(replaceAllocaAddressWithRegisterNeedUseCount))
-			i.cache_ = true;
-	for (auto& i : vec)
-	{
-		if (i.cache_)
-		{
-			auto reg = VirtualRegister::createVirtualIRegister(function_, 64);
-			ASSERT(function() == i.frame_index_->func());
-			reg->replacePrefer_ = i.frame_index_;
-			auto inst = new MCopy{this, i.frame_index_, reg, 64};
-			instructions_.emplace_back(inst);
-			opMap[i.inst_] = reg;
-		}
-		else
-			opMap[i.inst_] = i.frame_index_;
 	}
 }
 

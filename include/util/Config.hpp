@@ -4,6 +4,8 @@
 extern int replaceGlobalAddressWithRegisterNeedUseCount;
 // alloca 对象的地址在函数的使用次数大于等于这个阈值时，它的地址在函数开始时会加载到寄存器中，而非直接寻址
 extern int replaceAllocaAddressWithRegisterNeedUseCount;
+// 常量的使用次数大于等于这个阈值时, 它会被加载到寄存器而非每次使用拼凑
+extern int prefillConstantNeedWeight;
 // 假定每个循环会运行几次, 在循环内的一次使用就相当于循环外的几次使用
 extern int useMultiplierPerLoop;
 // 全局变量存在寄存器中的地址在寄存器不够时放弃使用寄存器加载地址的优先级, 值越低则优先级越高(全局变量一般使用文字池加载地址)

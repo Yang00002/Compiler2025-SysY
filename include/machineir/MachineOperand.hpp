@@ -59,15 +59,16 @@ class VirtualRegister final : public RegisterLike
 {
 public:
 	MOperand* replacePrefer_ = nullptr; // 被 spill 时优先进行替换而非分配栈帧
-private:
 	int id_;
 	int size_;
+	// 越低 spill 代价越小
+	float spillCost_ = 1.0f;
 	bool ireg_t_freg_f_;
-
-public:
 	bool spilled = false;
 	// 是否被下沉, 当 vr 需要被 spill 时, 首先尝试将它的计算下沉到需要它的基本块的共同支配树祖先, 这有时能避免 spill
 	bool sinked = false;
+	// 使用替换时, 是否需要加载一次(即寄存器存的是值而非地址)
+	bool needLoad_ = false;
 private:
 	explicit VirtualRegister(int id, bool ireg_t_freg_f, int size);
 
@@ -207,16 +208,18 @@ public:
 
 class FrameIndex final : public MOperand
 {
+public:
 	friend class MFunction;
 	MFunction* func_;
 	long long size_;
 	long long offset_ = 0;
+	// 绑定的虚拟寄存器, 该栈帧的地址会通过优化加载到这个寄存器中, 由它替代
+	VirtualRegister* tiedWith_ = nullptr;
 	int index_;
 	bool stack_t_fix_f_;
 	friend class MModule;
 	explicit FrameIndex(MFunction* func, int idx, long long size, bool stack_t_fix_f);
 
-public:
 	void set_index(int index)
 	{
 		index_ = index;
