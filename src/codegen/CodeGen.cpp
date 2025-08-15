@@ -411,7 +411,7 @@ const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, Cod
 		}
 		if (fromr->isIntegerRegister() != useIntReg)
 		{
-			auto reg = getIP();
+			auto reg = useIntReg ? getIP() : getFIP();
 			copy(reg, fromr, len, toStr);
 			return reg;
 		}
@@ -528,7 +528,7 @@ void CodeGen::clearV(int count, CodeString* toStr)
 	}
 }
 
-void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand* l, const MOperand* r,
+void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
                        Instruction::OpID op,
                        int len, CodeString* toStr)
 {
@@ -727,6 +727,8 @@ void CodeGen::mathInst(const MMathInst* inst, const MOperand* t, const MOperand*
 	}
 	if (flt)
 	{
+		regL = op2reg(regL, len, false, toStr);
+		regR = op2reg(regR, len, false, toStr);
 		switch (op) // NOLINT(clang-diagnostic-switch-enum)
 		{
 			case Instruction::fadd:
@@ -1519,9 +1521,9 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 	else if (auto i6 = dynamic_cast<MST1ZTV16B*>(instruction); i6 != nullptr)
 		clearV(i6->loadCount_, toStr);
 	else if (auto i7 = dynamic_cast<MMathInst*>(instruction); i7 != nullptr)
-		mathInst(i7, instruction->operands()[0], instruction->operands()[1], instruction->operands()[2],
-		         i7->op(),
-		         (i7->width()), toStr);
+		mathInst(instruction->operands()[0], instruction->operands()[1], instruction->operands()[2], i7->op(),
+		         (i7->width()),
+		         toStr);
 	else if (auto i8 = dynamic_cast<MBL*>(instruction); i8 != nullptr)
 		call(instruction->operands()[0], toStr);
 	else if (auto i9 = dynamic_cast<MRet*>(instruction); i9 != nullptr)

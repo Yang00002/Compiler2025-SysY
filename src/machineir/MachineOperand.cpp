@@ -121,7 +121,7 @@ int RegisterLike::uid() const
 }
 
 VirtualRegister::VirtualRegister(int id, bool ireg_t_freg_f, int size) : id_(id),
-	size_(size), ireg_t_freg_f_(ireg_t_freg_f)
+                                                                         size_(size), ireg_t_freg_f_(ireg_t_freg_f)
 {
 }
 
@@ -326,5 +326,6 @@ FrameIndex::FrameIndex(MFunction* func, int idx, long long size, bool stack_t_fi
 
 std::string FrameIndex::print()
 {
-	return (stack_t_fix_f_ ? "%stackFrame" : "%fixFrame") + to_string(index_) + "<" + to_string(size_) + ">";
+	return (stack_t_fix_f_ ? (spilledFrame_ ? "%spilledFrame" : "%stackFrame") : "%fixFrame") + to_string(index_) + "<"
+	       + to_string(size_) + ">";
 }

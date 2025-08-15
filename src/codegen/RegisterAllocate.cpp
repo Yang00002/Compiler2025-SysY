@@ -5,6 +5,9 @@
 #include "MachineFunction.hpp"
 #include "MachineDominator.hpp"
 
+#define DEBUG 0
+#include "Util.hpp"
+
 // toStr: SPILL 后的一些 LDR 不是必须的
 // 例如形如 STR X1 %F; LDR X2 %F 可以被替代为 STR X1 %F; MOV X2 X1
 
@@ -168,4 +171,7 @@ void RegisterAllocate::run()
 		runOn(func);
 	}
 	delete dominator_;
+	GAP;
+	LOG(m_->print());
+	GAP;
 }

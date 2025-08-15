@@ -4,6 +4,7 @@
 #include "Ast.hpp"
 #include <AST2IR.hpp>
 #include <Antlr2Ast.hpp>
+#include <cfloat>
 
 #include "Arithmetic.hpp"
 #include "BlockLayout.hpp"
@@ -26,6 +27,7 @@
 #include "Module.hpp"
 #include "PassManager.hpp"
 #include "Print.hpp"
+#include "RegPrefill.hpp"
 #include "RegisterAllocate.hpp"
 #include "ReturnMerge.hpp"
 #include "SCCP.hpp"
@@ -83,14 +85,14 @@ std::tuple<std::string, std::string> parseArgs(int argc, char **argv) {
 void toggleNO1DefaultSettings() {
   if (!o1Optimization) {
     replaceGlobalAddressWithRegisterNeedUseCount = INT_MAX;
-	replaceAllocaAddressWithRegisterNeedUseCount = INT_MAX;
-	mergeStackFrameSpilledWithGraphColoring = false;
-	useCallerSaveRegsFirst = false;
-	funcInlineGate = INT_MAX;
-	epilogShouldMerge = INT_MAX;
-	dangerousSignalInfer = false;
-	ignoreNegativeArrayIndexes = false;
-	useSinkForVirtualRegister = false;
+    replaceAllocaAddressWithRegisterNeedTotalCost = FLT_MAX;
+    mergeStackFrameSpilledWithGraphColoring = false;
+    useCallerSaveRegsFirst = false;
+    funcInlineGate = INT_MAX;
+    epilogShouldMerge = INT_MAX;
+    dangerousSignalInfer = false;
+    ignoreNegativeArrayIndexes = false;
+    useSinkForVirtualRegister = false;
   }
 }
 
@@ -243,6 +245,9 @@ void compiler(std::string infile, std::string outfile) {
 
   MachinePassManager *mng = new MachinePassManager{mir};
 
+  if (o1Optimization) {
+    mng->add_pass<RegPrefill>();
+  }
   mng->add_pass<RegisterAllocate>();
   mng->add_pass<CleanCode>();
   mng->add_pass<FrameOffset>();

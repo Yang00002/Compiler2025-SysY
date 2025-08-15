@@ -302,8 +302,8 @@ MLDR::MLDR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, int width
 	operands_.resize(2);
 	operands_[0] = regLike;
 	operands_[1] = stackLike;
-	if (regLike->isRegisterLike()) def_.emplace_back(0);
-	if (stackLike->isRegisterLike()) use_.emplace_back(1);
+	def_.emplace_back(0);
+	use_.emplace_back(1);
 	auto func = block->function();
 	func->addUse(regLike, this);
 	func->addUse(stackLike, this);
@@ -320,8 +320,8 @@ MSTR::MSTR(MBasicBlock* block, MOperand* regLike, MOperand* stackLike, int width
 	operands_.resize(2);
 	operands_[0] = regLike;
 	operands_[1] = stackLike;
-	if (regLike->isRegisterLike()) use_.emplace_back(0);
-	if (regLike != stackLike && stackLike->isRegisterLike()) use_.emplace_back(1);
+	use_.emplace_back(0);
+	if (regLike != stackLike) use_.emplace_back(1);
 	auto func = block->function();
 	func->addUse(regLike, this);
 	func->addUse(stackLike, this);
@@ -425,7 +425,7 @@ MBL::MBL(MBasicBlock* block, FuncAddress* addr, Function* function) : MInstructi
 		{
 			if (ic < 8)
 			{
-				imp_use_.emplace_back(Register::getIParameterRegister(fc, block->module()));
+				imp_use_.emplace_back(Register::getIParameterRegister(ic, block->module()));
 				ic++;
 			}
 		}

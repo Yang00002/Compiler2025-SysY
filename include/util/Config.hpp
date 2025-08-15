@@ -2,10 +2,12 @@
 
 // 全局变量在函数的使用次数大于等于这个阈值时，它的地址在函数开始时会加载到寄存器中，而非直接寻址
 extern int replaceGlobalAddressWithRegisterNeedUseCount;
-// alloca 对象的地址在函数的使用次数大于等于这个阈值时，它的地址在函数开始时会加载到寄存器中，而非直接寻址
+// alloca 对象的地址在函数的使用次数 * spill 开销大于等于这个阈值时，它的地址在函数开始时会加载到寄存器中，而非直接寻址
+extern float replaceAllocaAddressWithRegisterNeedTotalCost;
+// alloca 对象的地址在函数的使用次数大于等于这个阈值时，它的地址在函数开始时会加载到寄存器中，而非直接寻址, 这只在不使用 stackOffset 计算 cost 时有效
 extern int replaceAllocaAddressWithRegisterNeedUseCount;
-// 常量的使用次数大于等于这个阈值时, 它会被加载到寄存器而非每次使用拼凑
-extern int prefillConstantNeedWeight;
+// 常量的使用次数 * spill 开销大于等于这个阈值时, 它会被加载到寄存器而非每次使用拼凑
+extern float prefillConstantNeedTotalCost;
 // 假定每个循环会运行几次, 在循环内的一次使用就相当于循环外的几次使用
 extern int useMultiplierPerLoop;
 // 全局变量存在寄存器中的地址在寄存器不够时放弃使用寄存器加载地址的优先级, 值越低则优先级越高(全局变量一般使用文字池加载地址)
@@ -66,3 +68,5 @@ extern bool useBinaryInstMerge;
 extern bool mergeFloatBinaryInst;
 // 只有当加减指令的操作数全是寄存器, 才尝试与乘法合并, 这样可以确保合并不会增加指令
 extern bool onlyMergeMulAndASWhenASUseAllReg;
+// 使用 stackOffset 来计算 spill 的消耗
+extern bool useStackOffset2GetspillCost;

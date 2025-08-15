@@ -1,8 +1,9 @@
 #include "Config.hpp"
 
 int replaceGlobalAddressWithRegisterNeedUseCount = 2;
+float replaceAllocaAddressWithRegisterNeedTotalCost = 10;
 int replaceAllocaAddressWithRegisterNeedUseCount = 3;
-int prefillConstantNeedWeight = 4;
+float prefillConstantNeedTotalCost = 20000000;
 int useMultiplierPerLoop = 10;
 float globalRegisterSpillPriority = 1.0f;
 float bigAllocaRegisterSpillPriority = 0.8f;
@@ -11,8 +12,8 @@ int bigAllocaVariableGate = 12;
 bool mergeStackFrameSpilledWithGraphColoring = true;
 bool useCallerSaveRegsFirst = true;
 bool useLDRInsteadOfMovFMove2CreateFloat = true;
-int useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan = 2;
-int useLDRInsteadOfMov2CreateFloatWhenMovCountBiggerThan = 1;
+int useLDRInsteadOfMov2CreateIntegerWhenMovCountBiggerThan = 3;
+int useLDRInsteadOfMov2CreateFloatWhenMovCountBiggerThan = 2;
 float fixFrameIndexParameterRegisterSpillPriority = 0.9f;
 int alignTo16NeedBytes = 8;
 int maxCopyInstCountToInlineMemcpy = 12;
@@ -25,7 +26,7 @@ bool emitIR = false;
 bool useStack = false;
 bool o1Optimization = true;
 bool testArchi = false;
-int funcInlineGate = 2;
+int funcInlineGate = 8;
 int epilogShouldMerge = 9;
 bool dangerousSignalInfer = true;
 bool ignoreNegativeArrayIndexes = true;
@@ -33,3 +34,4 @@ bool useSinkForVirtualRegister = true;
 bool useBinaryInstMerge = false;
 bool mergeFloatBinaryInst = false;
 bool onlyMergeMulAndASWhenASUseAllReg = true;
+bool useStackOffset2GetspillCost = false;

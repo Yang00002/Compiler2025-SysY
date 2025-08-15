@@ -52,7 +52,7 @@ class CodeGen : public MachinePass
 	void ld1(const Register* stackLike, int count, int offset, CodeString* toStr);
 	void ld1(const MOperand* stackLike, int count, int offset, CodeString* toStr);
 	static void clearV(int count, CodeString* toStr);
-	void mathInst(const MMathInst* inst, const MOperand* t, const MOperand* l, const MOperand* r,
+	void mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 	              Instruction::OpID op,
 	              int len, CodeString* toStr);
 	void add32(const Register* to, const Register* l, int imm, CodeString* toStr);
