@@ -47,7 +47,7 @@ public:
 	void set_preheader(BasicBlock* bb) { preheader_ = bb; }
 	void add_sub_loop(Loop* loop) { sub_loops_.push_back(loop); }
 	const BBvec& get_blocks() { return blocks_; }
-	const std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
+	std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
 	const std::unordered_set<BasicBlock*>& get_latches() { return latches_; }
 	void add_latch(BasicBlock* bb) { latches_.insert(bb); }
 };
@@ -63,6 +63,7 @@ class LoopDetection : public Pass
 	                                 Loop* loop);
 
 	void run_on_func(Function* f);
+
 public:
 	LoopDetection(const LoopDetection&) = delete;
 	LoopDetection(LoopDetection&&) = delete;
@@ -79,4 +80,5 @@ public:
 	void only_run_on_func(Function* f);
 	void print() const;
 	std::vector<Loop*>& get_loops() { return loops_; }
+	int costOfLatch(Loop* loop, BasicBlock* bb);
 };

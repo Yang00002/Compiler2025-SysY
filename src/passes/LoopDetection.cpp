@@ -13,7 +13,7 @@ LoopDetection::~LoopDetection()
 	for (const auto& loop : loops_)
 	{
 		delete loop;
-	} 
+	}
 }
 
 /**
@@ -40,7 +40,7 @@ void LoopDetection::run()
 void LoopDetection::only_run_on_func(Function* f)
 {
 	delete dominators_;
-	dominators_ = new Dominators{ m_ };
+	dominators_ = new Dominators{m_};
 	run_on_func(f);
 }
 
@@ -143,7 +143,7 @@ void LoopDetection::run_on_func(Function* f)
 			continue;
 		}
 		// create loop
-		auto loop = new Loop{ bb };
+		auto loop = new Loop{bb};
 		bb_to_loop_[bb] = loop;
 		// add latch nodes
 		for (auto& latch : latches)
@@ -184,4 +184,17 @@ void LoopDetection::print() const
 		}
 		std::cout << '\n';
 	}
+}
+
+int LoopDetection::costOfLatch(Loop* loop, BasicBlock* bb)
+{
+	bool out = false;
+	auto hd = loop->get_header();
+	int cost = 1;
+	while (bb != hd)
+	{
+		bb = dominators_->get_idom(bb);
+		cost++;
+	}
+	return cost;
 }

@@ -206,13 +206,13 @@ namespace
 			}
 		}
 
-		void dumpIdom(std::map<BasicBlock*, BasicBlock*>& ret) const
+		void dumpIdom(std::unordered_map<BasicBlock*, BasicBlock*>& ret) const
 		{
 			for (int i = 1; i <= blockCount_; i++)
 				ret.emplace(fromBlockIdToBlockPtr1_[i], fromBlockIdToBlockPtr1_[idom1_[i]]);
 		}
 
-		void dumpTreeSucc(std::map<BasicBlock*, std::set<BasicBlock*>>& ret) const
+		void dumpTreeSucc(std::unordered_map<BasicBlock*, std::set<BasicBlock*>>& ret) const
 		{
 			for (int i = 1; i <= blockCount_; i++)
 			{
@@ -221,7 +221,7 @@ namespace
 			}
 		}
 
-		void dumpFrontier(std::map<BasicBlock*, std::set<BasicBlock*>>& ret) const
+		void dumpFrontier(std::unordered_map<BasicBlock*, std::set<BasicBlock*>>& ret) const
 		{
 			for (int i = 1; i <= blockCount_; i++)
 			{
@@ -497,7 +497,6 @@ const std::vector<BasicBlock*>& Dominators::get_dom_post_order(Function* functio
 {
 	return dom_post_order_[function];
 }
-
 
 /**
  * @brief 为支配树创建深度优先搜索序

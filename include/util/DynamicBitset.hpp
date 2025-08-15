@@ -37,6 +37,8 @@ public:
 	void reverse() const;
 	void operator|=(const DynamicBitset& bit);
 	void operator-=(const DynamicBitset& bit);
+	// 扩展到 needBits 位空间, 如果 needBits 比原来小则不变, 设置多出来的为 0
+	void reserve(int needBits);
 	DynamicBitset operator-(const DynamicBitset& bit) const;
 	DynamicBitset operator|(const DynamicBitset& bit) const;
 	bool operator==(const DynamicBitset& bit) const;
@@ -52,6 +54,11 @@ public:
 		return dataSize_;
 	}
 
+	// 有多少比特
+	[[nodiscard]] int bitLen() const
+	{
+		return bitlen_;
+	}
 
 	class Iterator
 	{
@@ -78,7 +85,6 @@ public:
 		bool operator==(const Iterator& b) const;
 		bool operator!=(const Iterator& b) const;
 	};
-
 
 	[[nodiscard]] Iterator begin() const { return {this, true}; }
 	[[nodiscard]] Iterator end() const { return {this, false}; }

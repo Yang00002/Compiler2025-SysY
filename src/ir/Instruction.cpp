@@ -611,7 +611,7 @@ Instruction* GetElementPtrInst::copy(std::unordered_map<Value*, Value*>& valMap)
 {
 	std::vector<Value*> args;
 	args.resize(get_operands().size() - 1);
-	for (int i = 0, size = u2iNegThrow(get_operands().size()); i < size; i++)
+	for (int i = 0, size = u2iNegThrow(get_operands().size()) - 1; i < size; i++)
 		args[i] = getOrDefault(valMap, get_operand(i + 1));
 	auto ret = new GetElementPtrInst{getOrDefault(valMap, get_operand(0)), args, nullptr};
 	valMap[this] = ret;

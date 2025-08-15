@@ -3,23 +3,23 @@
 #include "BasicBlock.hpp"
 #include "PassManager.hpp"
 
-#include <map>
 #include <set>
 
 class Dominators : public Pass
 {
-	std::map<BasicBlock*, BasicBlock*> idom_{}; // 直接支配
-	std::map<BasicBlock*, std::set<BasicBlock*>> dom_frontier_{}; // 支配边界集合
-	std::map<BasicBlock*, std::set<BasicBlock*>> dom_tree_succ_blocks_{}; // 支配树中的后继节点
+	std::unordered_map<BasicBlock*, BasicBlock*> idom_{}; // 直接支配
+	std::unordered_map<BasicBlock*, std::set<BasicBlock*>> dom_frontier_{}; // 支配边界集合
+	std::unordered_map<BasicBlock*, std::set<BasicBlock*>> dom_tree_succ_blocks_{}; // 支配树中的后继节点
 
 	// 支配树上的dfs序L,R
-	std::map<BasicBlock*, int> dom_tree_L_;
-	std::map<BasicBlock*, int> dom_tree_R_;
+	std::unordered_map<BasicBlock*, int> dom_tree_L_;
+	std::unordered_map<BasicBlock*, int> dom_tree_R_;
 
-	std::map<Function*, std::vector<BasicBlock*>> dom_dfs_order_;
-	std::map<Function*, std::vector<BasicBlock*>> dom_post_order_;
+	std::unordered_map<Function*, std::vector<BasicBlock*>> dom_dfs_order_;
+	std::unordered_map<Function*, std::vector<BasicBlock*>> dom_post_order_;
 
 	void create_dom_dfs_order(Function* f);
+
 public:
 	Dominators(const Dominators&) = delete;
 	Dominators(Dominators&&) = delete;

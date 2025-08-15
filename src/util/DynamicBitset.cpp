@@ -178,6 +178,20 @@ void DynamicBitset::operator-=(const DynamicBitset& bit)
 	for (int i = 0; i < dataSize_; i++) data_[i] &= ~bit.data_[i];
 }
 
+void DynamicBitset::reserve(int needBits)
+{
+	if (needBits <= bitlen_) return;
+	bitlen_ = needBits;
+	int dataSize2 = (needBits + 63) >> 6;
+	if (dataSize2 <= dataSize_) return;
+	auto next = new unsigned long long[dataSize2];
+	memcpy(next, data_, dataSize_ << 3);
+	memset(next + dataSize_, 0, (dataSize2 - dataSize_) << 3);
+	dataSize_ = dataSize2;
+	delete data_;
+	data_ = next;
+}
+
 DynamicBitset DynamicBitset::operator-(const DynamicBitset& bit) const
 {
 	DynamicBitset nb = *this;
