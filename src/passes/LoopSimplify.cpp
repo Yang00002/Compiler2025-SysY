@@ -88,7 +88,7 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 	{
 		return l.first < r.first;
 	});
-	for (auto [i, block] : latches)
+	for (auto& [i, block] : latches)
 	{
 		LOG(color::yellow("Handling Latches ") + block->get_name());
 		int preSize = u2iNegThrow(head->get_pre_basic_blocks().size());
@@ -119,15 +119,45 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 				preHeader->add_pre_basic_block(pre);
 			}
 		}
-		BranchInst::create_br(block, preHeader);
+		BranchInst::create_br(head, preHeader);
 		auto insts = head->get_instructions().phi_and_allocas();
 		auto it = insts.begin();
 		while (it != insts.end())
 		{
-			auto phi = it.get_and_add();
-			it.remove_pre();
-			phi->set_parent(preHeader);
-			preHeader->add_instruction(phi);
+			auto phi = dynamic_cast<PhiInst*>(it.get_and_add());
+			std::map<BasicBlock*, Value*> phiMap;
+			Value* v = nullptr;
+			Value* lv = nullptr;
+			int preCount = 0;
+			for (auto& [i1, j1] : phi->get_phi_pairs())
+			{
+				if (block != j1)
+				{
+					preCount++;
+					phiMap[j1] = i1;
+					v = i1;
+				}
+				else lv = i1;
+			}
+			phi->remove_all_operands();
+			phi->add_phi_pair_operand(lv, block);
+			if (preCount > 1)
+			{
+				auto phi2 = PhiInst::create_phi(v->get_type(), preHeader);
+				preHeader->add_instruction(phi2);
+				for (auto& [bb, value] : phiMap)
+				{
+					phi2->add_phi_pair_operand(value, bb);
+				}
+				phi->add_phi_pair_operand(phi2, preHeader);
+			}
+			else
+			{
+				for (auto& [bb, value] : phiMap)
+				{
+					phi->add_phi_pair_operand(value, preHeader);
+				}
+			}
 		}
 		if (loop->get_latches().size() == 1)
 		{
@@ -145,6 +175,7 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 		loops_->collectInnerLoopMessage(loop, block, preHeader, innerLoop, manager_->getFuncInfo<Dominators>(f_));
 		head = preHeader;
 		LOG(color::green("Update Loop to ") + loop->print());
+		LOG(color::green("Sub Get ") + innerLoop->print());
 	}
 	return ret;
 }
@@ -184,7 +215,7 @@ bool LoopSimplify::createExitOnLoop(Loop* loop) const
 					bb->add_succ_basic_block(nbb);
 					nbb->add_pre_basic_block(bb);
 					BranchInst::create_br(suc, nbb);
-					for (auto phi : nbb->get_instructions().phi_and_allocas())
+					for (auto phi : suc->get_instructions().phi_and_allocas())
 					{
 						phi->replaceAllOperandMatchs(bb, nbb);
 					}

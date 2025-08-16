@@ -22,6 +22,7 @@
 #include "Inline.hpp"
 #include "InstructionSelect.hpp"
 #include "LICM.hpp"
+#include "LoopSimplify.hpp"
 #include "MachineModule.hpp"
 #include "Mem2Reg.hpp"
 #include "Module.hpp"
@@ -103,19 +104,7 @@ void addPasses4IR(PassManager *pm) {
     pm->add_pass<Arithmetic>();
     pm->add_pass<SCCP>();
     pm->add_pass<DeadCode>();
-    pm->add_pass<LoopInvariantCodeMotion>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Inline>();
-    pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    //pm->add_pass<GlobalCodeMotion>();
-    pm->add_pass<DeadCode>();
-
-    pm->add_pass<Mem2Reg>();
-    pm->add_pass<DeadCode>();
-    pm->add_pass<Arithmetic>();
-    pm->add_pass<SCCP>();
-    pm->add_pass<DeadCode>();
+    pm->add_pass<LoopSimplify>();
     pm->add_pass<LoopInvariantCodeMotion>();
     pm->add_pass<DeadCode>();
     pm->add_pass<Inline>();

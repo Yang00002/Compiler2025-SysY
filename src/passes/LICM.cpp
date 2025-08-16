@@ -378,8 +378,8 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 					{
 						phi2->add_phi_pair_operand(value, bb);
 					}
-					phi->add_phi_pair_operand(phi2, preheader);
 				}
+				phi->add_phi_pair_operand(phi2, preheader);
 				PUSH;
 				LOG("To " + phi2->print());
 				LOG("And " + phi->print());

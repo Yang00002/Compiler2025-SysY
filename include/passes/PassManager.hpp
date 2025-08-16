@@ -209,7 +209,7 @@ public:
 	}
 private:
 	std::vector<Pass*> passes_;
-	std::unordered_map<const type_info*, std::unordered_map<Function*, FuncInfoPass*>> funcMsg_;
-	std::unordered_map<const type_info*, GlobalInfoPass*> globalMsg_;
+	std::unordered_map<const std::type_info*, std::unordered_map<Function*, FuncInfoPass*>> funcMsg_;
+	std::unordered_map<const std::type_info*, GlobalInfoPass*> globalMsg_;
 	Module* m_;
 };

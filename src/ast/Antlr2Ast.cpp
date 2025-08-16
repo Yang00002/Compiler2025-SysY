@@ -4,6 +4,7 @@
 #include "Tensor.hpp"
 
 #define DEBUG 0
+#include "Config.hpp"
 #include "Util.hpp"
 
 
@@ -674,12 +675,16 @@ std::any Antlr2AstVisitor::visitStmt(SysYParser::StmtContext* context)
 			returnSlot_.emplace(loop);
 			return {};
 		}
-		context->cond()->accept(this);
-		auto cond2 = dynamic_cast<ASTExpression*>(poll());
-		auto ifNode = new ASTIf{cond2};
-		ifNode->_if_stmt.emplace_back(loop);
+		if (loopRotateAndAddGuardInAST)
+		{
+			context->cond()->accept(this);
+			auto cond2 = dynamic_cast<ASTExpression*>(poll());
+			auto ifNode = new ASTIf{ cond2 };
+			ifNode->_if_stmt.emplace_back(loop);
+			returnSlot_.emplace(ifNode);
+		}
+		else returnSlot_.emplace(loop);
 		POP;
-		returnSlot_.emplace(ifNode);
 		return {};
 	}
 	if (context->BREAK() != nullptr)

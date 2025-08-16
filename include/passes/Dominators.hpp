@@ -15,8 +15,8 @@ class Dominators : public FuncInfoPass
 	std::unordered_map<BasicBlock*, int> dom_tree_L_;
 	std::unordered_map<BasicBlock*, int> dom_tree_R_;
 
-	std::unordered_map<Function*, std::vector<BasicBlock*>> dom_dfs_order_;
-	std::unordered_map<Function*, std::vector<BasicBlock*>> dom_post_order_;
+	std::vector<BasicBlock*> dom_dfs_order_;
+	std::vector<BasicBlock*> dom_post_order_;
 
 	void create_dom_dfs_order();
 

@@ -483,12 +483,12 @@ bool Dominators::is_dominate(BasicBlock* bb1, BasicBlock* bb2) const
 
 const std::vector<BasicBlock*>& Dominators::get_dom_dfs_order(Function* function)
 {
-	return dom_dfs_order_[function];
+	return dom_dfs_order_;
 }
 
 const std::vector<BasicBlock*>& Dominators::get_dom_post_order(Function* function)
 {
-	return dom_post_order_[function];
+	return dom_post_order_;
 }
 
 /**
@@ -509,7 +509,6 @@ void Dominators::create_dom_dfs_order()
 {
 	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
 	int order = 0;
-	auto& od = dom_dfs_order_[f_];
 	std::stack<BasicBlock*> dfsWorkList;
 	std::stack<bool> dfsVisitList;
 	dfsWorkList.emplace(f_->get_entry_block());
@@ -532,13 +531,13 @@ void Dominators::create_dom_dfs_order()
 		auto bb = dfsWorkList.top();
 		ASSERT(!dom_tree_L_.count(bb));
 		dom_tree_L_[bb] = ++order;
-		od.emplace_back(bb);
+		dom_dfs_order_.emplace_back(bb);
 		for (auto i : dom_tree_succ_blocks_[bb])
 		{
 			dfsWorkList.emplace(i);
 			dfsVisitList.emplace(false);
 		}
 	}
-	dom_post_order_[f_] = std::vector(od.rbegin(),
-	                                 od.rend());
+	dom_post_order_ = std::vector(dom_dfs_order_.rbegin(),
+	                                 dom_dfs_order_.rend());
 }

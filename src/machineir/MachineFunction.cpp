@@ -135,7 +135,6 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 
 	PassManager* mng = new PassManager{function->get_parent()};
 	LoopDetection* detection = mng->getFuncInfo<LoopDetection>(function);
-	delete mng;
 
 	for (auto loop : detection->get_loops())
 	{
@@ -144,6 +143,8 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 			cache[bb]->weight_ *= static_cast<float>(useMultiplierPerLoop);
 		}
 	}
+
+	delete mng;
 
 	map<MBasicBlock*, list<MCopy*>> phiMap;
 
