@@ -9,5 +9,5 @@ class CmpCombine final : public Pass
 public:
 	void run() override;
 
-	explicit CmpCombine(Module* m);
+	explicit CmpCombine(PassManager* mng ,Module* m);
 };

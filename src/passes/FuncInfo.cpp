@@ -31,7 +31,7 @@ bool FuncInfo::UseMessage::empty() const
 	return globals_.empty() && arguments_.empty();
 }
 
-FuncInfo::FuncInfo(Module* m): Pass(m)
+FuncInfo::FuncInfo(PassManager* mng, Module* m): GlobalInfoPass(mng, m)
 {
 }
 
@@ -132,6 +132,202 @@ void FuncInfo::run()
 	}
 }
 
+void FuncInfo::flushAbout(std::unordered_set<Function*>& f)
+{
+	std::queue<Function*> worklist;
+	for (auto i : f) worklist.emplace(i);
+	while (!worklist.empty())
+	{
+		auto i = worklist.front();
+		worklist.pop();
+		useImpureLibs[i] = false;
+		stores.erase(i);
+		loads.erase(i);
+		for (auto& use : i->get_use_list())
+		{
+			auto f2 = dynamic_cast<Instruction*>(use.val_)->get_parent()->get_parent();
+			if (!f.count(f2))
+			{
+				f.emplace(f2);
+				worklist.emplace(f2);
+			}
+		}
+	}
+	std::unordered_map<Value*, Value*> spMap;
+	for (auto glob : m_->get_global_variable())
+		spreadGlobalIn(glob, spMap, f);
+	std::unordered_set<Function*> visited;
+	for (auto& func : f)
+	{
+		worklist.emplace(func);
+		visited.emplace(func);
+		for (auto& arg : func->get_args())
+		{
+			if (arg->get_type()->isPointerType())
+			{
+				spread(arg, spMap);
+			}
+		}
+	}
+	while (!worklist.empty())
+	{
+		auto f2 = worklist.front();
+		worklist.pop();
+		visited.erase(f2);
+		for (auto& use : f2->get_use_list())
+		{
+			auto inst = dynamic_cast<CallInst*>(use.val_);
+			auto cf = inst->get_parent()->get_parent();
+			auto& lld = loads[cf];
+			auto& rld = loads[f2];
+			auto& lst = stores[cf];
+			auto& rst = stores[f2];
+			auto ps = lld.globals_.size() + lld.arguments_.size() + lst.globals_.size() + lst.arguments_.size();
+			for (auto i : rld.globals_) lld.globals_.emplace(i);
+			for (auto i : rst.globals_) lst.globals_.emplace(i);
+			auto& ops = inst->get_operands();
+			for (auto& arg : f2->get_args())
+			{
+				if (arg->get_type()->isPointerType())
+				{
+					auto carg = ops[arg->get_arg_no() + 1];
+					auto traceP = spMap.find(carg);
+					if (traceP == spMap.end()) continue;
+					auto trace = traceP->second;
+					if (rld.have(arg)) lld.add(trace);
+					if (rst.have(arg)) lst.add(trace);
+				}
+			}
+			if (lld.globals_.size() + lld.arguments_.size() + lst.globals_.size() + lst.arguments_.size() != ps)
+			{
+				if (!visited.count(cf))
+				{
+					visited.emplace(cf);
+					worklist.emplace(cf);
+				}
+			}
+		}
+	}
+
+	for (auto& func : m_->get_functions())
+	{
+		if (func->is_lib_)
+		{
+			for (auto& use : func->get_use_list())
+			{
+				auto call = dynamic_cast<CallInst*>(use.val_);
+				useImpureLibs[call->get_parent()->get_parent()] = true;
+			}
+		}
+	}
+
+	for (auto& func : f)
+	{
+		worklist.emplace(func);
+		visited.emplace(func);
+	}
+	while (!worklist.empty())
+	{
+		auto f2 = worklist.front();
+		worklist.pop();
+		visited.erase(f2);
+		if (useImpureLibs[f2])
+			for (auto& use : f2->get_use_list())
+			{
+				auto inst = dynamic_cast<CallInst*>(use.val_);
+				auto cf = inst->get_parent()->get_parent();
+				if (!useImpureLibs[cf])
+				{
+					useImpureLibs[cf] = true;
+					if (!visited.count(cf))
+					{
+						visited.emplace(cf);
+						worklist.emplace(cf);
+					}
+				}
+			}
+	}
+}
+
+void FuncInfo::removeFunc(Function* f)
+{
+	useImpureLibs.erase(f);
+	stores.erase(f);
+	loads.erase(f);
+}
+
+void FuncInfo::flushLoadsAbout(std::unordered_set<Function*>& f)
+{
+	std::queue<Function*> worklist;
+	for (auto i : f) worklist.emplace(i);
+	while (!worklist.empty())
+	{
+		auto i = worklist.front();
+		worklist.pop();
+		loads.erase(i);
+		for (auto& use : i->get_use_list())
+		{
+			auto f2 = dynamic_cast<Instruction*>(use.val_)->get_parent()->get_parent();
+			if (!f.count(f2))
+			{
+				f.emplace(f2);
+				worklist.emplace(f2);
+			}
+		}
+	}
+	std::unordered_map<Value*, Value*> spMap;
+	for (auto glob : m_->get_global_variable())
+		spreadLoadsIn(glob, spMap, f);
+	std::unordered_set<Function*> visited;
+	for (auto& func : f)
+	{
+		worklist.emplace(func);
+		visited.emplace(func);
+		for (auto& arg : func->get_args())
+		{
+			if (arg->get_type()->isPointerType())
+			{
+				spreadLoadsIn(arg, spMap, f);
+			}
+		}
+	}
+	while (!worklist.empty())
+	{
+		auto f2 = worklist.front();
+		worklist.pop();
+		visited.erase(f2);
+		for (auto& use : f2->get_use_list())
+		{
+			auto inst = dynamic_cast<CallInst*>(use.val_);
+			auto cf = inst->get_parent()->get_parent();
+			auto& lld = loads[cf];
+			auto& rld = loads[f2];
+			auto ps = lld.globals_.size() + lld.arguments_.size();
+			for (auto i : rld.globals_) lld.globals_.emplace(i);
+			auto& ops = inst->get_operands();
+			for (auto& arg : f2->get_args())
+			{
+				if (arg->get_type()->isPointerType())
+				{
+					auto carg = ops[arg->get_arg_no() + 1];
+					auto traceP = spMap.find(carg);
+					if (traceP == spMap.end()) continue;
+					auto trace = traceP->second;
+					if (rld.have(arg)) lld.add(trace);
+				}
+			}
+			if (lld.globals_.size() + lld.arguments_.size() != ps)
+			{
+				if (!visited.count(cf))
+				{
+					visited.emplace(cf);
+					worklist.emplace(cf);
+				}
+			}
+		}
+	}
+}
+
 FuncInfo::UseMessage& FuncInfo::loadDetail(Function* function)
 {
 	return loads[function];
@@ -172,6 +368,168 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 		{
 			auto inst = dynamic_cast<Instruction*>(use.val_);
 			auto f = inst->get_parent()->get_parent();
+			int idx = use.arg_no_;
+			switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
+			{
+				case Instruction::load:
+					{
+						loads[f].add(val);
+						break;
+					}
+				case Instruction::store:
+					{
+						ASSERT(dynamic_cast<StoreInst*>(inst));
+						ASSERT(inst->get_operands().size() == 2);
+						ASSERT(idx == 1);
+						stores[f].add(val);
+						break;
+					}
+				case Instruction::call:
+					{
+						// 不能确定库函数的行为, 因此认为其对参数同时进行了读写
+						auto callF = dynamic_cast<Function*>(inst->get_operand(0));
+						if (callF->is_lib_)
+						{
+							stores[f].add(val);
+							loads[f].add(val);
+						}
+						break;
+					}
+				case Instruction::getelementptr:
+					{
+						ASSERT(idx == 0);
+						if (!visited.count(inst))
+						{
+							visited.emplace(inst);
+							spMap[inst] = val;
+							q.emplace(inst);
+						}
+						break;
+					}
+				case Instruction::memcpy_:
+					{
+						if (idx == 0) loads[f].add(val);
+						else stores[f].add(val);
+						break;
+					}
+				case Instruction::memclear_:
+					{
+						stores[f].add(val);
+						break;
+					}
+				case Instruction::nump2charp:
+				case Instruction::global_fix:
+					{
+						if (!visited.count(inst))
+						{
+							visited.emplace(inst);
+							spMap[inst] = val;
+							q.emplace(inst);
+						}
+						break;
+					}
+				default:
+					ASSERT(false);
+					break;
+			}
+		}
+	}
+}
+
+void FuncInfo::spreadLoadsIn(Value* val, std::unordered_map<Value*, Value*>& spMap, std::unordered_set<Function*>& fs)
+{
+	auto glob = dynamic_cast<GlobalVariable*>(val);
+	if (glob != nullptr && glob->is_const()) return;
+	std::unordered_set<Value*> visited;
+	std::queue<Value*> q;
+	visited.emplace(val);
+	spMap[val] = val;
+	q.emplace(val);
+	while (!q.empty())
+	{
+		auto v = q.front();
+		ASSERT(v->get_type()->isPointerType());
+		q.pop();
+		for (auto& use : v->get_use_list())
+		{
+			auto inst = dynamic_cast<Instruction*>(use.val_);
+			auto f = inst->get_parent()->get_parent();
+			if (!fs.count(f)) continue;
+			int idx = use.arg_no_;
+			switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
+			{
+				case Instruction::load:
+					{
+						loads[f].add(val);
+						break;
+					}
+				case Instruction::call:
+					{
+						// 不能确定库函数的行为, 因此认为其对参数同时进行了读写
+						auto callF = dynamic_cast<Function*>(inst->get_operand(0));
+						if (callF->is_lib_)
+						{
+							loads[f].add(val);
+						}
+						break;
+					}
+				case Instruction::getelementptr:
+					{
+						ASSERT(idx == 0);
+						if (!visited.count(inst))
+						{
+							visited.emplace(inst);
+							spMap[inst] = val;
+							q.emplace(inst);
+						}
+						break;
+					}
+				case Instruction::memcpy_:
+					{
+						if (idx == 0) loads[f].add(val);
+						break;
+					}
+				case Instruction::store:
+				case Instruction::memclear_:
+					{
+						break;
+					}
+				case Instruction::nump2charp:
+				case Instruction::global_fix:
+					{
+						if (!visited.count(inst))
+						{
+							visited.emplace(inst);
+							spMap[inst] = val;
+							q.emplace(inst);
+						}
+						break;
+					}
+				default:
+					ASSERT(false);
+					break;
+			}
+		}
+	}
+}
+
+void FuncInfo::spreadGlobalIn(Value* val, std::unordered_map<Value*, Value*>& spMap, std::unordered_set<Function*>& fs)
+{
+	std::unordered_set<Value*> visited;
+	std::queue<Value*> q;
+	visited.emplace(val);
+	spMap[val] = val;
+	q.emplace(val);
+	while (!q.empty())
+	{
+		auto v = q.front();
+		ASSERT(v->get_type()->isPointerType());
+		q.pop();
+		for (auto& use : v->get_use_list())
+		{
+			auto inst = dynamic_cast<Instruction*>(use.val_);
+			auto f = inst->get_parent()->get_parent();
+			if (!fs.count(f)) continue;
 			int idx = use.arg_no_;
 			switch (inst->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 			{

@@ -5,6 +5,7 @@
 #include "Module.hpp"
 #include "IRBuilder.hpp"
 #include "BasicBlock.hpp"
+#include "Config.hpp"
 #include "Util.hpp"
 
 using namespace std;
@@ -65,7 +66,7 @@ Value* AST2IRVisitor::visit(const ASTCompUnit* comp_unit)
 		// 常数非数组全局变量的值已经被内联, 不会被使用
 		if (i->isConst() && i->getType()->isBasicType()) continue;
 		const auto glob = GlobalVariable::create(i->id(), _builder->get_module(), i->getType(), i->isConst(),
-			i->getInitList());
+		                                         i->getInitList());
 		_var_scope.push(i->id(), glob);
 	}
 
@@ -109,91 +110,91 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 		int fill = 0;
 		for (auto i = ini->getIterator(); !i.isEnd(); ++i)
 		{
-			switch (i.getCurrentIterateType())  // NOLINT(clang-diagnostic-switch-enum)
+			switch (i.getCurrentIterateType()) // NOLINT(clang-diagnostic-switch-enum)
 			{
-			case TensorIterateType::VALUE:
-			{
-				auto v = i.getValue();
-				if (v.isExpression())
-				{
-					seg_type |= 0b01;
-					prefill_cache[fill] = ini->defaultValue();
-				}
-				else
-				{
-					seg_type |= 0b10;
-					if (v != ini->defaultValue())
+				case TensorIterateType::VALUE:
 					{
-						seg_type |= 0b01;
-						prefill_cache[fill] = v;
+						auto v = i.getValue();
+						if (v.isExpression())
+						{
+							seg_type |= 0b01;
+							prefill_cache[fill] = ini->defaultValue();
+						}
+						else
+						{
+							seg_type |= 0b10;
+							if (v != ini->defaultValue())
+							{
+								seg_type |= 0b01;
+								prefill_cache[fill] = v;
+							}
+							else prefill_cache[fill] = ini->defaultValue();
+						}
+						fill++;
+						if (fill == 4)
+						{
+							fill = 0;
+							if (segmentOpTypes.empty() || segmentOpTypes.back() != seg_type)
+							{
+								segmentOpTypes.emplace_back(seg_type);
+								segmentLength.emplace_back(1);
+							}
+							else
+								segmentLength.back()++;
+							if (seg_type == 0b11)
+							{
+								for (auto& p : prefill_cache) prefill.emplace_back(p);
+							}
+							seg_type = 0;
+						}
+						break;
 					}
-					else prefill_cache[fill] = ini->defaultValue();
-				}
-				fill++;
-				if (fill == 4)
-				{
-					fill = 0;
-					if (segmentOpTypes.empty() || segmentOpTypes.back() != seg_type)
+				case TensorIterateType::DEFAULT_VALUES:
 					{
-						segmentOpTypes.emplace_back(seg_type);
-						segmentLength.emplace_back(1);
+						auto [d, l] = i.getDefaultValues();
+						int lim = min(fill + l, 4);
+						for (int p = fill; p < lim; p++) prefill_cache[p] = ini->defaultValue();
+						bool ppd = false;
+						fill += l;
+						seg_type |= 0b10;
+						if (fill >= 4)
+						{
+							ppd = true;
+							if (segmentOpTypes.empty() || segmentOpTypes.back() != seg_type)
+							{
+								segmentOpTypes.emplace_back(seg_type);
+								segmentLength.emplace_back(1);
+							}
+							else
+								segmentLength.back()++;
+							fill -= 4;
+							if (seg_type == 0b11)
+							{
+								for (auto& p : prefill_cache) prefill.emplace_back(p);
+							}
+							seg_type = 0;
+						}
+						int len = logicalRightShift(fill, 2);
+						fill &= 0b11;
+						if (len > 0)
+						{
+							if (segmentOpTypes.empty() || segmentOpTypes.back() != 0b10)
+							{
+								segmentOpTypes.emplace_back(0b10);
+								segmentLength.emplace_back(len);
+							}
+							else
+								segmentLength.back() += len;
+						}
+						if (ppd && fill > 0)
+						{
+							seg_type |= 0b10;
+							for (int p = 0; p < fill; p++) prefill_cache[p] = ini->defaultValue();
+						}
+						break;
 					}
-					else
-						segmentLength.back()++;
-					if (seg_type == 0b11)
-					{
-						for (auto& p : prefill_cache) prefill.emplace_back(p);
-					}
-					seg_type = 0;
-				}
-				break;
-			}
-			case TensorIterateType::DEFAULT_VALUES:
-			{
-				auto [d, l] = i.getDefaultValues();
-				int lim = min(fill + l, 4);
-				for (int p = fill; p < lim; p++) prefill_cache[p] = ini->defaultValue();
-				bool ppd = false;
-				fill += l;
-				seg_type |= 0b10;
-				if (fill >= 4)
-				{
-					ppd = true;
-					if (segmentOpTypes.empty() || segmentOpTypes.back() != seg_type)
-					{
-						segmentOpTypes.emplace_back(seg_type);
-						segmentLength.emplace_back(1);
-					}
-					else
-						segmentLength.back()++;
-					fill -= 4;
-					if (seg_type == 0b11)
-					{
-						for (auto& p : prefill_cache) prefill.emplace_back(p);
-					}
-					seg_type = 0;
-				}
-				int len = logicalRightShift(fill, 2);
-				fill &= 0b11;
-				if (len > 0)
-				{
-					if (segmentOpTypes.empty() || segmentOpTypes.back() != 0b10)
-					{
-						segmentOpTypes.emplace_back(0b10);
-						segmentLength.emplace_back(len);
-					}
-					else
-						segmentLength.back() += len;
-				}
-				if (ppd && fill > 0)
-				{
-					seg_type |= 0b10;
-					for (int p = 0; p < fill; p++) prefill_cache[p] = ini->defaultValue();
-				}
-				break;
-			}
-			default:
-				break;
+				default:
+					break;
 			}
 		}
 		int ps = u2iNegThrow(prefill.size());
@@ -201,13 +202,13 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 		GlobalVariable* glob = nullptr;
 		if (ps > 0)
 		{
-			Tensor<InitializeValue>* tensor = new Tensor<InitializeValue>{ vector<int>{ps}, ini->defaultValue() };
+			Tensor<InitializeValue>* tensor = new Tensor<InitializeValue>{vector<int>{ps}, ini->defaultValue()};
 			for (auto& i : prefill) tensor->getData()->append(i);
 			auto id = createPrivateGlobalVarID();
 			glob = GlobalVariable::create(id, _builder->get_module(),
-				Types::arrayType(ini->defaultValue().getExpressionType(), false,
-					{ ps }),
-				true, tensor);
+			                              Types::arrayType(ini->defaultValue().getExpressionType(), false,
+			                                               {ps}),
+			                              true, tensor);
 			_var_scope.pushFront(id, glob);
 			delete tensor;
 		}
@@ -232,10 +233,10 @@ Value* AST2IRVisitor::visit(ASTVarDecl* decl)
 				auto dest = _builder->create_nump2charp(
 					_builder->create_gep(scope, index(ini->getDimCapacities(), selfIdx, 1)));
 				auto t_dest = _builder->create_nump2charp(_builder->create_gep(glob_plain,
-					{
-						_builder->create_constant(0),
-						_builder->create_constant(cpIdx)
-					}));
+				                                                               {
+					                                                               _builder->create_constant(0),
+					                                                               _builder->create_constant(cpIdx)
+				                                                               }));
 				_builder->create_memcpy(t_dest, dest, len << 4);
 				cpIdx += len << 2;
 			}
@@ -310,7 +311,7 @@ Value* AST2IRVisitor::visit(ASTFuncDecl* func_decl)
 		inputTypes.emplace_back(t);
 	}
 	const auto func = Function::create(Types::functionType(func_decl->returnType(), inputTypes), func_decl->id(),
-		_module);
+	                                   _module);
 	_func_scope.push(func_decl->id(), func);
 	_functionBelong = func;
 	const auto funBB = BasicBlock::create(_module, "entry", func);
@@ -554,20 +555,20 @@ Value* AST2IRVisitor::visit(ASTMathExp* math_exp)
 	bool flt = l->get_type() == Types::FLOAT;
 	switch (math_exp->op())
 	{
-	case MathOP::ADD:
-		if (flt) return _builder->create_fadd(l, r);
-		return _builder->create_iadd(l, r);
-	case MathOP::SUB:
-		if (flt) return _builder->create_fsub(l, r);
-		return _builder->create_isub(l, r);
-	case MathOP::MUL:
-		if (flt) return _builder->create_fmul(l, r);
-		return _builder->create_imul(l, r);
-	case MathOP::DIV:
-		if (flt) return _builder->create_fdiv(l, r);
-		return _builder->create_isdiv(l, r);
-	case MathOP::MOD:
-		return _builder->create_isrem(l, r);
+		case MathOP::ADD:
+			if (flt) return _builder->create_fadd(l, r);
+			return _builder->create_iadd(l, r);
+		case MathOP::SUB:
+			if (flt) return _builder->create_fsub(l, r);
+			return _builder->create_isub(l, r);
+		case MathOP::MUL:
+			if (flt) return _builder->create_fmul(l, r);
+			return _builder->create_imul(l, r);
+		case MathOP::DIV:
+			if (flt) return _builder->create_fdiv(l, r);
+			return _builder->create_isdiv(l, r);
+		case MathOP::MOD:
+			return _builder->create_isrem(l, r);
 	}
 	return nullptr;
 }
@@ -640,22 +641,22 @@ Value* AST2IRVisitor::visit(ASTRelation* relation)
 	Value* cond;
 	switch (relation->op())
 	{
-	case RelationOP::LT:
-		if (flt) cond = _builder->create_fcmp_lt(l, r);
-		else cond = _builder->create_icmp_lt(l, r);
-		return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
-	case RelationOP::GT:
-		if (flt) cond = _builder->create_fcmp_gt(l, r);
-		else cond = _builder->create_icmp_gt(l, r);
-		return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
-	case RelationOP::LE:
-		if (flt) cond = _builder->create_fcmp_le(l, r);
-		else cond = _builder->create_icmp_le(l, r);
-		return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
-	case RelationOP::GE:
-		if (flt) cond = _builder->create_fcmp_ge(l, r);
-		else cond = _builder->create_icmp_ge(l, r);
-		return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
+		case RelationOP::LT:
+			if (flt) cond = _builder->create_fcmp_lt(l, r);
+			else cond = _builder->create_icmp_lt(l, r);
+			return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
+		case RelationOP::GT:
+			if (flt) cond = _builder->create_fcmp_gt(l, r);
+			else cond = _builder->create_icmp_gt(l, r);
+			return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
+		case RelationOP::LE:
+			if (flt) cond = _builder->create_fcmp_le(l, r);
+			else cond = _builder->create_icmp_le(l, r);
+			return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
+		case RelationOP::GE:
+			if (flt) cond = _builder->create_fcmp_ge(l, r);
+			else cond = _builder->create_icmp_ge(l, r);
+			return _builder->create_cond_br(cond, _true_targets.back(), _false_targets.back());
 	}
 	return nullptr;
 }
@@ -708,7 +709,7 @@ Value* AST2IRVisitor::visit(ASTCall* call)
 			else
 			{
 				auto zero = _builder->create_constant(0);
-				vector<Value*> d{ zero, zero };
+				vector<Value*> d{zero, zero};
 				args.emplace_back(_builder->create_gep(arg, d));
 			}
 		}
@@ -813,21 +814,42 @@ Value* AST2IRVisitor::visit(ASTWhile* while_node)
 		auto bb_cond = BasicBlock::create(_module, "", _functionBelong);
 		auto bb_next = BasicBlock::create(_module, "", _functionBelong);
 		auto bb_while = BasicBlock::create(_module, "", _functionBelong);
-		_builder->create_br(bb_while);
-		_builder->set_insert_point(bb_while);
-		_while_nexts.emplace_back(bb_next);
-		_while_conds.emplace_back(bb_cond);
-		visitStmts(while_node->stmt());
-		_while_nexts.pop_back();
-		_while_conds.pop_back();
-		if (!_builder->get_insert_block()->is_terminated())
+		if (loopRotateAndAddGuardInAST)
+		{
+			_builder->create_br(bb_while);
+			_builder->set_insert_point(bb_while);
+			_while_nexts.emplace_back(bb_next);
+			_while_conds.emplace_back(bb_cond);
+			visitStmts(while_node->stmt());
+			_while_nexts.pop_back();
+			_while_conds.pop_back();
+			if (!_builder->get_insert_block()->is_terminated())
+				_builder->create_br(bb_cond);
+			_builder->set_insert_point(bb_cond);
+			_true_targets.emplace_back(bb_while);
+			_false_targets.emplace_back(bb_next);
+			while_node->cond()->accept(this);
+			_true_targets.pop_back();
+			_false_targets.pop_back();
+		}
+		else
+		{
 			_builder->create_br(bb_cond);
-		_builder->set_insert_point(bb_cond);
-		_true_targets.emplace_back(bb_while);
-		_false_targets.emplace_back(bb_next);
-		while_node->cond()->accept(this);
-		_true_targets.pop_back();
-		_false_targets.pop_back();
+			_builder->set_insert_point(bb_cond);
+			_true_targets.emplace_back(bb_while);
+			_false_targets.emplace_back(bb_next);
+			while_node->cond()->accept(this);
+			_true_targets.pop_back();
+			_false_targets.pop_back();
+			_builder->set_insert_point(bb_while);
+			_while_nexts.emplace_back(bb_next);
+			_while_conds.emplace_back(bb_cond);
+			visitStmts(while_node->stmt());
+			_while_nexts.pop_back();
+			_while_conds.pop_back();
+			if (!_builder->get_insert_block()->is_terminated())
+				_builder->create_br(bb_cond);
+		}
 		_builder->set_insert_point(bb_next);
 	}
 	return nullptr;

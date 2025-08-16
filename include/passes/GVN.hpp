@@ -30,13 +30,13 @@ class GVN final : public Pass
 		Instruction::OpID type_;
 		~ValueHash();
 
-		bool operator<(const ValueHash& r)const;
+		bool operator<(const ValueHash& r) const;
 	};
 
 	enum gvn_state_t : uint8_t { firstdef, redundant, invalid };
 
 	std::map<ValueHash, Value*> expr_val_map_;
-	std::unique_ptr<Dominators> dom_;
+	Dominators* dom_;
 
 	gvn_state_t visit_inst(Instruction* i);
 
@@ -46,9 +46,8 @@ public:
 	GVN& operator=(const GVN&) = delete;
 	GVN& operator=(GVN&&) = delete;
 
-	explicit GVN(Module* m) : Pass(m)
+	explicit GVN(PassManager* mng, Module* m) : Pass(mng, m), dom_(nullptr)
 	{
-		dom_ = std::make_unique<Dominators>(m);
 	}
 
 	~GVN() override = default;

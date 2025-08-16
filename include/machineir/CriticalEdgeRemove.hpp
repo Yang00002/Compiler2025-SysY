@@ -9,5 +9,5 @@ class CriticalEdgeRemove final : public Pass
 public:
 	void run() override;
 
-	explicit CriticalEdgeRemove(Module* m);
+	explicit CriticalEdgeRemove(PassManager* mng, Module* m);
 };

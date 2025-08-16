@@ -13,14 +13,13 @@ public:
 	LoopInvariantCodeMotion(LoopInvariantCodeMotion&&) = delete;
 	LoopInvariantCodeMotion& operator=(const LoopInvariantCodeMotion&) = delete;
 	LoopInvariantCodeMotion& operator=(LoopInvariantCodeMotion&&) = delete;
+	~LoopInvariantCodeMotion() override = default;
 
-	explicit LoopInvariantCodeMotion(Module* m) : Pass(m)
+	explicit LoopInvariantCodeMotion(PassManager* manager, Module* m) : Pass(manager, m)
 	{
 		loop_detection_ = nullptr;
 		func_info_ = nullptr;
 	}
-
-	~LoopInvariantCodeMotion() override;
 
 	void run() override;
 

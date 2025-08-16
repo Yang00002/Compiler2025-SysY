@@ -1,7 +1,6 @@
 #pragma once
 #include "Dominators.hpp"
 #include "PassManager.hpp"
-#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -22,10 +21,10 @@ class Loop
 	BasicBlock* header_;
 
 	Loop* parent_ = nullptr;
-	BBvec blocks_;
+	std::unordered_set<BasicBlock*> blocks_;
+	std::set<BasicBlock*> latches_;
+	std::map<BasicBlock*, BasicBlock*> exits_;
 	std::vector<Loop*> sub_loops_;
-
-	std::unordered_set<BasicBlock*> latches_;
 
 public:
 	Loop(const Loop&) = delete;
@@ -35,34 +34,36 @@ public:
 
 	Loop(BasicBlock* header) : header_(header)
 	{
-		blocks_.push_back(header);
+		blocks_.emplace(header);
 	}
 
 	~Loop() = default;
-	void add_block(BasicBlock* bb) { blocks_.push_back(bb); }
+	void add_block(BasicBlock* bb) { blocks_.emplace(bb); }
 	[[nodiscard]] BasicBlock* get_header() const { return header_; }
 	[[nodiscard]] BasicBlock* get_preheader() const { return preheader_; }
 	[[nodiscard]] Loop* get_parent() const { return parent_; }
 	void set_parent(Loop* parent) { parent_ = parent; }
+	void set_header(BasicBlock* head) { header_ = head; }
 	void set_preheader(BasicBlock* bb) { preheader_ = bb; }
 	void add_sub_loop(Loop* loop) { sub_loops_.push_back(loop); }
-	const BBvec& get_blocks() { return blocks_; }
+	void remove_sub_loop(const Loop* loop);
+	std::unordered_set<BasicBlock*>& get_blocks() { return blocks_; }
 	std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
-	const std::unordered_set<BasicBlock*>& get_latches() { return latches_; }
+	const std::set<BasicBlock*>& get_latches() { return latches_; }
 	void add_latch(BasicBlock* bb) { latches_.insert(bb); }
+	void remove_latch(BasicBlock* bb) { latches_.erase(bb); }
+	void addExit(BasicBlock* from, BasicBlock* to) { exits_.emplace(from, to); }
+
+	std::string print() const;
 };
 
-class LoopDetection : public Pass
+class LoopDetection : public FuncInfoPass
 {
-	Function* func_;
-	Dominators* dominators_ = nullptr;
 	std::vector<Loop*> loops_;
 	// map from header to loop
 	std::unordered_map<BasicBlock*, Loop*> bb_to_loop_;
 	void discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
-	                                 Loop* loop);
-
-	void run_on_func(Function* f);
+	                                 Loop* loop, Dominators* dom);
 
 public:
 	LoopDetection(const LoopDetection&) = delete;
@@ -70,15 +71,16 @@ public:
 	LoopDetection& operator=(const LoopDetection&) = delete;
 	LoopDetection& operator=(LoopDetection&&) = delete;
 
-	explicit LoopDetection(Module* m) : Pass(m), func_(nullptr)
+	explicit LoopDetection(PassManager* m, Function* f) : FuncInfoPass(m, f)
 	{
 	}
 
 	~LoopDetection() override;
 
 	void run() override;
-	void only_run_on_func(Function* f);
 	void print() const;
 	std::vector<Loop*>& get_loops() { return loops_; }
-	int costOfLatch(Loop* loop, BasicBlock* bb);
+	int costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* idoms);
+	void collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlock* preHeader, Loop* innerLoop, Dominators* idoms);
+	static void addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, BasicBlock* preOut);
 };

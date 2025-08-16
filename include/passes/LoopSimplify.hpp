@@ -1,6 +1,4 @@
 #pragma once
-#include <unordered_set>
-
 #include "PassManager.hpp"
 
 class Loop;
@@ -12,13 +10,14 @@ class LoopSimplify : public Pass
 	Function* f_;
 
 public:
-	explicit LoopSimplify(Module* m);
-	~LoopSimplify() override;
+	explicit LoopSimplify(PassManager* mng,Module* m);
 
 	void run() override;
+
 private:
-	void runOnFunc() ;
-	void runOnLoops(std::vector<Loop*>& loops);
-	void runOnLoop(Loop* loop);
-	BasicBlock* preHeader(Loop* loop);
+	void runOnFunc();
+	bool createPreHeaderAndLatchOnLoops(const std::vector<Loop*>& loops);
+	bool createPreHeaderAndLatchOnLoop(Loop* loop) const;
+	bool createExitOnLoops(const std::vector<Loop*>& loops);
+	bool createExitOnLoop(Loop* loop) const;
 };

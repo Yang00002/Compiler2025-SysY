@@ -138,6 +138,6 @@ void CmpCombine::run()
 	LOG(color::cyan("CmpCombine Done"));
 }
 
-CmpCombine::CmpCombine(Module* m): Pass(m)
+CmpCombine::CmpCombine(PassManager* mng,Module* m): Pass(mng, m)
 {
 }

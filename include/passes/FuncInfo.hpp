@@ -22,7 +22,7 @@ class Module;
  *
  * 三种情况都不存在的函数是纯函数
  */
-class FuncInfo : public Pass
+class FuncInfo : public GlobalInfoPass
 {
 public:
 	// 非纯函数对值的影响信息
@@ -38,9 +38,12 @@ public:
 		[[nodiscard]] bool empty() const;
 	};
 
-	FuncInfo(Module* m);
+	FuncInfo(PassManager* mng, Module* m);
 
 	void run() override;
+	void flushAbout(std::unordered_set<Function*>& f);
+	void removeFunc(Function* f);
+	void flushLoadsAbout(std::unordered_set<Function*>& f);
 	UseMessage& loadDetail(Function* function);
 	UseMessage& storeDetail(Function* function);
 
@@ -58,4 +61,6 @@ private:
 	std::unordered_map<Function*, bool> useImpureLibs;
 
 	void spread(Value* val, std::unordered_map<Value*, Value*>& spMap);
+	void spreadLoadsIn(Value* val, std::unordered_map<Value*, Value*>& spMap, std::unordered_set<Function*>& fs);
+	void spreadGlobalIn(Value* val, std::unordered_map<Value*, Value*>& spMap, std::unordered_set<Function*>& fs);
 };

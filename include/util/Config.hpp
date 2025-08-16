@@ -70,3 +70,5 @@ extern bool mergeFloatBinaryInst;
 extern bool onlyMergeMulAndASWhenASUseAllReg;
 // 使用 stackOffset 来计算 spill 的消耗
 extern bool useStackOffset2GetspillCost;
+// 在 AST 中就进行循环旋转和添加 loop guard
+extern bool loopRotateAndAddGuardInAST;

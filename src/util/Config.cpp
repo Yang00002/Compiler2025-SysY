@@ -3,7 +3,7 @@
 int replaceGlobalAddressWithRegisterNeedUseCount = 2;
 float replaceAllocaAddressWithRegisterNeedTotalCost = 10;
 int replaceAllocaAddressWithRegisterNeedUseCount = 3;
-float prefillConstantNeedTotalCost = 20000000;
+float prefillConstantNeedTotalCost = 20000000.0;
 int useMultiplierPerLoop = 10;
 float globalRegisterSpillPriority = 1.0f;
 float bigAllocaRegisterSpillPriority = 0.8f;
@@ -35,3 +35,4 @@ bool useBinaryInstMerge = false;
 bool mergeFloatBinaryInst = false;
 bool onlyMergeMulAndASWhenASUseAllReg = true;
 bool useStackOffset2GetspillCost = false;
+bool loopRotateAndAddGuardInAST = false;

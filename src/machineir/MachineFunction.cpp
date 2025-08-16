@@ -133,10 +133,11 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 
 	lrGuard_ = VirtualRegister::createVirtualIRegister(this, 64);
 
-	LoopDetection detection{function->get_parent()};
-	detection.only_run_on_func(function);
+	PassManager* mng = new PassManager{function->get_parent()};
+	LoopDetection* detection = mng->getFuncInfo<LoopDetection>(function);
+	delete mng;
 
-	for (auto loop : detection.get_loops())
+	for (auto loop : detection->get_loops())
 	{
 		for (auto bb : loop->get_blocks())
 		{

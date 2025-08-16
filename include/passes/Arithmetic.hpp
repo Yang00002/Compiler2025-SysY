@@ -4,9 +4,6 @@
 
 #include "Instruction.hpp"
 #include "PassManager.hpp"
-#include <vector>
-
-#include "Config.hpp"
 
 class Arithmetic final : public Pass
 {
@@ -67,7 +64,7 @@ public:
 	Arithmetic& operator=(const Arithmetic&) = delete;
 	Arithmetic& operator=(Arithmetic&&) = delete;
 
-	explicit Arithmetic(Module* m) : Pass(m)
+	explicit Arithmetic(PassManager* mng, Module* m) : Pass(mng, m)
 	{
 	}
 

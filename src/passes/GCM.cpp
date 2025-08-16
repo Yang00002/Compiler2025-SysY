@@ -1,5 +1,8 @@
 #include "GCM.hpp"
 
+#define DEBUG 0
+#include "Util.hpp"
+
 bool GlobalCodeMotion::is_pinned(const Instruction* i)
 {
 	return i->is_br() || i->is_call() || i->is_ret() || i->is_phi() || i->is_load() || i->is_store();
@@ -32,7 +35,7 @@ BasicBlock* GlobalCodeMotion::LCA(BasicBlock* bb1, BasicBlock* bb2) const
 void GlobalCodeMotion::run(Function* f)
 {
 	visited_.clear();
-	auto po = dom_->get_dom_post_order(f);
+	auto& po = dom_->get_dom_post_order(f);
 	std::vector<Instruction*> instructions;
 	for (auto bb : po)
 	{
@@ -136,6 +139,18 @@ void GlobalCodeMotion::postpone(Instruction* i)
 					break;
 				}
 			}
+		}
+	}
+}
+
+void GlobalCodeMotion::run()
+{
+	for (auto f : m_->get_functions())
+	{
+		if (!f->is_lib_ && f->get_num_basic_blocks() > 1)
+		{
+			dom_ = manager_->getFuncInfo<Dominators>(f);
+			run(f);
 		}
 	}
 }

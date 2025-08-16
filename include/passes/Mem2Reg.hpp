@@ -10,7 +10,7 @@
 class Mem2Reg final : public Pass
 {
 	Function* func_;
-	std::unique_ptr<Dominators> dominators_;
+	Dominators* dominators_;
 	std::map<Value*, Value*> phi_map;
 	// 变量定值栈
 	std::map<Value*, std::vector<Value*>> var_val_stack;
@@ -23,7 +23,7 @@ public:
 	Mem2Reg& operator=(const Mem2Reg&) = delete;
 	Mem2Reg& operator=(Mem2Reg&&) = delete;
 
-	explicit Mem2Reg(Module* m);
+	explicit Mem2Reg(PassManager* mng,Module* m);
 
 	~Mem2Reg() override = default;
 

@@ -116,7 +116,7 @@ public:
 	SCCP(SCCP&&) = delete;
 	SCCP& operator=(const SCCP&) = delete;
 	SCCP& operator=(SCCP&&) = delete;
-	explicit SCCP(Module* m) : Pass(m) { visitor_ = std::make_unique<SCCPVisitor>(*this); }
+	explicit SCCP(PassManager* mng,Module* m) : Pass(mng, m) { visitor_ = std::make_unique<SCCPVisitor>(*this); }
 	~SCCP() override = default;
 
 	void run() override;

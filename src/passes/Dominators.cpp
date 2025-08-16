@@ -252,26 +252,19 @@ namespace
  */
 void Dominators::run()
 {
-	for (auto& f : m_->get_functions())
-	{
-		run_on_func(f);
-	}
-}
-
-void Dominators::run_on_func(Function* f)
-{
-	if (f->is_lib_) return;
-	LTDominatorTreeSolver solver{f};
+	LTDominatorTreeSolver solver{ f_ };
 	solver.solve();
 	solver.dumpIdom(idom_);
 	solver.dumpTreeSucc(dom_tree_succ_blocks_);
 	solver.dumpFrontier(dom_frontier_);
-	create_dom_dfs_order(f);
+	create_dom_dfs_order();
 }
 
 
 // ReSharper disable once CppParameterMayBeConstPtrOrRef
 BasicBlock* Dominators::get_idom(BasicBlock* bb) const { return idom_.at(bb); }
+
+void Dominators::set_idom(BasicBlock* bb, BasicBlock* idom) { idom_[bb] = idom; }
 
 const std::set<BasicBlock*>& Dominators::get_dominance_frontier(BasicBlock* bb)
 {
@@ -500,7 +493,6 @@ const std::vector<BasicBlock*>& Dominators::get_dom_post_order(Function* functio
 
 /**
  * @brief 为支配树创建深度优先搜索序
- * @param f 要处理的函数
  *
  * 该函数通过深度优先搜索遍历支配树，为每个基本块分配两个序号：
  * 1. dom_tree_L_：记录DFS首次访问该节点的时间戳
@@ -513,14 +505,14 @@ const std::vector<BasicBlock*>& Dominators::get_dom_post_order(Function* functio
  * 这些序号和顺序可用于快速判断支配关系：
  * 如果节点A支配节点B，则A的L值小于B的L值，且A的R值大于B的R值
  */
-void Dominators::create_dom_dfs_order(Function* f)
+void Dominators::create_dom_dfs_order()
 {
 	// 分析得到 f 中各个基本块的支配树上的dfs序L,R
 	int order = 0;
-	auto& od = dom_dfs_order_[f];
+	auto& od = dom_dfs_order_[f_];
 	std::stack<BasicBlock*> dfsWorkList;
 	std::stack<bool> dfsVisitList;
-	dfsWorkList.emplace(f->get_entry_block());
+	dfsWorkList.emplace(f_->get_entry_block());
 	dfsVisitList.emplace(false);
 
 	dom_tree_L_.clear();
@@ -547,6 +539,6 @@ void Dominators::create_dom_dfs_order(Function* f)
 			dfsVisitList.emplace(false);
 		}
 	}
-	dom_post_order_[f] = std::vector(od.rbegin(),
+	dom_post_order_[f_] = std::vector(od.rbegin(),
 	                                 od.rend());
 }

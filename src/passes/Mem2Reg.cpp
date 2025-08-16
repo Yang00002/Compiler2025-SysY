@@ -16,10 +16,12 @@
 #include "Value.hpp"
 
 #define DEBUG 0
+#include "FuncInfo.hpp"
 #include "Util.hpp"
 
-Mem2Reg::Mem2Reg(Module* m) : Pass(m)
+Mem2Reg::Mem2Reg(PassManager* mng, Module* m) : Pass(mng, m)
 {
+	dominators_ = nullptr;
 	func_ = nullptr;
 }
 
@@ -37,17 +39,12 @@ Mem2Reg::Mem2Reg(Module* m) : Pass(m)
 void Mem2Reg::run()
 {
 	LOG(color::cyan("Run Mem2Reg Pass"));
-	// 创建支配树分析 Pass 的实例
-	dominators_ = std::make_unique<Dominators>(m_);
-	// 建立支配树
-	dominators_->run();
-	LOG(color::green("Dominators Built"));
 	// 以函数为单元遍历实现 Mem2Reg 算法
 	for (const auto& f : m_->get_functions())
 	{
-		if (f->is_declaration())
-			continue;
+		if (f->is_lib_) continue;
 		LOG(color::blue("Working on Function " ) + f->get_name());
+		dominators_ = manager_->getFuncInfo<Dominators>(f);
 		GAP;
 		RUN(dominators_->print_dominance_frontier(f));
 		GAP;
@@ -76,6 +73,7 @@ void Mem2Reg::run()
 	}
 	PASS_SUFFIX;
 	LOG(color::cyan("Mem2Reg Done"));
+	manager_->flushGlobalInfo<FuncInfo>();
 }
 
 /**

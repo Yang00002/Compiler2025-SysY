@@ -39,10 +39,11 @@ public:
 	Inline& operator=(const Inline& other) = delete;
 	Inline& operator=(Inline&& other) noexcept = delete;
 
-	explicit Inline(Module* m);
+	explicit Inline(PassManager* manager, Module* m);
 
 	void run() override;
 	~Inline() override;
+
 private:
 	std::unordered_map<BasicBlock*, IBBNode*> nodes_;
 	std::vector<IBBNode*> allNodes_;
@@ -58,12 +59,12 @@ private:
 	 * 去除函数中空的基本块(仅含一条指令, 这条指令有唯一目标)
 	 */
 	void runOnFunc();
-	void mergeBlocks();
-	void mergeReturns();
-	void mergeBranchs();
+	bool mergeBlocks();
+	bool mergeReturns();
+	bool mergeBranchs();
 	void simplifyBranchs() const;
 	void replaceGoTo(IBBNode* from, IBBNode* to) const;
-	void selectReturnNodes(std::unordered_map<Value*, IBBNode*>& nodeMap) const;
+	bool selectReturnNodes(std::unordered_map<Value*, IBBNode*>& nodeMap) const;
 	void selectBranchNodes();
 	void merge(IBBNode* pre, IBBNode* next) const;
 	void done2WaitList();

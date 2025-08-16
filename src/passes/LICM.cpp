@@ -17,35 +17,25 @@
 #define DEBUG 0
 #include "Util.hpp"
 
-LoopInvariantCodeMotion::~LoopInvariantCodeMotion()
-{
-	delete loop_detection_;
-	delete func_info_;
-}
-
 void LoopInvariantCodeMotion::run()
 {
 	PREPARE_PASS_MSG;
 	PASS_SUFFIX;
 	LOG(color::cyan("Run LICM Pass"));
 	PUSH;
-	delete loop_detection_;
-	loop_detection_ = new LoopDetection{m_};
-	loop_detection_->run();
-	LOG(color::green("Loop Dection Done"));
-	GAP;
-	RUN(loop_detection_->print());
-	GAP;
-	delete func_info_;
-	func_info_ = new FuncInfo(m_);
-	func_info_->run();
-	for (auto& loop : loop_detection_->get_loops())
+	func_info_ = manager_->getGlobalInfo<FuncInfo>();
+	for (auto f : m_->get_functions())
 	{
-		is_loop_done_[loop] = false;
-	}
-	for (auto& loop : loop_detection_->get_loops())
-	{
-		traverse_loop(loop);
+		if (f->is_lib_)continue;
+		loop_detection_ = manager_->getFuncInfo<LoopDetection>(f);
+		for (auto& loop : loop_detection_->get_loops())
+		{
+			is_loop_done_[loop] = false;
+		}
+		for (auto& loop : loop_detection_->get_loops())
+		{
+			traverse_loop(loop);
+		}
 	}
 	POP;
 	PASS_SUFFIX;
@@ -355,118 +345,134 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 		LOG(color::pink("Create PreHeader"));
 		loop->set_preheader(
 			BasicBlock::create(m_, "", loop->get_header()->get_parent()));
-	}
+		auto preheader = loop->get_preheader();
 
-	auto preheader = loop->get_preheader();
-
-	for (auto phi_inst_ : loop->get_header()->get_instructions().phi_and_allocas())
-	{
-		if (phi_inst_->get_instr_type() != Instruction::phi)
-			throw std::runtime_error("loop on entry block");
-		LOG(color::pink("Processing ") + phi_inst_->print());
-		auto phi = dynamic_cast<PhiInst*>(phi_inst_);
-		std::map<BasicBlock*, Value*> phiMap;
-		Value* v = nullptr;
-		int preCount = 0;
-		for (auto& [i, j] : phi->get_phi_pairs())
+		for (auto phi_inst_ : loop->get_header()->get_instructions().phi_and_allocas())
 		{
-			phiMap[j] = i;
-			v = i;
-			if (!blocks.count(j))
-				preCount++;
-		}
-		phi->remove_all_operands();
-		if (preCount > 1)
-		{
-			auto phi2 = PhiInst::create_phi(v->get_type(), preheader);
-			preheader->add_instruction(phi2);
-			for (auto [bb, value] : phiMap)
+			if (phi_inst_->get_instr_type() != Instruction::phi)
+				throw std::runtime_error("loop on entry block");
+			LOG(color::pink("Processing ") + phi_inst_->print());
+			auto phi = dynamic_cast<PhiInst*>(phi_inst_);
+			std::map<BasicBlock*, Value*> phiMap;
+			Value* v = nullptr;
+			int preCount = 0;
+			for (auto& [i, j] : phi->get_phi_pairs())
 			{
-				if (blocks.count(bb))
-				{
-					phi->add_phi_pair_operand(value, bb);
-				}
-				else
-				{
-					phi2->add_phi_pair_operand(value, bb);
-				}
-				phi->add_phi_pair_operand(phi2, preheader);
+				phiMap[j] = i;
+				v = i;
+				if (!blocks.count(j))
+					preCount++;
 			}
-			PUSH;
-			LOG("To " + phi2->print());
-			LOG("And " + phi->print());
-			POP;
-		}
-		else
-		{
-			for (auto& [bb, value] : phiMap)
+			phi->remove_all_operands();
+			if (preCount > 1)
 			{
-				if (blocks.count(bb))
+				auto phi2 = PhiInst::create_phi(v->get_type(), preheader);
+				preheader->add_instruction(phi2);
+				for (auto [bb, value] : phiMap)
 				{
-					phi->add_phi_pair_operand(value, bb);
+					if (blocks.count(bb))
+					{
+						phi->add_phi_pair_operand(value, bb);
+					}
+					else
+					{
+						phi2->add_phi_pair_operand(value, bb);
+					}
+					phi->add_phi_pair_operand(phi2, preheader);
 				}
-				else
+				PUSH;
+				LOG("To " + phi2->print());
+				LOG("And " + phi->print());
+				POP;
+			}
+			else
+			{
+				for (auto& [bb, value] : phiMap)
 				{
-					phi->add_phi_pair_operand(value, preheader);
+					if (blocks.count(bb))
+					{
+						phi->add_phi_pair_operand(value, bb);
+					}
+					else
+					{
+						phi->add_phi_pair_operand(value, preheader);
+					}
+				}
+				PUSH;
+				LOG("To " + phi->print());
+				POP;
+			}
+		}
+
+		// 将所有非 latch 的 header 前驱块的跳转指向 preheader
+		// 并将 preheader 的跳转指向 header
+		// 注意这里需要更新前驱块的后继和后继的前驱
+
+		std::vector<BasicBlock*> pred_to_remove;
+		for (auto& pred : loop->get_header()->get_pre_basic_blocks())
+		{
+			if (blocks.count(pred) == 0)
+				pred_to_remove.emplace_back(pred);
+		}
+		LOGIF(color::pink("Handling PreHeader Relation"), !pred_to_remove.empty());
+		for (auto& pred : pred_to_remove)
+		{
+			PUSH;
+			LOG("Remove " + pred->get_name() + " -> " + loop->get_header()->get_name());
+			LOG("Add " + pred->get_name() + " -> " + preheader->get_name());
+			POP;
+			loop->get_header()->remove_pre_basic_block(pred);
+			pred->remove_succ_basic_block(loop->get_header());
+			pred->add_succ_basic_block(preheader);
+			preheader->add_pre_basic_block(pred);
+			const auto ins = pred->get_instructions().back();
+			const int size = u2iNegThrow(ins->get_operands().size());
+			for (int i = 0; i < size; i++)
+			{
+				if (ins->get_operand(i) == loop->get_header())
+				{
+					ins->set_operand(i, preheader);
 				}
 			}
-			PUSH;
-			LOG("To " + phi->print());
-			POP;
 		}
-	}
-
-	// 将所有非 latch 的 header 前驱块的跳转指向 preheader
-	// 并将 preheader 的跳转指向 header
-	// 注意这里需要更新前驱块的后继和后继的前驱
-
-	std::vector<BasicBlock*> pred_to_remove;
-	for (auto& pred : loop->get_header()->get_pre_basic_blocks())
-	{
-		if (blocks.count(pred) == 0)
-			pred_to_remove.emplace_back(pred);
-	}
-	LOGIF(color::pink("Handling PreHeader Relation"), !pred_to_remove.empty());
-	for (auto& pred : pred_to_remove)
-	{
+		LOG(color::pink("Moving Invariants"));
 		PUSH;
-		LOG("Remove " + pred->get_name() + " -> " + loop->get_header()->get_name());
-		LOG("Add " + pred->get_name() + " -> " + preheader->get_name());
-		POP;
-		loop->get_header()->remove_pre_basic_block(pred);
-		pred->remove_succ_basic_block(loop->get_header());
-		pred->add_succ_basic_block(preheader);
-		preheader->add_pre_basic_block(pred);
-		const auto ins = pred->get_instructions().back();
-		const int size = u2iNegThrow(ins->get_operands().size());
-		for (int i = 0; i < size; i++)
+		for (auto ins : invariant_as_list) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 		{
-			if (ins->get_operand(i) == loop->get_header())
-			{
-				ins->set_operand(i, preheader);
-			}
+			LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
+			ins->get_parent()->erase_instr(ins);
+			preheader->add_instruction(ins);
+			ins->set_parent(preheader);
+		}
+
+		POP;
+
+		// insert preheader br to header
+		LOG(color::pink("Linking ") + preheader->get_name() + color::pink(" -> ") + loop->get_header()->get_name());
+
+		BranchInst::create_br(loop->get_header(), preheader);
+
+		// insert preheader to parent loop
+		if (loop->get_parent() != nullptr)
+		{
+			loop->get_parent()->add_block(preheader);
 		}
 	}
-	LOG(color::pink("Moving Invariants"));
-	PUSH;
-	for (auto ins : invariant_as_list) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+	else
 	{
-		LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
-		ins->get_parent()->erase_instr(ins);
-		preheader->add_instruction(ins);
-		ins->set_parent(preheader);
-	}
-	POP;
-
-	// insert preheader br to header
-	LOG(color::pink("Linking ") + preheader->get_name() + color::pink(" -> ") + loop->get_header()->get_name());
-
-	BranchInst::create_br(loop->get_header(), preheader);
-
-	// insert preheader to parent loop
-	if (loop->get_parent() != nullptr)
-	{
-		loop->get_parent()->add_block(preheader);
+		auto preheader = loop->get_preheader();
+		Instruction* pb = preheader->get_terminator();
+		preheader->get_instructions().pop_back();
+		PUSH;
+		for (auto ins : invariant_as_list) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+		{
+			LOG("From " + ins->get_parent()->get_name() + " to " + preheader->get_name());
+			ins->get_parent()->erase_instr(ins);
+			preheader->add_instruction(ins);
+			ins->set_parent(preheader);
+		}
+		POP;
+		preheader->add_instruction(pb);
 	}
 	POP;
 }

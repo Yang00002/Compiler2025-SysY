@@ -10,8 +10,8 @@ class InstructionSelect : public Pass
 	void runInner() const;
 public:
 
-	explicit InstructionSelect(Module* m)
-		: Pass(m)
+	explicit InstructionSelect(PassManager* mng, Module* m)
+		: Pass(mng, m)
 	{
 		f_ = nullptr;
 		b_ = nullptr;

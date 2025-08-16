@@ -5,6 +5,8 @@
 #include <Type.hpp>
 #include <map>
 #include <cassert>
+#include <queue>
+#include <stdexcept>
 
 #include "MachineBasicBlock.hpp"
 #include "System.hpp"
@@ -232,4 +234,111 @@ std::string Argument::print()
 	arg_ir += " %";
 	arg_ir += this->get_name();
 	return arg_ir;
+}
+
+void Function::checkBlockRelations() const
+{
+	std::unordered_set<BasicBlock*> bbs;
+	std::queue<BasicBlock*> worklist;
+	for (auto bb : basic_blocks_)
+	{
+		worklist.emplace(bb);
+		bbs.emplace(bb);
+	}
+	while (!worklist.empty())
+	{
+		auto b = worklist.front();
+		worklist.pop();
+		if (!bbs.count(b)) throw std::runtime_error("bb not exist in func");
+	}
+	for (auto bb : basic_blocks_)
+	{
+		auto b = bb->get_instructions().back();
+		for (auto suc : bb->get_succ_basic_blocks())
+		{
+			bool ok = false;
+			auto& ops = b->get_operands();
+			for (auto i : ops)
+			{
+				if (i == suc)
+				{
+					ok = true;
+					break;
+				}
+			}
+			if (!ok) throw std::runtime_error("suc bb not in branch");
+		}
+		for (auto pre : bb->get_pre_basic_blocks())
+		{
+			bool ok = false;
+			b = pre->get_instructions().back();
+			auto& ops = b->get_operands();
+			for (auto i : ops)
+			{
+				if (i == bb)
+				{
+					ok = true;
+					break;
+				}
+			}
+			if (!ok) throw std::runtime_error("pre bb not in branch");
+		}
+	}
+	for (auto bb : basic_blocks_)
+	{
+		auto b = dynamic_cast<BranchInst*>(bb->get_instructions().back());
+		if (b == nullptr) continue;
+		if (b->is_cond_br())
+		{
+			bool h1 = false;
+			bool h2 = false;
+			for (auto i : bb->get_succ_basic_blocks())
+			{
+				if (i == b->get_operand(1)) h1 = true;
+				else
+					if (i == b->get_operand(2)) h2 = true;
+			}
+			if (!h1 || !h2) throw std::runtime_error("branch bb not exsit in suc");
+			bool ok = false;
+			for (auto pre : dynamic_cast<BasicBlock*>(b->get_operand(1))->get_pre_basic_blocks())
+			{
+				if (pre == bb)
+				{
+					ok = true;
+					break;
+				}
+			}
+			if (!ok) throw std::runtime_error("branch bb not exsit in pre");
+			ok = false;
+			for (auto pre : dynamic_cast<BasicBlock*>(b->get_operand(2))->get_pre_basic_blocks())
+			{
+				if (pre == bb)
+				{
+					ok = true;
+					break;
+				}
+			}
+			if (!ok) throw std::runtime_error("branch bb not exsit in pre");
+		}
+		else
+		{
+
+			bool h1 = false;
+			for (auto i : bb->get_succ_basic_blocks())
+			{
+				if (i == b->get_operand(0)) h1 = true;
+			}
+			if (!h1) throw std::runtime_error("branch bb not exsit in suc");
+			bool ok = false;
+			for (auto pre : dynamic_cast<BasicBlock*>(b->get_operand(0))->get_pre_basic_blocks())
+			{
+				if (pre == bb)
+				{
+					ok = true;
+					break;
+				}
+			}
+			if (!ok) throw std::runtime_error("branch bb not exsit in pre");
+		}
+	}
 }

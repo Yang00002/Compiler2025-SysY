@@ -8,6 +8,7 @@
 #include "Type.hpp"
 
 #define DEBUG 0
+#include "FuncInfo.hpp"
 #include "Util.hpp"
 
 void IBBNode::add(IBBNode* target)
@@ -80,9 +81,16 @@ bool IBBNode::havePre(const IBBNode* n) const
 	return pre_.test(n->id_);
 }
 
-Inline::Inline(Module* m) : Pass(m), waitlist_(new IBBNode{nullptr, nullptr, nullptr, nullptr, {}, {}, 0, 0, 0}),
-                            done_(new IBBNode{nullptr, nullptr, nullptr, nullptr, {}, {}, 0, 0, 0}),
-                            return_(new IBBNode{nullptr, nullptr, nullptr, nullptr, {}, {}, 0, 0, 0})
+Inline::Inline(PassManager* manager, Module* m) : Pass(manager, m),
+                                                  waitlist_(new IBBNode{
+	                                                  nullptr, nullptr, nullptr, nullptr, {}, {}, 0, 0, 0
+                                                  }),
+                                                  done_(new IBBNode{
+	                                                  nullptr, nullptr, nullptr, nullptr, {}, {}, 0, 0, 0
+                                                  }),
+                                                  return_(new IBBNode{
+	                                                  nullptr, nullptr, nullptr, nullptr, {}, {}, 0, 0, 0
+                                                  })
 {
 	waitlist_->clear();
 	done_->clear();
@@ -91,6 +99,7 @@ Inline::Inline(Module* m) : Pass(m), waitlist_(new IBBNode{nullptr, nullptr, nul
 
 void Inline::run()
 {
+	PASS_SUFFIX;
 	LOG(color::cyan("Run Inline Pass"));
 	PUSH;
 	std::vector<Function*> funcs;
@@ -113,7 +122,13 @@ void Inline::run()
 	{
 		return rmf.count(f);
 	});
-	for (auto i : removedFunc_) delete i;
+	auto funcinfo = manager_->getGlobalInfoIfPresent<FuncInfo>();
+	for (auto i : removedFunc_)
+	{
+		manager_->flushFuncInfo(i);
+		if (funcinfo != nullptr) funcinfo->removeFunc(i);
+		delete i;
+	}
 	POP;
 	PASS_SUFFIX;
 	LOG(color::cyan("Inline Done"));
@@ -157,8 +172,9 @@ void Inline::collectNodes()
 	}
 }
 
-void Inline::mergeBlocks()
+bool Inline::mergeBlocks()
 {
+	bool c = false;
 	LOG(color::blue("Begin Merge Blocks of ") + f_->get_name());
 	PUSH;
 	while (!waitlist_->empty())
@@ -174,20 +190,23 @@ void Inline::mergeBlocks()
 				next->discard();
 				done_->remove(pre);
 				waitlist_->add(pre);
+				c = true;
 			}
 		}
 	}
 	done2WaitList();
 	POP;
 	PASS_SUFFIX;
+	return c;
 }
 
-void Inline::mergeReturns()
+bool Inline::mergeReturns()
 {
+	bool c = false;
 	LOG(color::blue("Begin Merge Returns of ") + f_->get_name());
 	PUSH;
 	std::unordered_map<Value*, IBBNode*> nodeMap;
-	selectReturnNodes(nodeMap);
+	c |= selectReturnNodes(nodeMap);
 	while (!return_->empty())
 	{
 		auto ret = return_->pop();
@@ -198,6 +217,7 @@ void Inline::mergeReturns()
 			auto preNode = node(pre);
 			if (preNode->nc_ == 1)
 			{
+				c = true;
 				auto& insts = preNode->block_->get_instructions();
 				delete insts.pop_back();
 				inst->copy(preNode->block_);
@@ -235,10 +255,12 @@ void Inline::mergeReturns()
 	done2WaitList();
 	POP;
 	PASS_SUFFIX;
+	return c;
 }
 
-void Inline::mergeBranchs()
+bool Inline::mergeBranchs()
 {
+	bool c = false;
 	LOG(color::blue("Begin Merge Branchs of ") + f_->get_name());
 	PUSH;
 	selectBranchNodes();
@@ -251,6 +273,7 @@ void Inline::mergeBranchs()
 		{
 			for (auto pre : branch->pre_)
 			{
+				c = true;
 				auto preNode = node(pre);
 				if (preNode->nc_ > 1) continue;
 				auto& insts = preNode->block_->get_instructions();
@@ -284,6 +307,7 @@ void Inline::mergeBranchs()
 				auto preNode = node(pre);
 				if (preNode->nc_ == 1 || !preNode->haveNext(nextNode))
 				{
+					c = true;
 					ASSERT(preNode->block_ != nullptr);
 					auto& insts = preNode->block_->get_instructions();
 					auto br = dynamic_cast<BranchInst*>(insts.back());
@@ -316,6 +340,7 @@ void Inline::mergeBranchs()
 					}
 					if (ok)
 					{
+						c = true;
 						auto& insts = preNode->block_->get_instructions();
 						auto br = dynamic_cast<BranchInst*>(insts.back());
 						ASSERT(br != nullptr);
@@ -341,6 +366,7 @@ void Inline::mergeBranchs()
 		}
 		if (branch->pc_ == 0)
 		{
+			c = true;
 			for (auto next : branch->next_)
 			{
 				auto nextNode = node(next);
@@ -359,6 +385,7 @@ void Inline::mergeBranchs()
 		else done_->add(branch);
 	}
 	POP;
+	return c;
 }
 
 void Inline::simplifyBranchs() const
@@ -393,8 +420,9 @@ void Inline::replaceGoTo(IBBNode* from, IBBNode* to) const
 	}
 }
 
-void Inline::selectReturnNodes(std::unordered_map<Value*, IBBNode*>& nodeMap) const
+bool Inline::selectReturnNodes(std::unordered_map<Value*, IBBNode*>& nodeMap) const
 {
+	bool ret = false;
 	LOG(color::blue("Discover Return Nodes of ") + f_->get_name());
 	PUSH;
 	bool er = f_->get_return_type() == Types::VOID;
@@ -421,12 +449,14 @@ void Inline::selectReturnNodes(std::unordered_map<Value*, IBBNode*>& nodeMap) co
 				n->discard();
 				f_->remove(n->block_);
 				n->block_ = nullptr;
+				ret = true;
 			}
 		}
 		else done_->add(n);
 	}
 	POP;
 	LOG(color::green("All Collected"));
+	return ret;
 }
 
 void Inline::selectBranchNodes()
@@ -589,10 +619,12 @@ void Inline::runOnFunc()
 {
 	LOG(color::blue("Begin Inline of ") + f_->get_name());
 	PUSH;
+	bool c = false;
 	collectNodes();
-	mergeBlocks();
-	mergeReturns();
-	mergeBranchs();
+	c |= mergeBlocks();
+	c |= mergeReturns();
+	c |= mergeBranchs();
+	if (c) manager_->flushFuncInfo(f_);
 	if (f_->get_basic_blocks().size() == 1)
 	{
 		auto& insts = f_->get_entry_block()->get_instructions();

@@ -25,7 +25,7 @@ void GVN::run(Function* f)
 {
 	LOG(color::green("Visiting function "+f->get_name()));
 	expr_val_map_.clear();
-	dom_->run_on_func(f);
+	dom_ = manager_->getFuncInfo<Dominators>(f);
 	const auto& PostOrder = dom_->get_dom_post_order(f);
 	// 逆拓扑序访问基本块
 	for (auto it = PostOrder.rbegin(); it != PostOrder.rend(); ++it)

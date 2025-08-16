@@ -487,7 +487,7 @@ BranchInst::BranchInst(Value* cond, BasicBlock* if_true, BasicBlock* if_false,
 		if_true->add_pre_basic_block(bb);
 		bb->add_succ_basic_block(if_true);
 	}
-	else
+	else if (if_true != if_false)
 	{
 		ASSERT(cond->get_type()==BOOL &&
 			"BranchInst condition is not i1");
@@ -499,6 +499,13 @@ BranchInst::BranchInst(Value* cond, BasicBlock* if_true, BasicBlock* if_false,
 		if_false->add_pre_basic_block(bb);
 		bb->add_succ_basic_block(if_true);
 		bb->add_succ_basic_block(if_false);
+	}
+	else
+	{
+		add_operand(if_true);
+		// prev/succ
+		if_true->add_pre_basic_block(bb);
+		bb->add_succ_basic_block(if_true);
 	}
 }
 

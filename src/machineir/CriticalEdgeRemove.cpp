@@ -50,6 +50,6 @@ void CriticalEdgeRemove::run()
 	LOG(color::cyan("CriticalEdgeRemove Done"));
 }
 
-CriticalEdgeRemove::CriticalEdgeRemove(Module* m): Pass(m)
+CriticalEdgeRemove::CriticalEdgeRemove(PassManager* mng, Module* m): Pass(mng,m)
 {
 }

@@ -5,7 +5,7 @@
 
 #include <set>
 
-class Dominators : public Pass
+class Dominators : public FuncInfoPass
 {
 	std::unordered_map<BasicBlock*, BasicBlock*> idom_{}; // 直接支配
 	std::unordered_map<BasicBlock*, std::set<BasicBlock*>> dom_frontier_{}; // 支配边界集合
@@ -18,7 +18,7 @@ class Dominators : public Pass
 	std::unordered_map<Function*, std::vector<BasicBlock*>> dom_dfs_order_;
 	std::unordered_map<Function*, std::vector<BasicBlock*>> dom_post_order_;
 
-	void create_dom_dfs_order(Function* f);
+	void create_dom_dfs_order();
 
 public:
 	Dominators(const Dominators&) = delete;
@@ -26,16 +26,16 @@ public:
 	Dominators& operator=(const Dominators&) = delete;
 	Dominators& operator=(Dominators&&) = delete;
 
-	explicit Dominators(Module* m) : Pass(m)
+	explicit Dominators(PassManager* m, Function* f) : FuncInfoPass(m, f)
 	{
 	}
 
 	~Dominators() override = default;
 	void run() override;
-	void run_on_func(Function* f);
 
 	// functions for getting information
 	BasicBlock* get_idom(BasicBlock* bb) const;
+	void set_idom(BasicBlock* bb, BasicBlock* idom);
 
 	const std::set<BasicBlock*>& get_dominance_frontier(BasicBlock* bb);
 

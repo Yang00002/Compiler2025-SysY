@@ -61,6 +61,7 @@ public:
 
 
 	static float opWeight(const AllocaInst* value, std::map<BasicBlock*, MBasicBlock*>& bmap);
+	void checkBlockRelations() const;
 
 private:
 	// 去除所有 Call 的特定参数
@@ -103,7 +104,6 @@ public:
 	}
 
 	std::string print() override;
-
 private:
 	Function* parent_;
 	int arg_no_; // argument No.

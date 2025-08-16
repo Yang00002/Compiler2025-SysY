@@ -8,11 +8,11 @@
 
 #include "BasicBlock.hpp"
 #include "Instruction.hpp"
+#include "Type.hpp"
 
 #define DEBUG 0
 #include "Config.hpp"
 #include "Constant.hpp"
-#include "Type.hpp"
 #include "Util.hpp"
 
 
@@ -39,58 +39,64 @@ DeadCode::~DeadCode()
 	delete work_list;
 }
 
-// 处理流程：两趟处理，mark 标记有用变量，sweep 删除无用指令
 void DeadCode::run()
 {
 	PREPARE_PASS_MSG;
 	LOG(color::cyan("Run DeadCode Pass"));
 	PUSH;
-	func_info->run();
+
+	// 提前删除不可达基本块, 因为任何后续的操作都不能删除 br, 所以永远不会产生不可达基本块
+	std::unordered_set<Function*> changeFuncs;
+	for (auto f : m_->get_functions())
+	{
+		if (f->is_lib_)continue;
+		if (clear_basic_blocks(f)) changeFuncs.emplace(f);
+	}
+	func_info = manager_->getGlobalInfo<FuncInfo>();
+	if (!changeFuncs.empty()) func_info->flushAbout(changeFuncs);
+
 	LOG(color::green("Function Info Collected "));
 	for (auto f : m_->get_functions())
 	{
 		if (f->is_lib_) continue;
-		work_list->addClearBasicBlock(f);
 		work_list->addClearInstructions(f);
 		work_list->addClearNotUseAllocas(f);
 		work_list->addClearParameters(f);
 	}
-
 	bool change;
 	do
 	{
 		change = false;
-		while (!work_list->clear_basic_blocks_.empty())
-		{
-			auto b = work_list->clear_basic_blocks_.front();
-			work_list->clear_basic_blocks_.pop();
-			work_list->in_clear_basic_blocks_.erase(b);
-			clear_basic_blocks(b);
-			change = true;
-		}
-		while (!work_list->clear_not_use_allocas_.empty())
-		{
-			auto b = work_list->clear_not_use_allocas_.front();
-			work_list->clear_not_use_allocas_.pop();
-			work_list->in_clear_not_use_allocas_.erase(b);
-			clear_not_use_allocas(b);
-			change = true;
-		}
-		while (!work_list->clear_parameters_.empty())
-		{
-			auto b = work_list->clear_parameters_.front();
-			work_list->clear_parameters_.pop();
-			work_list->in_clear_parameters_.erase(b);
-			clear_parameters(b);
-			change = true;
-		}
+		changeFuncs.clear();
 		while (!work_list->clear_instructions_.empty())
 		{
 			auto b = work_list->clear_instructions_.front();
 			work_list->clear_instructions_.pop();
 			work_list->in_clear_instructions_.erase(b);
-			clear_instructions(b);
+			if (clear_instructions(b)) changeFuncs.emplace(b);
+		}
+		if (!changeFuncs.empty())
+		{
 			change = true;
+			func_info->flushLoadsAbout(changeFuncs);
+		}
+
+		while (!work_list->clear_not_use_allocas_.empty())
+		{
+			auto b = work_list->clear_not_use_allocas_.front();
+			work_list->clear_not_use_allocas_.pop();
+			work_list->in_clear_not_use_allocas_.erase(b);
+			change |= clear_not_use_allocas(b);
+		}
+
+		if (change) continue;
+
+		while (!work_list->clear_parameters_.empty())
+		{
+			auto b = work_list->clear_parameters_.front();
+			work_list->clear_parameters_.pop();
+			work_list->in_clear_parameters_.erase(b);
+			change |= clear_parameters(b);
 		}
 	}
 	while (change);
@@ -101,10 +107,10 @@ void DeadCode::run()
 	LOG(color::cyan("DeadCode Done"));
 }
 
-// -> clear_parameters / clear_not_use_allocas / clear_instructions
-
-void DeadCode::clear_basic_blocks(Function* func) const
+// 删除不可达基本块
+bool DeadCode::clear_basic_blocks(Function* func) const
 {
+	bool c = false;
 	LOG(color::blue("Begin Clean Basic Block of ") + func->get_name());
 	PUSH;
 	std::unordered_set<BasicBlock*> visited;
@@ -132,11 +138,10 @@ void DeadCode::clear_basic_blocks(Function* func) const
 		{
 			LOG(color::pink("Block ") + bb->get_name() + color::pink(" empty, remove"));
 			toRM.emplace(bb);
-			work_list->addClearParameters(func);
-			work_list->addClearNotUseAllocas(func);
-			work_list->addClearInstructions(func);
 		}
 	}
+
+	if (!toRM.empty()) c = true;
 
 	for (auto i : visited) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 	{
@@ -176,16 +181,21 @@ void DeadCode::clear_basic_blocks(Function* func) const
 	}
 
 	POP;
+
+	if (c) manager_->flushFuncInfo(func);
+	return c;
 }
 
-// -> clear_not_use_allocas + / clear_instructions +
+// -> clear_instructions +
 
-void DeadCode::clear_parameters(Function* func) const
+// 删除未使用的参数
+bool DeadCode::clear_parameters(Function* func) const
 {
+	bool c = false;
 	LOG(color::blue("Begin Clean Parameters of ") + func->get_name());
 	PUSH;
-	auto& lds = func_info->loadDetail(func);
 	auto& sts = func_info->storeDetail(func);
+	auto& lds = func_info->loadDetail(func);
 	for (int i = 0, size = u2iNegThrow(func->get_args().size()); i < size; i++)
 	{
 		auto arg = func->get_arg(i);
@@ -197,12 +207,12 @@ void DeadCode::clear_parameters(Function* func) const
 			{
 				auto inst = dynamic_cast<CallInst*>(use.val_);
 				auto caller = inst->get_parent()->get_parent();
-				work_list->addClearNotUseAllocas(caller);
 				work_list->addClearInstructions(caller);
 			}
 			delete func->removeArgWithoutUpdate(arg);
 			i--;
 			size--;
+			c = true;
 			continue;
 		}
 		// 指针
@@ -215,7 +225,6 @@ void DeadCode::clear_parameters(Function* func) const
 				{
 					auto inst = dynamic_cast<CallInst*>(use.val_);
 					auto caller = inst->get_parent()->get_parent();
-					work_list->addClearNotUseAllocas(caller);
 					work_list->addClearInstructions(caller);
 				}
 				func->removeArgWithoutUpdate(arg);
@@ -223,18 +232,22 @@ void DeadCode::clear_parameters(Function* func) const
 				delete arg;
 				i--;
 				size--;
+				c = true;
 			}
 		}
 	}
 	POP;
+	return c;
 }
 
 // -> clear_instructions
 
-void DeadCode::clear_not_use_allocas(Function* func) const
+// 删除未 load 的 alloca
+bool DeadCode::clear_not_use_allocas(Function* func) const
 {
 	LOG(color::blue("Begin Clean Not Use Alloca of ") + func->get_name());
 	PUSH;
+	bool c = false;
 	auto et = func->get_entry_block();
 	auto insts = InstructionList{};
 	insts.addAllPhiAndAllocas(et->get_instructions());
@@ -270,7 +283,7 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 						break;
 					case Instruction::getelementptr:
 						{
-						ASSERT(idx == 0);
+							ASSERT(idx == 0);
 							if (!visited.count(inst))
 							{
 								visited.emplace(inst);
@@ -311,22 +324,26 @@ void DeadCode::clear_not_use_allocas(Function* func) const
 			eraseValue(alloc);
 			delete alloc;
 			work_list->addClearInstructions(func);
+			c = true;
 		}
 	}
 	POP;
+	return c;
 }
 
-// -> clear_parameters + / clear_not_use_allocas + / clear_instructions +
+// 删除 load -> no load: clear_not_use_allocas / clear_parameters
 
-void DeadCode::clear_instructions(Function* func) const
+// 删除无用指令, 保留 store 和包含 store 的 call 等
+bool DeadCode::clear_instructions(Function* func) const
 {
 	mark(func);
 	if (sweep(func))
 	{
 		work_list->addClearParameters(func);
 		work_list->addClearNotUseAllocas(func);
-		work_list->addClearInstructions(func);
+		return true;
 	}
+	return false;
 }
 
 void DeadCode::mark(Function* func) const
@@ -388,13 +405,6 @@ bool DeadCode::sweep(Function* func) const
 		{
 			auto n = it.get_and_add();
 			if (work_list->marked[n]) continue;
-			if (n->is_call())
-			{
-				auto f = dynamic_cast<Function*>(n->get_operand(0));
-				work_list->addClearParameters(f);
-				work_list->addClearNotUseAllocas(f);
-				work_list->addClearInstructions(f);
-			}
 			LOG(color::pink("Remove Instruction ") + n->get_name() + " " + n->get_instr_op_name());
 			n->remove_all_operands();
 			// ReSharper disable once CppNoDiscardExpression
@@ -445,6 +455,8 @@ void DeadCode::sweep_globally() const
 	for (auto func : unused_funcs)
 	{
 		m_->get_functions().remove(func);
+		manager_->flushFuncInfo(func);
+		func_info->removeFunc(func);
 		delete func;
 	}
 	for (auto glob : unused_globals)

@@ -6,42 +6,85 @@
 #include <ostream>
 #include <set>
 
+#include "Util.hpp"
+
 
 LoopDetection::~LoopDetection()
 {
-	delete dominators_;
 	for (const auto& loop : loops_)
 	{
 		delete loop;
 	}
 }
 
-/**
- * @brief 循环检测Pass的主入口函数
- *
- * 该函数执行以下步骤：
- * 1. 创建支配树分析实例
- * 2. 遍历模块中的所有函数
- * 3. 对每个非声明函数执行循环检测
- */
 void LoopDetection::run()
 {
-	delete dominators_;
-	dominators_ = new Dominators{m_};
-	for (const auto& f : m_->get_functions())
+	Dominators* dominators = manager_->getFuncInfo<Dominators>(f_);
+	for (auto bb : dominators->get_dom_post_order(f_))
 	{
-		if (f->is_declaration())
+		BBset latches;
+		for (auto& pred : bb->get_pre_basic_blocks())
+		{
+			if (dominators->is_dominate(bb, pred))
+			{
+				// pred is a back edge
+				// pred -> bb , pred is the latch node
+				latches.insert(pred);
+			}
+		}
+		if (latches.empty())
+		{
 			continue;
-		func_ = f;
-		run_on_func(f);
+		}
+		// create loop
+		auto loop = new Loop{bb};
+		bb_to_loop_[bb] = loop;
+		// add latch nodes
+		for (auto& latch : latches)
+		{
+			loop->add_latch(latch);
+		}
+		loops_.push_back(loop);
+		discover_loop_and_sub_loops(bb, latches, loop, dominators);
 	}
 }
 
-void LoopDetection::only_run_on_func(Function* f)
+void Loop::remove_sub_loop(const Loop* loop)
 {
-	delete dominators_;
-	dominators_ = new Dominators{m_};
-	run_on_func(f);
+	auto it = sub_loops_.begin();
+	auto ed = sub_loops_.end();
+	while (it != ed)
+	{
+		if (*it == loop)
+		{
+			sub_loops_.erase(it);
+			return;
+		}
+		++it;
+	}
+}
+
+std::string Loop::print() const
+{
+	std::string ret;
+	std::unordered_set<BasicBlock*> subs;
+	for (auto l : sub_loops_) subs.emplace(l->header_);
+	for (auto bb : blocks_)
+	{
+		if (bb->get_name().empty()) bb->get_module()->set_print_name();
+		ret += bb->get_name();
+		if (bb == header_) ret += "<H>";
+		if (latches_.count(bb)) ret += "<L>";
+		if (subs.count(bb)) ret += "<S>";
+		if (exits_.count(bb)) ret += "<E>";
+		ret += ", ";
+	}
+	if (!ret.empty())
+	{
+		ret.pop_back();
+		ret.pop_back();
+	}
+	return ret;
 }
 
 /**
@@ -51,7 +94,7 @@ void LoopDetection::only_run_on_func(Function* f)
  * @param loop 当前正在处理的循环对象
  */
 void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
-                                                Loop* loop)
+                                                Loop* loop, Dominators* dom)
 {
 	// DONE List:
 	// 1. 初始化工作表，将所有latch块加入
@@ -74,7 +117,7 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
 			bb_to_loop_[subbb] = loop;
 			for (auto pre : subbb->get_pre_basic_blocks())
 			{
-				if (dominators_->is_dominate(bb, pre))
+				if (dom->is_dominate(bb, pre))
 				{
 					work_list.push_back(pre);
 				}
@@ -100,58 +143,13 @@ void LoopDetection::discover_loop_and_sub_loops(BasicBlock* bb, BBset& latches,
 				}
 				for (auto pre : subloop->get_header()->get_pre_basic_blocks())
 				{
-					if (dominators_->is_dominate(bb, pre))
+					if (dom->is_dominate(bb, pre))
 					{
 						work_list.push_back(pre);
 					}
 				}
 			}
 		}
-	}
-}
-
-/**
- * @brief 对单个函数执行循环检测
- * @param f 要分析的函数
- *
- * 该函数通过以下步骤检测循环：
- * 1. 运行支配树分析
- * 2. 按支配树后序遍历所有基本块
- * 3. 对每个块，检查其前驱是否存在回边
- * 4. 如果存在回边，创建新的循环并：
- *    - 设置循环header
- *    - 添加latch节点
- *    - 发现循环体和子循环
- */
-void LoopDetection::run_on_func(Function* f)
-{
-	dominators_->run_on_func(f);
-	for (auto bb : dominators_->get_dom_post_order(f))
-	{
-		BBset latches;
-		for (auto& pred : bb->get_pre_basic_blocks())
-		{
-			if (dominators_->is_dominate(bb, pred))
-			{
-				// pred is a back edge
-				// pred -> bb , pred is the latch node
-				latches.insert(pred);
-			}
-		}
-		if (latches.empty())
-		{
-			continue;
-		}
-		// create loop
-		auto loop = new Loop{bb};
-		bb_to_loop_[bb] = loop;
-		// add latch nodes
-		for (auto& latch : latches)
-		{
-			loop->add_latch(latch);
-		}
-		loops_.push_back(loop);
-		discover_loop_and_sub_loops(bb, latches, loop);
 	}
 }
 
@@ -165,7 +163,7 @@ void LoopDetection::run_on_func(Function* f)
  */
 void LoopDetection::print() const
 {
-	m_->set_print_name();
+	f_->get_parent()->set_print_name();
 	std::cout << "Loop Detection Result:" << '\n';
 	for (auto& loop : loops_)
 	{
@@ -186,15 +184,93 @@ void LoopDetection::print() const
 	}
 }
 
-int LoopDetection::costOfLatch(Loop* loop, BasicBlock* bb)
+int LoopDetection::costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* idoms)
 {
 	bool out = false;
+	for (auto i : bb->get_succ_basic_blocks())
+	{
+		if (loop->get_blocks().count(i))
+		{
+			out = true;
+			break;
+		}
+	}
 	auto hd = loop->get_header();
-	int cost = 1;
+	std::unordered_set<BasicBlock*> blocks;
+	blocks.emplace(bb);
 	while (bb != hd)
 	{
-		bb = dominators_->get_idom(bb);
-		cost++;
+		auto subLoop = bb_to_loop_[bb];
+		if (subLoop != nullptr && subLoop->get_header() == bb && subLoop->get_parent() == loop)
+			blocks.insert(subLoop->get_blocks().begin(), subLoop->get_blocks().end());
+		bb = idoms->get_idom(bb);
+		blocks.emplace(bb);
+		if (!out)
+		{
+			for (auto i : bb->get_succ_basic_blocks())
+			{
+				if (loop->get_blocks().count(i))
+				{
+					out = true;
+					break;
+				}
+			}
+		}
 	}
+	int cost = u2iNegThrow(blocks.size());
+	if (out) cost += INT_MAX >> 1;
 	return cost;
+}
+
+void LoopDetection::collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlock* preHeader, Loop* innerLoop, Dominators* idoms)
+{
+	innerLoop->set_preheader(preHeader);
+	auto hd = loop->get_header();
+	innerLoop->add_block(bb);
+	innerLoop->add_latch(bb);
+	auto pbb = bb;
+	while (pbb != hd)
+	{
+		auto subLoop = bb_to_loop_[pbb];
+		if (subLoop != nullptr && subLoop->get_header() == pbb && subLoop->get_parent() == loop)
+		{
+			innerLoop->get_blocks().insert(subLoop->get_blocks().begin(), subLoop->get_blocks().end());
+			innerLoop->add_sub_loop(subLoop);
+			subLoop->set_parent(innerLoop);
+		}
+		pbb = idoms->get_idom(pbb);
+		innerLoop->add_block(pbb);
+	}
+	std::vector<Loop*> newSubs;
+	for (auto sub : loop->get_sub_loops())
+	{
+		if (sub->get_parent() == loop)
+		{
+			newSubs.emplace_back(sub);
+		}
+	}
+	loop->get_sub_loops() = newSubs;
+	loop->add_sub_loop(innerLoop);
+	loop->add_block(preHeader);
+	innerLoop->set_parent(loop);
+	loop->set_header(preHeader);
+	bb_to_loop_[preHeader] = loop;
+	bb_to_loop_[hd] = innerLoop;
+	loops_.emplace_back(innerLoop);
+	auto hid = idoms->get_idom(hd);
+	idoms->set_idom(hd, preHeader);
+	idoms->set_idom(preHeader, hid);
+	loop->remove_latch(bb);
+}
+
+void LoopDetection::addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, BasicBlock* preOut)
+{
+	loop->addExit(bb, out);
+	auto lp = loop->get_parent();
+	while (lp != nullptr)
+	{
+		if (lp->get_blocks().count(preOut))
+			lp->add_block(out);
+		lp = lp->get_parent();
+	}
 }
