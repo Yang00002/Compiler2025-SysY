@@ -59,7 +59,7 @@ void LoopSimplify::runOnFunc()
 			change |= createExitOnLoop(l);
 		}
 	}
-	if (change) manager_->flushFuncInfo(f_);
+	if (change) manager_->flushFuncInfo<Dominators>(f_);
 }
 
 bool LoopSimplify::createPreHeaderAndLatchOnLoops(const std::vector<Loop*>& loops)
@@ -95,15 +95,20 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 		ASSERT(preSize >= 2);
 		if (preSize == 2)
 		{
+			bool b = false;
 			for (auto pre : head->get_pre_basic_blocks())
 			{
 				if (!loop->get_blocks().count(pre))
 				{
-					loop->set_preheader(pre);
+					if (pre->get_succ_basic_blocks().size() == 1)
+					{
+						loop->set_preheader(pre);
+						b = true;
+					}
 					break;
 				}
 			}
-			break;
+			if (b) break;
 		}
 		ret = true;
 		auto preHeader = new BasicBlock{m_, "", f_};
@@ -159,16 +164,18 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 				}
 			}
 		}
+		auto lp = loop->get_parent();
+		while (lp != nullptr)
+		{
+			lp->add_block(preHeader);
+			lp = lp->get_parent();
+		}
 		if (loop->get_latches().size() == 1)
 		{
-			for (auto pre : head->get_pre_basic_blocks())
-			{
-				if (!loop->get_blocks().count(pre))
-				{
-					loop->set_preheader(pre);
-					break;
-				}
-			}
+			loop->set_preheader(preHeader);
+			auto dm = manager_->getFuncInfo<Dominators>(f_);
+			dm->set_idom(preHeader, dm->get_idom(head));
+			dm->set_idom(head, preHeader);
 			break;
 		}
 		auto innerLoop = new Loop{head};
@@ -200,26 +207,63 @@ bool LoopSimplify::createExitOnLoop(Loop* loop) const
 	{
 		for (auto suc : bb->get_succ_basic_blocks())
 		{
-			if (!bbs.count(suc))
+			if (!bbs.count(suc) && !loop->exits().count(suc))
 			{
-				if (suc->get_pre_basic_blocks().size() == 1)
+				bool ok = true;
+				unordered_set<BasicBlock*> pres;
+				for (auto pb : suc->get_pre_basic_blocks())
 				{
-					loop->addExit(bb, suc);
+					if (loop->get_blocks().count(pb))pres.emplace(pb);
+					else ok = false;
+				}
+				if (ok)
+				{
+					for (auto i : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+						loop->addExit(i, suc);
 				}
 				else
 				{
 					auto nbb = new BasicBlock{m_, "", f_};
-					bb->get_instructions().back()->replaceAllOperandMatchs(suc, nbb);
-					bb->remove_succ_basic_block(suc);
-					suc->remove_pre_basic_block(bb);
-					bb->add_succ_basic_block(nbb);
-					nbb->add_pre_basic_block(bb);
-					BranchInst::create_br(suc, nbb);
-					for (auto phi : suc->get_instructions().phi_and_allocas())
+					for (auto pre : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 					{
-						phi->replaceAllOperandMatchs(bb, nbb);
+						pre->get_instructions().back()->replaceAllOperandMatchs(suc, nbb);
+						pre->remove_succ_basic_block(suc);
+						suc->remove_pre_basic_block(pre);
+						pre->add_succ_basic_block(nbb);
+						nbb->add_pre_basic_block(pre);
 					}
-					LoopDetection::addNewExitTo(loop, bb, nbb, suc);
+					BranchInst::create_br(suc, nbb);
+					for (auto inst : suc->get_instructions().phi_and_allocas())
+					{
+						auto phi = dynamic_cast<PhiInst*>(inst);
+						std::map<BasicBlock*, Value*> nbbPhiMap;
+						std::map<BasicBlock*, Value*> sucPhiMap;
+						for (auto& [i1, j1] : phi->get_phi_pairs())
+						{
+							if (pres.count(j1))
+							{
+								nbbPhiMap.emplace(j1, i1);
+							}
+							else
+							{
+								sucPhiMap.emplace(j1, i1);
+							}
+						}
+						if (nbbPhiMap.size() == 1)
+						{
+							phi->replaceAllOperandMatchs(bb, nbb);
+						}
+						else
+						{
+							auto nPhi = PhiInst::create_phi(phi->get_type(), nbb);
+							sucPhiMap.emplace(nbb, nPhi);
+							phi->remove_all_operands();
+							for (auto [i, j] : nbbPhiMap) nPhi->add_phi_pair_operand(j, i);
+							for (auto [i, j] : sucPhiMap) phi->add_phi_pair_operand(j, i);
+						}
+					}
+					for (auto i : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+						LoopDetection::addNewExitTo(loop, i, nbb, suc);
 					ret = true;
 				}
 				break;

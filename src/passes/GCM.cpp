@@ -1,7 +1,6 @@
 #include "GCM.hpp"
 
 #define DEBUG 0
-#include "Util.hpp"
 
 bool GlobalCodeMotion::is_pinned(const Instruction* i)
 {

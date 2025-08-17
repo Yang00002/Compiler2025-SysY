@@ -70,8 +70,8 @@ public:
 
 	// 在末尾添加指令, 如果是 phi 或 alloca 就添加到开头段, 如果已经终止了就报错
 	void add_instruction(Instruction* instr);
-	// 在开头添加指令, 理论上只需要 add_instruction 就可以完成功能
-	[[deprecated]] void add_instr_begin(Instruction* instr);
+	// 在开头添加指令
+	void add_instr_begin(Instruction* instr);
 	// 移除指令, 移除基本块中指令
 	void erase_instr(const Instruction* instr);
 	// 移除指令, 从尾部开始搜索  

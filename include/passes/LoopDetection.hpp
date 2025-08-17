@@ -48,11 +48,13 @@ public:
 	void add_sub_loop(Loop* loop) { sub_loops_.push_back(loop); }
 	void remove_sub_loop(const Loop* loop);
 	std::unordered_set<BasicBlock*>& get_blocks() { return blocks_; }
+	[[nodiscard]] bool have(BasicBlock* bb) const { return blocks_.count(bb); }
 	std::vector<Loop*>& get_sub_loops() { return sub_loops_; }
 	const std::set<BasicBlock*>& get_latches() { return latches_; }
 	void add_latch(BasicBlock* bb) { latches_.insert(bb); }
 	void remove_latch(BasicBlock* bb) { latches_.erase(bb); }
 	void addExit(BasicBlock* from, BasicBlock* to) { exits_.emplace(from, to); }
+	std::map<BasicBlock*, BasicBlock*>& exits() { return exits_; }
 
 	std::string print() const;
 };

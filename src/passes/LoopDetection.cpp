@@ -73,10 +73,25 @@ std::string Loop::print() const
 	{
 		if (bb->get_name().empty()) bb->get_module()->set_print_name();
 		ret += bb->get_name();
-		if (bb == header_) ret += "<H>";
+		if (bb == header_)
+		{
+			if (preheader_ == nullptr)
+				ret += "<H>";
+			else
+			{
+				ret += "<H ";
+				ret += preheader_->get_name();
+				ret += ">";
+			}
+		}
 		if (latches_.count(bb)) ret += "<L>";
 		if (subs.count(bb)) ret += "<S>";
-		if (exits_.count(bb)) ret += "<E>";
+		if (exits_.count(bb))
+		{
+			ret += "<E ";
+			ret += exits_.at(bb)->get_name();
+			ret += ">";
+		}
 		ret += ", ";
 	}
 	if (!ret.empty())
@@ -222,7 +237,8 @@ int LoopDetection::costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* ido
 	return cost;
 }
 
-void LoopDetection::collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlock* preHeader, Loop* innerLoop, Dominators* idoms)
+void LoopDetection::collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlock* preHeader, Loop* innerLoop,
+                                            Dominators* idoms)
 {
 	innerLoop->set_preheader(preHeader);
 	auto hd = loop->get_header();
