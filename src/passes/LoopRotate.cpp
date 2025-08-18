@@ -12,14 +12,17 @@ void LoopRotate::run()
 	PREPARE_PASS_MSG;
 	LOG(color::cyan("Run LoopRotate Pass"));
 	PUSH;
-	for (auto f : m_->get_functions())
-	{
-		if (f->is_lib_)continue;
-		f_ = f;
-		loops_ = manager_->getFuncInfo<LoopDetection>(f_);
-		dominators_ = manager_->getFuncInfo<Dominators>(f_);
-		runOnFunc();
+	if(!loopRotateAndAddGuardInAST){
+		for (auto f : m_->get_functions())
+		{
+			if (f->is_lib_)continue;
+			f_ = f;
+			loops_ = manager_->getFuncInfo<LoopDetection>(f_);
+			dominators_ = manager_->getFuncInfo<Dominators>(f_);
+			runOnFunc();
+		}
 	}
+	
 	POP;
 	PASS_SUFFIX;
 	LOG(color::cyan("LoopRotate Done"));
