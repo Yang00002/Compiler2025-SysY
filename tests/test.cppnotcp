@@ -315,9 +315,49 @@ string time2Str(vector<int> &a) {
          "S-" + to_string(a[3]) + "us";
 }
 
+vector<int> allTime = {0, 0, 0,0};
+vector<int> bestAllTime = {0, 0, 0,0};
+
+void updateAllTime(vector<int> &get) {
+  allTime[3] += get[3];
+  if (allTime[3] >= 1000000) {
+    allTime[2] += allTime[3] / 1000000;
+    allTime[3] %= 1000000;
+  }
+  allTime[2] += get[2];
+  if (allTime[2] >= 60) {
+    allTime[1] += allTime[2] / 60;
+    allTime[2] %= 60;
+  }
+  allTime[1] += get[1];
+  if (allTime[1] >= 60) {
+    allTime[0] += allTime[1] / 60;
+    allTime[1] %= 60;
+  }
+  allTime[0] += get[0];
+}
+void updateBestAllTime(vector<int> &get) {
+  bestAllTime[3] += get[3];
+  if (bestAllTime[3] >= 1000000) {
+    bestAllTime[2] += bestAllTime[3] / 1000000;
+    bestAllTime[3] %= 1000000;
+  }
+  bestAllTime[2] += get[2];
+  if (bestAllTime[2] >= 60) {
+    bestAllTime[1] += bestAllTime[2] / 60;
+    bestAllTime[2] %= 60;
+  }
+  bestAllTime[1] += get[1];
+  if (bestAllTime[1] >= 60) {
+    bestAllTime[0] += bestAllTime[1] / 60;
+    bestAllTime[1] %= 60;
+  }
+  bestAllTime[0] += get[0];
+}
 void showTime(vector<int> &get, string name, bool toExample) {
   string exampleTimePath = "./build/example/" + name + ".time";
   string customBestTimePath = "./build/custom/" + name + ".time";
+  string customMidTimePath = "./build/custom/" + name + ".timid";
   string exampleTimeString =
       filesystem::exists(exampleTimePath) ? readFile(exampleTimePath) : "";
   string customBestTimeString = filesystem::exists(customBestTimePath)
@@ -349,12 +389,16 @@ void showTime(vector<int> &get, string name, bool toExample) {
     else
       ret += yellow(time2Str(*customBestTimeOp));
     ret += "]";
+    updateBestAllTime(*customBestTimeOp);
+  } else {
+    auto dv = vector{100, 0, 0, 0};
+    updateBestAllTime(dv);
   }
-  if (!customBestTimeOp || strictTimeCmp(get, *customBestTimeOp) < 0 || toExample) {
-    if (toExample)
-      writeFile("TOTAL: " + time2Str(get), exampleTimePath);
-    else
-      writeFile("TOTAL: " + time2Str(get), customBestTimePath);
+  if (toExample)
+    writeFile("TOTAL: " + time2Str(get), exampleTimePath);
+  else {
+    writeFile("TOTAL: " + time2Str(get), customMidTimePath);
+    updateAllTime(get);
   }
   cout << ret;
 }
@@ -413,6 +457,29 @@ void validate(const string &commonPathName, list<string> &fileList,
       filesystem::copy_file(path, pdif + "/" + lastLineRight(path),
                             filesystem::copy_options::overwrite_existing);
     }
+  }
+
+  int bestBetter = strictTimeCmp(bestAllTime, allTime);
+  string ret;
+  ret += " [ best ";
+  if (bestBetter > 0)
+    ret += green(time2Str(allTime));
+  else if (bestBetter < 0)
+    ret += red(time2Str(allTime));
+  else
+    ret += yellow(time2Str(allTime));
+  ret += "] / ";
+  ret += time2Str(bestAllTime);
+  cout << ret << '\n';
+  if (bestBetter > 0) {
+    auto fs =
+        getTargetSuffixFilePaths("./build/custom/" + commonPathName, "time");
+    for (auto i : fs)
+      filesystem::remove(i);
+    fs = getTargetSuffixFilePaths("./build/custom/" + commonPathName, "timid");
+
+    for (auto i : fs)
+      filesystem::rename(i, lastDotLeft(i) + ".time");
   }
 }
 
