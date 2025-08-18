@@ -6,6 +6,8 @@
 #include <ostream>
 #include <set>
 
+#include "Constant.hpp"
+#include "Instruction.hpp"
 #include "Util.hpp"
 
 
@@ -49,6 +51,54 @@ void LoopDetection::run()
 	}
 }
 
+bool Loop::valueInLoop(Value* val) const
+{
+	auto inst = dynamic_cast<Instruction*>(val);
+	if (!inst) return false;
+	return blocks_.count(inst->get_parent());
+}
+
+Value* Loop::Iterator::toLoopIterateValue(const Loop* loop) const
+{
+	auto phi = dynamic_cast<PhiInst*>(iterator_);
+	if (phi == nullptr) return nullptr;
+	return phi->get_phi_val(*loop->latches_.begin());
+}
+
+Value* Loop::Iterator::exitIterateValue(Loop* loop) const
+{
+	auto phi = dynamic_cast<PhiInst*>(iterator_);
+	if (phi == nullptr) return nullptr;
+	return phi->get_phi_val(exit(loop));
+}
+
+BasicBlock* Loop::Iterator::exit(Loop* loop) const
+{
+	if (br_ == nullptr) return nullptr;
+	return loop->exits().at(br_->get_parent());
+}
+
+BasicBlock* Loop::Iterator::toLoop(const Loop* loop) const
+{
+	if (br_ == nullptr) return nullptr;
+	for (int i = 1; i < 3; i++)
+	{
+		auto op = dynamic_cast<BasicBlock*>(br_->get_operand(i));
+		if (loop->blocks_.count(op)) return op;
+	}
+	return nullptr;
+}
+
+void Loop::add_block_casecade(BasicBlock* bb, bool includeSelf)
+{
+	auto p = includeSelf ? this : parent_;
+	while (p != nullptr)
+	{
+		p->add_block(bb);
+		p = p->parent_;
+	}
+}
+
 void Loop::remove_sub_loop(const Loop* loop)
 {
 	auto it = sub_loops_.begin();
@@ -61,6 +111,32 @@ void Loop::remove_sub_loop(const Loop* loop)
 			return;
 		}
 		++it;
+	}
+}
+
+BasicBlock* Loop::get_latch() const
+{
+	if (latches_.empty()) return nullptr;
+	return *latches_.begin();
+}
+
+void Loop::remove_exit_casecade(BasicBlock* bb)
+{
+	auto lp = this;
+	while (lp != nullptr && lp->exits_.count(bb))
+	{
+		lp->exits_.erase(bb);
+		lp = lp->parent_;
+	}
+}
+
+void Loop::add_exit_casecade(BasicBlock* from, BasicBlock* to)
+{
+	auto lp = this;
+	while (lp != nullptr && !lp->blocks_.count(to))
+	{
+		lp->exits_.emplace(from, to);
+		lp = lp->parent_;
 	}
 }
 
@@ -100,6 +176,91 @@ std::string Loop::print() const
 		ret.pop_back();
 	}
 	return ret;
+}
+
+
+Loop::Iterator Loop::getIterator() const
+{
+	// 复杂循环
+	if (!exits_.count(header_)) return Iterator{};
+	bool haveOtherOut = exits_.size() > 1;
+	auto headBr = header_->get_instructions().back();
+	auto headBrCond = dynamic_cast<Instruction*>(headBr->get_operand(0));
+	auto condL = headBrCond->get_operand(0);
+	auto condR = headBrCond->get_operand(1);
+	bool lInLoop = valueInLoop(condL);
+	bool rInLoop = valueInLoop(condR);
+	// 复杂循环
+	if (lInLoop && rInLoop) return Iterator{};
+	if (!lInLoop && !rInLoop)
+	{
+		// out 由外部判断, 可以优化为 guard + while(true)
+		Iterator it{true, haveOtherOut};
+		it.cmp_ = headBrCond;
+		it.br_ = headBr;
+		it.start_ = condL;
+		it.end_ = condR;
+		return it;
+	}
+	if (rInLoop)
+	{
+		auto c2 = condL;
+		condL = condR;
+		condR = c2;
+	}
+	auto lphi = dynamic_cast<PhiInst*>(condL);
+	if (lphi == nullptr) return Iterator{};
+	auto pairs = lphi->get_phi_pairs();
+	ASSERT(pairs.size() == 2);
+	Value* inner;
+	Value* outer;
+	if (pairs[0].second == preheader_)
+	{
+		outer = pairs[0].first;
+		inner = pairs[1].first;
+	}
+	else
+	{
+		outer = pairs[1].first;
+		inner = pairs[0].first;
+	}
+	if (!valueInLoop(inner))
+	{
+		// inner 根据是否刚进入循环来自不同外部变量, 可以插入 guard
+		auto ret = Iterator{false, haveOtherOut};
+		ret.phiDefinedByOut_ = true;
+		ret.start_ = outer;
+		ret.iterator_ = lphi;
+		ret.end_ = condR;
+		ret.br_ = headBr;
+		ret.cmp_ = headBrCond;
+		return ret;
+	}
+	auto innerInst = dynamic_cast<Instruction*>(inner);
+	if (innerInst->isBinary())
+	{
+		bool haveIt = false;
+		Value* another = nullptr;
+		for (auto op : innerInst->get_operands())
+		{
+			if (op == condL)
+			{
+				haveIt = true;
+			}
+			else another = op;
+		}
+		// 由内部运算决定, 复杂循环
+		if (!haveIt) return Iterator{};
+		if (valueInLoop(another)) return Iterator{};
+		Iterator ret{false, haveOtherOut};
+		ret.start_ = outer;
+		ret.iterator_ = dynamic_cast<Instruction*>(condL);
+		ret.end_ = condR;
+		ret.cmp_ = headBrCond;
+		ret.br_ = headBr;
+		return ret;
+	}
+	return Iterator{};
 }
 
 /**
@@ -281,7 +442,7 @@ void LoopDetection::collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlo
 
 void LoopDetection::addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, BasicBlock* preOut)
 {
-	loop->addExit(bb, out);
+	loop->add_exit(bb, out);
 	auto lp = loop->get_parent();
 	while (lp != nullptr)
 	{

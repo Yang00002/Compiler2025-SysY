@@ -72,3 +72,5 @@ extern bool onlyMergeMulAndASWhenASUseAllReg;
 extern bool useStackOffset2GetspillCost;
 // 在 AST 中就进行循环旋转和添加 loop guard
 extern bool loopRotateAndAddGuardInAST;
+// 即使没有循环不变量, 只要循环旋转可以消除 phi 或 cbr, 就进行旋转
+extern bool rotateLoopEvenIfNotHaveInvariant;

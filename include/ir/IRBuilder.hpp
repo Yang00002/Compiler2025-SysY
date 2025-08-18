@@ -96,7 +96,6 @@ public:
 	                         const std::vector<BasicBlock*>& val_bbs = {}) const
 	{
 		auto ret = PhiInst::create_phi(ty, this->BB_, vals, val_bbs);
-		BB_->add_instruction(ret);
 		return ret;
 	}
 
@@ -105,7 +104,6 @@ public:
 	                          const std::vector<BasicBlock*>& val_bbs = {}) const
 	{
 		auto ret = PhiInst::create_phi(ty, this->BB_, vals, val_bbs);
-		BB_->add_instruction(ret);
 		return ret;
 	}
 

@@ -10,7 +10,6 @@ using namespace std;
 
 void LCSSA::run()
 {
-	LOG(m_->print());
 	PREPARE_PASS_MSG;
 	LOG(color::cyan("Run LCSSA Pass"));
 	PUSH;
@@ -148,9 +147,9 @@ void LCSSA::placePhiAt(BasicBlock* bb)
 	if (exitBlocks_.count(bb))
 	{
 		auto phi = PhiInst::create_phi(handledDef_->get_type(), nullptr);
-		LOG(color::green("Place Phi at exit ") + bb->get_name() + color::green(" for ") + handledDef_->print());
 		phi->set_parent(bb);
-		bb->add_instruction(phi);
+		createdPhis_.emplace(phi);
+		LOG(color::green("Place Phi at exit ") + bb->get_name() + color::green(" for ") + handledDef_->print());
 		for (auto parent : bb->get_pre_basic_blocks())
 		{
 			phi->add_phi_pair_operand(handledDef_, parent);

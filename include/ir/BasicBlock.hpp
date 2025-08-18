@@ -5,6 +5,7 @@
 #include <list>
 #include <set>
 #include <string>
+#include <unordered_set>
 
 #include "Function.hpp"
 #include "InstructionList.hpp"
@@ -47,11 +48,28 @@ public:
 	void remove_pre_basic_block(BasicBlock* bb) { pre_bbs_.remove(bb); }
 	// 移除后继块
 	void remove_succ_basic_block(BasicBlock* bb) { succ_bbs_.remove(bb); }
+	// 更改跳转的一个目标
+	void  redirect_suc_basic_block(BasicBlock* from, BasicBlock* to);
+	// 更改跳转的一个目标
+	void  reset_suc_basic_block(Value* cond,BasicBlock* l, BasicBlock* r);
+	// 从 cond br 移除一个后继到 br / 或者从 br 到无跳转
+	void remove_succ_block_and_update_br(BasicBlock* rm);
 	// 尝试将跳转到自己的基本块改为跳转到目标基本块, 并且给后继添加 phi 定值
 	// 自身的指令在替换后不能正常工作. 应该只为不产生值和副作用的基本块使用该函数.
 	// 不但替换 use, 还更新函数的基本块前后关系
 	// 如果发现替换可能导致问题或副作用, 则不进行替换, 返回 false
 	bool replace_self_with_block(BasicBlock* bb);
+	// 在自己之前加一个基本块, 将自己的 phi 全部给它, 然后让所有跳转到自己的块都跳转到它, 给它加一个无条件 br
+	void add_block_before(BasicBlock* bb);
+	// 在自己之前加一个基本块, 维护 phi 关系, 只将不在 stillGotoSelf 里的跳转指向它, 给它加一个无条件 br
+	// 必须有除了 stillGotoSelf 之外跳转到自己的块
+	void add_block_before(BasicBlock* bb, const BasicBlock* stillGotoSelf);
+	// 在自己之前加一个基本块, 维护 phi 关系, 只将不在 stillGotoSelf 里的跳转指向它, 给它加一个无条件 br
+	// 必须有除了 stillGotoSelf 之外跳转到自己的块
+	void add_block_before(BasicBlock* bb, const std::unordered_set<BasicBlock*>& stillGotoSelf);
+	// 在自己之前加一个基本块, 维护 phi 关系, 只将不在 stillGotoSelf 里的跳转指向它, 给它加一个无条件 br
+	// 必须有除了 stillGotoSelf 之外跳转到自己的块
+	void add_block_before(BasicBlock* bb, const std::set<BasicBlock*>& stillGotoSelf);
 	/**
 	 * 将自己的终止指令替换为返回目标值, 并维护块关系. 如果未终止就报错. 不会自动去掉 phi 的定值.
 	 * @param value 要返回的值, 如果为 nullptr 则返回 void

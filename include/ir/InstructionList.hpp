@@ -174,6 +174,7 @@ public:
 	 * @return 终止位置, 它不能用于进行反向迭代, 请用 rbegin 和 rend
 	 */
 	[[nodiscard]] const InstructionListNode* end() const;
+	const InstructionListNode* phi_alloca_end() const;
 	/**
 	 * 获取一个从尾开始的反向迭代器
 	 * @return 反向迭代器
@@ -192,6 +193,7 @@ public:
 	[[nodiscard]] InstructionListView common_instructions() const;
 
 	[[nodiscard]] bool empty() const;
+	[[nodiscard]] int commonInstSize() const;
 
 	[[nodiscard]] int size() const;
 
@@ -263,6 +265,7 @@ public:
 	 */
 	bool emplace_common_inst_after(Instruction* instruction, InstructionListIterator iterator);
 
+	void remove_phi_and_allocas();
 
 	void emplace_back(Instruction* instruction);
 

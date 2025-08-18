@@ -36,3 +36,4 @@ bool mergeFloatBinaryInst = false;
 bool onlyMergeMulAndASWhenASUseAllReg = true;
 bool useStackOffset2GetspillCost = false;
 bool loopRotateAndAddGuardInAST = false;
+bool rotateLoopEvenIfNotHaveInvariant = false;

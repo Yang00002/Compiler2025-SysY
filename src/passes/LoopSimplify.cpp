@@ -59,6 +59,14 @@ void LoopSimplify::runOnFunc()
 			change |= createExitOnLoop(l);
 		}
 	}
+	for (auto l : loops_->get_loops())
+	{
+		if (l->get_parent() == nullptr)
+		{
+			change |= createLatchOnLoops(l->get_sub_loops());
+			change |= createLatchOnLoop(l);
+		}
+	}
 	if (change) manager_->flushFuncInfo<Dominators>(f_);
 }
 
@@ -93,77 +101,9 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 		LOG(color::yellow("Handling Latches ") + block->get_name());
 		int preSize = u2iNegThrow(head->get_pre_basic_blocks().size());
 		ASSERT(preSize >= 2);
-		if (preSize == 2)
-		{
-			bool b = false;
-			for (auto pre : head->get_pre_basic_blocks())
-			{
-				if (!loop->get_blocks().count(pre))
-				{
-					if (pre->get_succ_basic_blocks().size() == 1)
-					{
-						loop->set_preheader(pre);
-						b = true;
-					}
-					break;
-				}
-			}
-			if (b) break;
-		}
 		ret = true;
 		auto preHeader = new BasicBlock{m_, "", f_};
-		auto pres = head->get_pre_basic_blocks();
-		for (auto pre : pres)
-		{
-			if (pre != block)
-			{
-				pre->get_instructions().back()->replaceAllOperandMatchs(head, preHeader);
-				pre->remove_succ_basic_block(head);
-				head->remove_pre_basic_block(pre);
-				pre->add_succ_basic_block(preHeader);
-				preHeader->add_pre_basic_block(pre);
-			}
-		}
-		BranchInst::create_br(head, preHeader);
-		auto insts = head->get_instructions().phi_and_allocas();
-		auto it = insts.begin();
-		while (it != insts.end())
-		{
-			auto phi = dynamic_cast<PhiInst*>(it.get_and_add());
-			std::map<BasicBlock*, Value*> phiMap;
-			Value* v = nullptr;
-			Value* lv = nullptr;
-			int preCount = 0;
-			for (auto& [i1, j1] : phi->get_phi_pairs())
-			{
-				if (block != j1)
-				{
-					preCount++;
-					phiMap[j1] = i1;
-					v = i1;
-				}
-				else lv = i1;
-			}
-			phi->remove_all_operands();
-			phi->add_phi_pair_operand(lv, block);
-			if (preCount > 1)
-			{
-				auto phi2 = PhiInst::create_phi(v->get_type(), preHeader);
-				preHeader->add_instruction(phi2);
-				for (auto& [bb, value] : phiMap)
-				{
-					phi2->add_phi_pair_operand(value, bb);
-				}
-				phi->add_phi_pair_operand(phi2, preHeader);
-			}
-			else
-			{
-				for (auto& [bb, value] : phiMap)
-				{
-					phi->add_phi_pair_operand(value, preHeader);
-				}
-			}
-		}
+		head->add_block_before(preHeader, block);
 		auto lp = loop->get_parent();
 		while (lp != nullptr)
 		{
@@ -207,69 +147,60 @@ bool LoopSimplify::createExitOnLoop(Loop* loop) const
 	{
 		for (auto suc : bb->get_succ_basic_blocks())
 		{
-			if (!bbs.count(suc) && !loop->exits().count(suc))
+			if (!bbs.count(suc))
 			{
-				bool ok = true;
 				unordered_set<BasicBlock*> pres;
+				unordered_set<BasicBlock*> outerPres;
+				bool ok = true;
 				for (auto pb : suc->get_pre_basic_blocks())
 				{
 					if (loop->get_blocks().count(pb))pres.emplace(pb);
-					else ok = false;
+					else
+					{
+						outerPres.emplace(pb);
+						ok = false;
+					}
 				}
 				if (ok)
 				{
-					for (auto i : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
-						loop->addExit(i, suc);
+					for (auto i : pres) loop->add_exit(i, suc);  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+					break;
 				}
-				else
-				{
-					auto nbb = new BasicBlock{m_, "", f_};
-					for (auto pre : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
-					{
-						pre->get_instructions().back()->replaceAllOperandMatchs(suc, nbb);
-						pre->remove_succ_basic_block(suc);
-						suc->remove_pre_basic_block(pre);
-						pre->add_succ_basic_block(nbb);
-						nbb->add_pre_basic_block(pre);
-					}
-					BranchInst::create_br(suc, nbb);
-					for (auto inst : suc->get_instructions().phi_and_allocas())
-					{
-						auto phi = dynamic_cast<PhiInst*>(inst);
-						std::map<BasicBlock*, Value*> nbbPhiMap;
-						std::map<BasicBlock*, Value*> sucPhiMap;
-						for (auto& [i1, j1] : phi->get_phi_pairs())
-						{
-							if (pres.count(j1))
-							{
-								nbbPhiMap.emplace(j1, i1);
-							}
-							else
-							{
-								sucPhiMap.emplace(j1, i1);
-							}
-						}
-						if (nbbPhiMap.size() == 1)
-						{
-							phi->replaceAllOperandMatchs(bb, nbb);
-						}
-						else
-						{
-							auto nPhi = PhiInst::create_phi(phi->get_type(), nbb);
-							sucPhiMap.emplace(nbb, nPhi);
-							phi->remove_all_operands();
-							for (auto [i, j] : nbbPhiMap) nPhi->add_phi_pair_operand(j, i);
-							for (auto [i, j] : sucPhiMap) phi->add_phi_pair_operand(j, i);
-						}
-					}
-					for (auto i : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
-						LoopDetection::addNewExitTo(loop, i, nbb, suc);
-					ret = true;
-				}
+				auto nbb = new BasicBlock{m_, "", f_};
+				suc->add_block_before(nbb, outerPres);
+				for (auto i : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+					LoopDetection::addNewExitTo(loop, i, nbb, suc);
+				ret = true;
 				break;
 			}
 		}
 	}
 	LOG(color::green("Update Loop to ") + loop->print());
 	return ret;
+}
+
+bool LoopSimplify::createLatchOnLoops(const std::vector<Loop*>& loops)
+{
+	bool ret = false;
+	for (auto loop : loops)
+	{
+		ret |= createLatchOnLoops(loop->get_sub_loops());
+		ret |= createLatchOnLoop(loop);
+	}
+	return ret;
+}
+
+bool LoopSimplify::createLatchOnLoop(Loop* loop) const
+{
+	LOG(color::pink("Create Latch on Loop ") + loop->print());
+	auto preLatch = loop->get_latch();
+	if (preLatch->get_succ_basic_blocks().size() == 1) return false;
+	auto nextLatch = BasicBlock::create(m_, "", f_);
+	auto head = loop->get_header();
+	head->add_block_before(nextLatch, loop->get_preheader());
+	loop->add_block_casecade(nextLatch, true);
+	loop->remove_latch(preLatch);
+	loop->add_latch(nextLatch);
+	LOG(color::green("Update Loop to ") + loop->print());
+	return true;
 }

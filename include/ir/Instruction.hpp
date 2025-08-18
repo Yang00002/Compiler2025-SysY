@@ -163,7 +163,7 @@ public:
 
 	[[nodiscard]] bool isTerminator() const { return is_br() || is_ret(); }
 
-	void replaceAllOperandMatchs(const Value* from, Value* to);
+	bool replaceAllOperandMatchs(const Value* from, Value* to);
 
 private:
 	BasicBlock* parent_;

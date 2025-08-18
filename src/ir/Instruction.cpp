@@ -83,15 +83,20 @@ bool Instruction::is_void() const
 	        (op_id_ == call && this->get_type() == Types::VOID));
 }
 
-void Instruction::replaceAllOperandMatchs(const Value* from, Value* to)
+bool Instruction::replaceAllOperandMatchs(const Value* from, Value* to)
 {
+	bool ret = false;
 	int size = u2iNegThrow(get_operands().size());
 	for (int i = 0; i < size; i++)
 	{
 		auto pre = get_operand(i);
 		if (pre == from)
+		{
 			set_operand(i, to);
+			ret = true;
+		}
 	}
+	return ret;
 }
 
 IBinaryInst::IBinaryInst(OpID id, Value* v1, Value* v2, BasicBlock* bb)
@@ -864,7 +869,7 @@ SiToFpInst* SiToFpInst::create_sitofp(Value* val, BasicBlock* bb)
 
 PhiInst::PhiInst(Type* ty, const std::vector<Value*>& vals,
                  const std::vector<BasicBlock*>& val_bbs, BasicBlock* bb)
-	: BaseInst<PhiInst>(ty, phi)
+	: BaseInst<PhiInst>(ty, phi, bb)
 {
 	ASSERT(vals.size() == val_bbs.size() && "Unmatched vals and bbs");
 	int size = u2iNegThrow(vals.size());
@@ -875,7 +880,6 @@ PhiInst::PhiInst(Type* ty, const std::vector<Value*>& vals,
 		add_operand(vals[i]);
 		add_operand(val_bbs[i]);
 	}
-	this->set_parent(bb);
 }
 
 Instruction* PhiInst::copy(BasicBlock* parent)

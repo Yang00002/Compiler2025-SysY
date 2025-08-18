@@ -149,7 +149,6 @@ void Mem2Reg::generate_phi()
 						var->get_type()->toPointerType()->typeContained(),
 						bb_dominance_frontier_bb);
 					phi_lval.emplace(phi, var);
-					bb_dominance_frontier_bb->add_instruction(phi);
 					work_list.push_back(bb_dominance_frontier_bb);
 					bb_has_var_phi[{bb_dominance_frontier_bb, var}] = true;
 					LOG(color::pink("Add phi for ") + var->

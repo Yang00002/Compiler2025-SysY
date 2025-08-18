@@ -16,10 +16,94 @@ BasicBlock::BasicBlock(Module* m, const std::string& name = "",
 
 Module* BasicBlock::get_module() const { return get_parent()->get_parent(); }
 void BasicBlock::erase_from_parent() { this->get_parent()->remove(this); }
+
 BasicBlock::~BasicBlock()
 {
 	for (const auto i : instr_list_)
 		delete i;
+}
+
+void BasicBlock::redirect_suc_basic_block(BasicBlock* from, BasicBlock* to)
+{
+	if (instr_list_.back()->replaceAllOperandMatchs(from, to))
+	{
+		succ_bbs_.remove(from);
+		succ_bbs_.emplace_back(to);
+		from->pre_bbs_.remove(this);
+		to->pre_bbs_.emplace_back(this);
+	}
+}
+
+void BasicBlock::reset_suc_basic_block(Value* cond, BasicBlock* l, BasicBlock* r)
+{
+	if (succ_bbs_.size() == 2)
+	{
+		if (succ_bbs_.front() != l && succ_bbs_.front() != r)
+		{
+			succ_bbs_.front()->remove_pre_basic_block(this);
+			succ_bbs_.pop_front();
+		}
+	}
+	if (succ_bbs_.back() != l && succ_bbs_.back() != r)
+	{
+		succ_bbs_.back()->remove_pre_basic_block(this);
+		succ_bbs_.pop_back();
+	}
+	if (succ_bbs_.empty() || (succ_bbs_.front() != l && succ_bbs_.back() != l))
+	{
+		succ_bbs_.emplace_back(l);
+		l->pre_bbs_.emplace_back(this);
+	}
+	if (succ_bbs_.front() != r && succ_bbs_.back() != r)
+	{
+		succ_bbs_.emplace_back(r);
+		r->pre_bbs_.emplace_back(this);
+	}
+	auto back = instr_list_.back();
+	if (l == r)
+	{
+		back->remove_all_operands();
+		back->add_operand(l);
+	}
+	else
+	{
+		back->remove_all_operands();
+		back->add_operand(cond);
+		back->add_operand(l);
+		back->add_operand(r);
+	}
+}
+
+void BasicBlock::remove_succ_block_and_update_br(BasicBlock* rm)
+{
+	auto inst = instr_list_.back();
+	if (inst->get_operands().size() != 3)
+	{
+		if (inst->get_operand(0) == rm)
+		{
+			instr_list_.pop_back();
+			succ_bbs_.remove(rm);
+			rm->pre_bbs_.remove(this);
+			delete inst;
+		}
+		return;
+	}
+	BasicBlock* ot = nullptr;
+	bool ok = false;
+	for (int i = 1; i < 3; i++)
+	{
+		BasicBlock* op = dynamic_cast<BasicBlock*>(inst->get_operand(i));
+		if (op == rm)
+		{
+			ok = true;
+		}
+		else ot = op;
+	}
+	if (!ok) return;
+	succ_bbs_.remove(rm);
+	rm->pre_bbs_.remove(this);
+	inst->remove_all_operands();
+	inst->add_operand(ot);
 }
 
 bool BasicBlock::replace_self_with_block(BasicBlock* bb)
@@ -79,6 +163,143 @@ bool BasicBlock::replace_self_with_block(BasicBlock* bb)
 	}
 	pre_bbs_.clear();
 	return true;
+}
+
+void BasicBlock::add_block_before(BasicBlock* bb)
+{
+	bb->instr_list_.addAllPhiAndAllocas(instr_list_);
+	instr_list_.remove_phi_and_allocas();
+	for (auto inst : bb->instr_list_) inst->set_parent(bb);
+	auto pres = pre_bbs_;
+	for (auto pre : pres) pre->redirect_suc_basic_block(this, bb);
+	BranchInst::create_br(this, bb);
+}
+
+void BasicBlock::add_block_before(BasicBlock* bb, const BasicBlock* stillGotoSelf)
+{
+	std::map<BasicBlock*, Value*> selfPhiMap;
+	std::map<BasicBlock*, Value*> bbPhiMap;
+	auto begin = instr_list_.begin();
+	while (begin != instr_list_.phi_alloca_end())
+	{
+		auto phi = dynamic_cast<PhiInst*>(begin.get_and_add());
+		for (auto& [i, j] : phi->get_phi_pairs())
+		{
+			if (stillGotoSelf == j) selfPhiMap.emplace(j, i);
+			else bbPhiMap.emplace(j, i);
+		}
+		ASSERT(!bbPhiMap.empty());
+		if (bbPhiMap.size() == 1)
+		{
+			phi->replaceAllOperandMatchs(bbPhiMap.begin()->first, bb);
+		}
+		else
+		{
+			auto phiAtBB = PhiInst::create_phi(phi->get_type(), bb);
+			for (auto& [i, j] : bbPhiMap) phiAtBB->add_phi_pair_operand(j, i);
+			selfPhiMap.emplace(bb, phiAtBB);
+			if (selfPhiMap.size() == 1)
+			{
+				phi->replace_all_use_with(phiAtBB);
+				begin.remove_pre();
+				delete phi;
+			}
+			else
+			{
+				phi->remove_all_operands();
+				for (auto& [i, j] : selfPhiMap) phi->add_phi_pair_operand(j, i);
+			}
+		}
+	}
+	auto pres = pre_bbs_;
+	for (auto pre : pres)
+		if (pre != stillGotoSelf) pre->redirect_suc_basic_block(this, bb);
+	BranchInst::create_br(this, bb);
+}
+
+void BasicBlock::add_block_before(BasicBlock* bb, const std::unordered_set<BasicBlock*>& stillGotoSelf)
+{
+	std::map<BasicBlock*, Value*> selfPhiMap;
+	std::map<BasicBlock*, Value*> bbPhiMap;
+	auto begin = instr_list_.begin();
+	while (begin != instr_list_.phi_alloca_end())
+	{
+		auto phi = dynamic_cast<PhiInst*>(begin.get_and_add());
+		for (auto& [i, j] : phi->get_phi_pairs())
+		{
+			if (stillGotoSelf.count(j)) selfPhiMap.emplace(j, i);
+			else bbPhiMap.emplace(j, i);
+		}
+		ASSERT(!bbPhiMap.empty());
+		if (bbPhiMap.size() == 1)
+		{
+			phi->replaceAllOperandMatchs(bbPhiMap.begin()->first, bb);
+		}
+		else
+		{
+			auto phiAtBB = PhiInst::create_phi(phi->get_type(), bb);
+			for (auto& [i, j] : bbPhiMap) phiAtBB->add_phi_pair_operand(j, i);
+			selfPhiMap.emplace(bb, phiAtBB);
+			if (selfPhiMap.size() == 1)
+			{
+				phi->replace_all_use_with(phiAtBB);
+				begin.remove_pre();
+				delete phi;
+			}
+			else
+			{
+				phi->remove_all_operands();
+				for (auto& [i, j] : selfPhiMap) phi->add_phi_pair_operand(j, i);
+			}
+		}
+	}
+	auto pres = pre_bbs_;
+	for (auto pre : pres)
+		if (!stillGotoSelf.count(pre)) pre->redirect_suc_basic_block(this, bb);
+	BranchInst::create_br(this, bb);
+}
+
+void BasicBlock::add_block_before(BasicBlock* bb, const std::set<BasicBlock*>& stillGotoSelf)
+{
+	std::map<BasicBlock*, Value*> selfPhiMap;
+	std::map<BasicBlock*, Value*> bbPhiMap;
+	auto begin = instr_list_.begin();
+	while (begin != instr_list_.phi_alloca_end())
+	{
+		auto phi = dynamic_cast<PhiInst*>(begin.get_and_add());
+		for (auto& [i, j] : phi->get_phi_pairs())
+		{
+			if (stillGotoSelf.count(j)) selfPhiMap.emplace(j, i);
+			else bbPhiMap.emplace(j, i);
+		}
+		Value* fromBBGet = nullptr;
+		ASSERT(!bbPhiMap.empty());
+		if (bbPhiMap.size() == 1)
+		{
+			phi->replaceAllOperandMatchs(bbPhiMap.begin()->first, bb);
+		}
+		else
+		{
+			auto phiAtBB = PhiInst::create_phi(phi->get_type(), bb);
+			for (auto& [i, j] : bbPhiMap) phiAtBB->add_phi_pair_operand(j, i);
+			selfPhiMap.emplace(bb, phiAtBB);
+			if (selfPhiMap.size() == 1)
+			{
+				phi->replace_all_use_with(phiAtBB);
+				begin.remove_pre();
+				delete phi;
+			}
+			else
+			{
+				phi->remove_all_operands();
+				for (auto& [i, j] : selfPhiMap) phi->add_phi_pair_operand(j, i);
+			}
+		}
+	}
+	auto pres = pre_bbs_;
+	for (auto pre : pres)
+		if (!stillGotoSelf.count(pre)) pre->redirect_suc_basic_block(this, bb);
+	BranchInst::create_br(this, bb);
 }
 
 void BasicBlock::replace_terminate_with_return_value(Value* value)

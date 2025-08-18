@@ -179,6 +179,10 @@ const InstructionListNode* InstructionList::end() const
 	return end_node_;
 }
 
+const InstructionListNode* InstructionList::phi_alloca_end() const
+{
+	return common_inst_begin_;
+}
 InstructionListIterator InstructionList::rbegin()
 {
 	return InstructionListIterator{this, end_node_->pre};
@@ -216,6 +220,10 @@ bool InstructionList::empty() const
 	return phi_alloca_size_ == 0 && common_inst_size_ == 0;
 }
 
+int InstructionList::commonInstSize() const
+{
+	return common_inst_size_;
+}
 int InstructionList::size() const
 {
 	return phi_alloca_size_ + common_inst_size_;
@@ -467,6 +475,17 @@ bool InstructionList::emplace_common_inst_after(Instruction* instruction, Instru
 		common_inst_begin_ = node;
 	common_inst_size_++;
 	return true;
+}
+
+void InstructionList::remove_phi_and_allocas()
+{
+	while (end_node_->next != common_inst_begin_)
+	{
+		const auto toDel = end_node_->next;
+		end_node_->next = toDel->next;
+		delete toDel;
+	}
+	phi_alloca_size_ = 0;
 }
 
 void InstructionList::emplace_back(Instruction* instruction)
