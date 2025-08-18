@@ -78,3 +78,7 @@ extern bool rotateLoopEvenIfNotHaveInvariant;
 extern int invariantNeed2RotateLoop;
 // 禁止条件比较变量的循环外提, 因为 i1 外提后还必须 cset 再在比较处用到
 extern bool disableCondLICM;
+// 使用 sink 并不能就很有效的在少量 spill 下减小寄存器压力(因为使用相同操作数的概率较小), 只有在 spill 大于等于这个数字才使用 sink
+extern int useSinkGate;
+// 使用浮点寄存器进行 spill, 使用 FMOV 而非 LDR/STR
+extern bool useFloatRegAsStack2Spill;

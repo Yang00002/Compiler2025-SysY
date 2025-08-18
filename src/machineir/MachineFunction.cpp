@@ -487,3 +487,23 @@ int MFunction::virtualRegisterCount() const
 {
 	return u2iNegThrow(virtual_iregs_.size() + virtual_fregs_.size());
 }
+
+void MFunction::checkValidUseList()
+{
+	unordered_map<MOperand*, unordered_set<MInstruction*>> nul;
+	for (auto bb : blocks_)
+	{
+		for (auto inst : bb->instructions_)
+		{
+			for (auto op : inst->operands())
+			{
+				nul[op].emplace(inst);
+				if (!useList_[op].count(inst)) throw runtime_error("wrong");
+			}
+		}
+	}
+	for (auto& [i,j] : useList_)
+	{
+		if (j.size() != nul[i].size()) throw runtime_error("wrong");
+	}
+}

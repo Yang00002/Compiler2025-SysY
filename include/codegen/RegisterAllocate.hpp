@@ -30,6 +30,8 @@ private:
 	MFunction* currentFunc_ = nullptr;
 	MachineDominators* dominator_ = nullptr;
 	void runOn(MFunction* function);
+	// 尝试使用浮点寄存器进行 spill 操作, 目前只会使用 callee save 寄存器的 64 位
+	void spillWithFR(MFunction* function) const;
 
 public:
 	[[nodiscard]] MModule* module() const

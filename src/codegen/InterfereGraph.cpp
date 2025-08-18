@@ -591,10 +591,12 @@ void InterfereGraph::rewriteProgram() const
 	auto func = parent_->currentFunc();
 	std::list<VirtualRegister*> stillNeedWorks;
 	bool needSpill = true;
+	int count = 0;
+	for (auto it = spilledNode_.next_; it != &spilledNode_; it = it->next_) count++;
 	for (auto it = spilledNode_.next_; it != &spilledNode_; it = it->next_)
 	{
 		auto reg = dynamic_cast<VirtualRegister*>(it->reg_);
-		if (useSinkForVirtualRegister)
+		if (useSinkForVirtualRegister && count >= useSinkGate)
 		{
 			if (reg->sinked)
 			{
@@ -692,7 +694,7 @@ void InterfereGraph::rewriteProgram() const
 			func->spill(reg, parent_->live_message());
 		}
 	}
-	if (useSinkForVirtualRegister && needSpill)
+	if (useSinkForVirtualRegister && count >= useSinkGate && needSpill)
 	{
 		for (auto i : stillNeedWorks)
 		{

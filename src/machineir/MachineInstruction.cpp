@@ -65,6 +65,13 @@ void MInstruction::stayUseReplace(const MOperand* from, MOperand* to, MFunction*
 	}
 }
 
+void MInstruction::removeAllUse()
+{
+	auto f = block_->function();
+	for (auto op : operands_)
+		f->useList()[op].erase(this);
+}
+
 MRet::MRet(MBasicBlock* block) : MInstruction(block)
 {
 }
@@ -101,6 +108,34 @@ MCopy::MCopy(MBasicBlock* block, MOperand* src, MOperand* des, int copyLen) : MI
 std::string MCopy::print()
 {
 	return operands_[1]->print() + " = COPY " + operands_[0]->print() + " [" + to_string(copyLen_) + "]";
+}
+
+M2SIMDCopy::M2SIMDCopy(MBasicBlock* block, MOperand* regLike, MOperand* fregLike, int copyLen, int lane, bool ld):
+	MInstruction(block), copyLen_(copyLen), lane_(lane), ld_(ld)
+{
+	operands_.resize(2);
+	operands_[0] = regLike;
+	operands_[1] = fregLike;
+	def_.resize(1);
+	use_.resize(1);
+	if (ld)
+	{
+		def_[0] = 0;
+		use_[0] = 1;
+	}
+	else
+	{
+		def_[0] = 1;
+		use_[0] = 0;
+	}
+	auto func = block->function();
+	func->addUse(regLike, this);
+	func->addUse(fregLike, this);
+}
+
+std::string M2SIMDCopy::print()
+{
+	return string("FSIMDMOV ") + (ld_ ? "LD " : "ST ") + operands_[0]->print() + " " + operands_[1]->print() + " " + to_string(lane_);
 }
 
 std::string MB::print()
@@ -430,6 +465,7 @@ MBL::MBL(MBasicBlock* block, FuncAddress* addr, Function* function) : MInstructi
 			}
 		}
 	}
+	block->function()->addUse(addr, this);
 }
 
 MBL::MBL(MBasicBlock* block, FuncAddress* addr, bool cptclf) : MInstruction(block)
@@ -447,6 +483,7 @@ MBL::MBL(MBasicBlock* block, FuncAddress* addr, bool cptclf) : MInstruction(bloc
 	{
 		for (int i = 0; i < 2; i++) imp_use_.emplace_back(Register::getIParameterRegister(i, block->module()));
 	}
+	block->function()->addUse(addr, this);
 }
 
 std::string MBL::print()

@@ -98,6 +98,7 @@ public:
 	virtual void replace(MOperand* from, MOperand* to, MFunction* parent);
 	virtual void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent);
 	virtual void stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent);
+	void removeAllUse();
 };
 
 class MRet final : public MInstruction
@@ -123,6 +124,35 @@ private:
 
 public:
 	explicit MCopy(MBasicBlock* block, MOperand* src, MOperand* des, int copyLen);
+	std::string print() override;
+};
+
+// 寄存器 spill 到寄存器
+class M2SIMDCopy final : public MInstruction
+{
+public:
+	[[nodiscard]] int copy_len() const
+	{
+		return copyLen_;
+	}
+
+	[[nodiscard]] int lane() const
+	{
+		return lane_;
+	}
+
+	[[nodiscard]] int isLoad() const
+	{
+		return ld_;
+	}
+
+private:
+	int copyLen_;
+	int lane_;
+	bool ld_;
+
+public:
+	explicit M2SIMDCopy(MBasicBlock* block, MOperand* regLike, MOperand* fregLike, int copyLen, int lane, bool ld);
 	std::string print() override;
 };
 
@@ -244,6 +274,7 @@ class MSTR final : public MInstruction
 
 public:
 	bool forCall_ = false;
+
 	[[nodiscard]] int width() const
 	{
 		return width_;
@@ -272,7 +303,6 @@ public:
 class MBL final : public MInstruction
 {
 public:
-
 	explicit MBL(MBasicBlock* block, FuncAddress* addr, Function* function);
 	explicit MBL(MBasicBlock* block, FuncAddress* addr, bool cptclf);
 	std::string print() override;

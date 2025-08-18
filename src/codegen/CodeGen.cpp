@@ -400,6 +400,32 @@ void CodeGen::str(const MOperand* regLike, const MOperand* stackLike, int len, C
 	throw runtime_error("unexpected");
 }
 
+void CodeGen::simdcp(const MOperand* regLike, const MOperand* fregLike, int len, int lane, bool ld, CodeString* toStr)
+{
+	auto ll = dynamic_cast<const Register*>(regLike);
+	auto rr = dynamic_cast<const Register*>(fregLike);
+	ASSERT(ll && rr);
+	if (len == 64)
+	{
+		if (ld) copy(regLike, fregLike, 64, toStr);
+		else copy(fregLike, regLike, 64, toStr);
+	}
+	else
+	{
+		if (ld)
+		{
+			if (ll->isIntegerRegister())
+				toStr->addInstruction("umov", regName(ll, 32), simd32RegName(rr, lane));
+			else
+				toStr->addInstruction("mov", regName(ll, 32), simd32RegName(rr, lane));
+		}
+		else
+		{
+			toStr->addInstruction("ins", simd32RegName(rr, lane), regName(ll, 32));
+		}
+	}
+}
+
 const Register* CodeGen::op2reg(const MOperand* op, int len, bool useIntReg, CodeString* toStr)
 {
 	if (const Register* fromr = dynamic_cast<const Register*>(op); fromr != nullptr)
@@ -1445,7 +1471,6 @@ void CodeGen::copy(const Register* to, const Register* from, int len, CodeString
 	if (to == from) return;
 	if (to->isIntegerRegister() && from->isIntegerRegister())
 		return toStr->addInstruction("MOV", regName(to, len), regName(from, len));
-	ASSERT(len == 32);
 	return toStr->addInstruction("FMOV", regName(to, len), regName(from, len));
 }
 
@@ -1545,6 +1570,8 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 		maddsub(i11->operand(0), i11->operand(1), i11->operand(2), i11->operand(3), i11->add_, toStr);
 	else if (auto i17 = dynamic_cast<MNeg*>(instruction); i17 != nullptr)
 		mneg(i17->operand(0), i17->operand(1), i17->operand(2), toStr);
+	else if (auto i18 = dynamic_cast<M2SIMDCopy*>(instruction); i18 != nullptr)
+		simdcp(i18->operand(0), i18->operand(1), i18->copy_len(), i18->lane(), i18->isLoad(), toStr);
 	else
 		ASSERT(false);
 }
@@ -1558,6 +1585,11 @@ std::string CodeGen::regName(const Register* reg, int len)
 		return "D" + to_string(reg->id());
 	}
 	return reg->name_;
+}
+
+std::string CodeGen::simd32RegName(const Register* reg, int lane)
+{
+	return "V" + to_string(reg->id()) + ".s[" + to_string(lane) + "]";
 }
 
 std::string CodeGen::immediate(int i)

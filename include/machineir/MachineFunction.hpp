@@ -160,4 +160,5 @@ public:
 	[[nodiscard]] int virtualIRegisterCount() const;
 	[[nodiscard]] int virtualFRegisterCount() const;
 	[[nodiscard]] int virtualRegisterCount() const;
+	void checkValidUseList();
 };

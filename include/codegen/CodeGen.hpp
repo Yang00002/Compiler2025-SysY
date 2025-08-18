@@ -42,6 +42,7 @@ class CodeGen : public MachinePass
 	static void stp(const Register* a, const Register* b, const Register* c, int offset, int len, CodeString* toStr);
 	void str(const Register* a, const Register* c, long long offset, int len, CodeString* toStr);
 	void str(const MOperand* regLike, const MOperand* stackLike, int len, CodeString* toStr, bool forFuncCall);
+	void simdcp(const MOperand* regLike, const MOperand* fregLike, int len, int lane, bool ld, CodeString* toStr);
 	// 将操作数转换为特定类型寄存器(如果类型不一样就进行复制), 可能会占用临时寄存器, 需要释放
 	const Register* op2reg(const MOperand* op, int len, bool useIntReg, CodeString* toStr);
 	// 将操作数转换为寄存器(忽略它的类型, 默认是放到整型寄存器, 但是如果是其它类型也不转换), 可能会占用临时寄存器, 需要释放
@@ -86,6 +87,7 @@ class CodeGen : public MachinePass
 	void copy(const Register* to, const FrameIndex* from, int len, CodeString* toStr);
 	void makeInstruction(MInstruction* instruction);
 	static std::string regName(const Register* reg, int len);
+	static std::string simd32RegName(const Register* reg, int lane);
 	static std::string immediate(int i);
 	static std::string immediate(unsigned i);
 	static std::string immediate(long long i);
