@@ -57,6 +57,7 @@ Value* ptrFrom(Value* ptr)
 			case Instruction::getelementptr:
 			case Instruction::nump2charp:
 			case Instruction::global_fix:
+			case Instruction::phi:
 				ptr = inst->get_operand(0);
 				inst = dynamic_cast<Instruction*>(ptr);
 				break;

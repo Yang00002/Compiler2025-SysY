@@ -113,12 +113,13 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 		if (loop->get_latches().size() == 1)
 		{
 			loop->set_preheader(preHeader);
+			loop->add_block_casecade(preHeader, false);
 			auto dm = manager_->getFuncInfo<Dominators>(f_);
 			dm->set_idom(preHeader, dm->get_idom(head));
 			dm->set_idom(head, preHeader);
 			break;
 		}
-		auto innerLoop = new Loop{head};
+		auto innerLoop = new Loop{loops_, head};
 		loops_->collectInnerLoopMessage(loop, block, preHeader, innerLoop, manager_->getFuncInfo<Dominators>(f_));
 		head = preHeader;
 		LOG(color::green("Update Loop to ") + loop->print());
@@ -163,7 +164,7 @@ bool LoopSimplify::createExitOnLoop(Loop* loop) const
 				}
 				if (ok)
 				{
-					for (auto i : pres) loop->add_exit(i, suc);  // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+					for (auto i : pres) loop->add_exit(i, suc); // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 					break;
 				}
 				auto nbb = new BasicBlock{m_, "", f_};

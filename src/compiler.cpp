@@ -34,6 +34,7 @@
 #include "ReturnMerge.hpp"
 #include "SCCP.hpp"
 #include "LoopRotate.hpp"
+#include "PhiEliminate.hpp"
 #include <ARM_codegen.hpp>
 
 #include "Ast.hpp"
@@ -106,15 +107,17 @@ void addPasses4IR(PassManager *pm) {
     pm->add_pass<Arithmetic>();
     pm->add_pass<SCCP>();
     pm->add_pass<DeadCode>();
+    pm->add_pass<Inline>();
     pm->add_pass<LoopSimplify>();
     pm->add_pass<LoopInvariantCodeMotion>();
     pm->add_pass<LCSSA>();
     pm->add_pass<LoopRotate>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<PhiEliminate>();
     pm->add_pass<DeadCode>();
+    pm->add_pass<GlobalCodeMotion>();
     pm->add_pass<Inline>();
     pm->add_pass<GVN>();
-    pm->add_pass<Arithmetic>();
-    //pm->add_pass<GlobalCodeMotion>();
     pm->add_pass<DeadCode>();
   }
 }

@@ -419,6 +419,7 @@ void FuncInfo::spread(Value* val, std::unordered_map<Value*, Value*>& spMap)
 					}
 				case Instruction::nump2charp:
 				case Instruction::global_fix:
+				case Instruction::phi:
 					{
 						if (!visited.count(inst))
 						{
@@ -496,6 +497,7 @@ void FuncInfo::spreadLoadsIn(Value* val, std::unordered_map<Value*, Value*>& spM
 					}
 				case Instruction::nump2charp:
 				case Instruction::global_fix:
+				case Instruction::phi:
 					{
 						if (!visited.count(inst))
 						{
@@ -581,6 +583,7 @@ void FuncInfo::spreadGlobalIn(Value* val, std::unordered_map<Value*, Value*>& sp
 					}
 				case Instruction::nump2charp:
 				case Instruction::global_fix:
+				case Instruction::phi:
 					{
 						if (!visited.count(inst))
 						{

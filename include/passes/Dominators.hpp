@@ -21,6 +21,7 @@ class Dominators : public FuncInfoPass
 	void create_dom_dfs_order();
 
 public:
+	[[nodiscard]] BasicBlock* lca(const std::unordered_set<Instruction*>& childs) const;
 	Dominators(const Dominators&) = delete;
 	Dominators(Dominators&&) = delete;
 	Dominators& operator=(const Dominators&) = delete;

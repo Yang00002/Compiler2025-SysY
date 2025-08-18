@@ -1,155 +1,191 @@
 #include "GCM.hpp"
 
+#include "FuncInfo.hpp"
+#include "LoopDetection.hpp"
+
 #define DEBUG 0
+#include "Util.hpp"
 
-bool GlobalCodeMotion::is_pinned(const Instruction* i)
+bool GlobalCodeMotion::is_pinned(const Instruction* i) const
 {
-	return i->is_br() || i->is_call() || i->is_ret() || i->is_phi() || i->is_load() || i->is_store();
+	if (i->is_call())
+	{
+		Function* f = dynamic_cast<Function*>(i->get_operand(0));
+		if (info_->useOrIsImpureLib(f) || !info_->storeDetail(f).empty()) return true;
+		return false;
+	}
+	return i->is_alloca() || i->is_br() || i->is_ret() || i->is_phi() || i->is_store() || i->is_memcpy() || i->
+	       is_memclear();
 }
 
-BasicBlock* GlobalCodeMotion::LCA(BasicBlock* bb1, BasicBlock* bb2) const
+BasicBlock* GlobalCodeMotion::lcaOfUse(Instruction* i) const
 {
-	if (bb1 == bb2) return bb1;
-	if (dom_->is_dominate(bb1, bb2)) return bb1;
-	if (dom_->is_dominate(bb2, bb1)) return bb2; // NOLINT(readability-suspicious-call-argument)
-	std::unordered_set<BasicBlock*> visited;
-	while (bb1 || bb2)
+	std::unordered_set<Instruction*> afterMe;
+	for (auto use : i->get_use_list())
 	{
-		if (bb1)
+		// phi 使用应该将位置提前
+		auto inst = dynamic_cast<Instruction*>(use.val_);
+		if (inst->is_phi())
 		{
-			if (visited.count(bb1)) return bb1;
-			visited.emplace(bb1);
-			bb1 = dom_->get_idom(bb1);
+			auto phi = dynamic_cast<PhiInst*>(inst);
+			int size = u2iNegThrow(phi->get_operands().size());
+			for (int j = 0; j < size; j += 2)
+			{
+				if (phi->get_operand(j) == i)
+				{
+					auto bb = dynamic_cast<BasicBlock*>(phi->get_operand(j + 1));
+					afterMe.emplace(bb->get_instructions().back());
+				}
+			}
 		}
-		if (bb2)
+		else
+			afterMe.emplace(inst);
+	}
+	if (loadInst_.count(i))
+	{
+		auto& lds = loadInst_.at(i);
+		for (auto ld : lds)
 		{
-			if (visited.count(bb2)) return bb2;
-			visited.emplace(bb2);
-			bb2 = dom_->get_idom(bb2);
+			if (storeInst_.count(ld))
+			{
+				for (auto st : storeInst_.at(ld))
+				{
+					if (dom_->is_dominate(i->get_parent(), st->get_parent()))
+						afterMe.emplace(st);
+				}
+			}
 		}
 	}
-	return nullptr;
-}
-
-void GlobalCodeMotion::run(Function* f)
-{
-	visited_.clear();
-	auto& po = dom_->get_dom_post_order(f);
-	std::vector<Instruction*> instructions;
-	for (auto bb : po)
+	// 该位置可能位于某个循环内, 需要拿出来
+	auto ret = dom_->lca(afterMe);
+	auto rl = loops_->loopOfBlock(ret);
+	auto ro = loops_->loopOfBlock(i->get_parent());
+	if (rl != nullptr)
 	{
-		for (auto i : bb->get_instructions())
-			instructions.emplace_back(i);
+		while (rl != ro)
+		{
+			ret = dom_->get_idom(rl->get_header());
+			rl = loops_->loopOfBlock(ret);
+		}
 	}
-	for (auto i : instructions)
-		moveEarly(i, f);
-	visited_.clear();
-	for (auto j = instructions.rbegin(); j != instructions.rend(); ++j)
-		postpone(*j);
+	return ret;
 }
 
-void GlobalCodeMotion::moveEarly(Instruction* i, Function* f)
+void GlobalCodeMotion::runInner()
 {
-	if (is_pinned(i) || visited_.count(i))
-		return;
-	visited_.emplace(i);
-	i->get_parent()->erase_instr(i);
-	f->get_entry_block()->get_instructions().emplace_common_inst_from_end(i, 1);
+	visited_.clear();
+	collectLoadStores();
+	for (auto bb : f_->get_basic_blocks())
+	{
+		for (auto inst : bb->get_instructions())
+		{
+			if (!is_pinned(inst))
+			{
+				visited_.emplace(inst);
+				worklist_.emplace(inst);
+			}
+		}
+	}
+	while (!worklist_.empty())
+	{
+		auto i = worklist_.front();
+		worklist_.pop();
+		visited_.erase(i);
+		auto bb = lcaOfUse(i);
+		if (bb == i->get_parent()) continue;
+		postpone(i, bb);
+	}
+}
 
+void GlobalCodeMotion::collectLoadStores()
+{
+	loadInst_.clear();
+	storeInst_.clear();
+	for (auto bb : f_->get_basic_blocks())
+	{
+		for (auto inst : bb->get_instructions())
+		{
+			if (inst->is_call())
+			{
+				auto& sts = info_->storeDetail(dynamic_cast<Function*>(inst->get_operand(0)));
+				for (auto s : sts.arguments_)
+				{
+					auto argIn = ptrFrom(inst->get_operand(s->get_arg_no() + 1));
+					if (argIn != nullptr) storeInst_[argIn].emplace(inst);
+				}
+				for (auto s : sts.globals_)
+					storeInst_[s].emplace(inst);
+				// 不考虑被 pin 的
+				if (!is_pinned(inst))
+				{
+					auto& lds = info_->loadDetail(dynamic_cast<Function*>(inst->get_operand(0)));
+					for (auto s : lds.arguments_)
+					{
+						auto argIn = ptrFrom(inst->get_operand(s->get_arg_no() + 1));
+						if (argIn != nullptr) loadInst_[inst].emplace(argIn);
+					}
+					for (auto s : lds.globals_)
+						loadInst_[inst].emplace(s);
+				}
+			}
+			else if (inst->is_store() || inst->is_memcpy())
+			{
+				auto argIn = ptrFrom(inst->get_operand(1));
+				if (argIn != nullptr) storeInst_[argIn].emplace(inst);
+			}
+			else if (inst->is_memclear())
+			{
+				auto argIn = ptrFrom(inst->get_operand(0));
+				if (argIn != nullptr) storeInst_[argIn].emplace(inst);
+			}
+			else if (inst->is_load())
+			{
+				auto argIn = ptrFrom(inst->get_operand(0));
+				if (argIn != nullptr) loadInst_[inst].emplace(argIn);
+			}
+		}
+	}
+}
+
+void GlobalCodeMotion::postpone(Instruction* i, BasicBlock* bb)
+{
+	LOG(color::yellow("PostPone ") + i->print() + color::yellow(" from ") + i->get_parent()->get_name() + color::yellow(" to ") + bb->get_name());
+	auto origin = i->get_parent();
+	origin->erase_instr(i);
+	bb->add_instr_begin(i);
+	i->set_parent(bb);
 	for (auto op : i->get_operands())
 	{
-		if (auto input_inst = dynamic_cast<Instruction*>(op))
+		auto inst = dynamic_cast<Instruction*>(op);
+		if (inst != nullptr && !is_pinned(inst) && !visited_.count(inst))
 		{
-			moveEarly(input_inst, f);
-			// 恢复支配关系
-			if (input_inst->get_parent() != i->get_parent() &&
-			    dom_->is_dominate(i->get_parent(), input_inst->get_parent())
-			)
-			{
-				i->get_parent()->erase_instr(i);
-				input_inst->get_parent()->get_instructions().emplace_common_inst_from_end(i, 1);
-			}
-		}
-	}
-}
-
-void GlobalCodeMotion::postpone(Instruction* i)
-{
-	if (is_pinned(i) || visited_.count(i))
-		return;
-	visited_.emplace(i);
-
-	BasicBlock* lca = nullptr;
-	for (auto& user : i->get_use_list())
-	{
-		if (auto user_inst = dynamic_cast<Instruction*>(user.val_))
-		{
-			postpone(user_inst);
-			BasicBlock* use_bb = nullptr;
-			if (auto phi = dynamic_cast<PhiInst*>(user_inst))
-			{
-				for (int j = 0; j < phi->get_num_operand(); j += 2)
-				{
-					auto phi_op = dynamic_cast<Instruction*>(phi->get_operand(j));
-					if (phi_op && phi_op == i)
-						use_bb = dynamic_cast<BasicBlock*>(phi->get_operand(j + 1));
-				}
-			}
-			else use_bb = user_inst->get_parent();
-			lca = LCA(lca, use_bb);
-		}
-	}
-
-	if (!i->get_use_list().empty())
-	{
-		BasicBlock* best = lca;
-		while (lca != i->get_parent())
-		{
-			lca = dom_->get_idom(lca);
-			auto& lca_succ = lca->get_succ_basic_blocks();
-			if (lca_succ.size() == 1 && std::find(lca_succ.begin(), lca_succ.end(), best) != lca_succ.end())
-				best = lca;
-		}
-		i->get_parent()->erase_instr(i);
-		best->get_instructions().emplace_common_inst_from_end(i, 1);
-	}
-
-	BasicBlock* best = i->get_parent();
-	for (auto inst : best->get_instructions())
-	{
-		if (i != inst)
-		{
-			if (!inst->is_phi())
-			{
-				auto& phi_use = inst->get_use_list();
-				if (std::find_if(phi_use.begin(), phi_use.end(),
-				                 [&](const Use& u) { return u.val_ == i; }) != phi_use.end()
-				)
-				{
-					i->get_parent()->erase_instr(i);
-					auto prev_iter = best->get_instructions().begin();
-					for (auto j = best->get_instructions().begin(); j != best->get_instructions().end(); ++j)
-					{
-						if (*j == inst)
-							break;
-						prev_iter = j;
-					}
-					best->get_instructions().emplace_common_inst_after(i, prev_iter);
-					break;
-				}
-			}
+			visited_.emplace(inst);
+			worklist_.emplace(inst);
 		}
 	}
 }
 
 void GlobalCodeMotion::run()
 {
+	LOG(m_->print());
+	PREPARE_PASS_MSG;
+	LOG(color::cyan("Run GCM Pass"));
+	PUSH;
+	info_ = manager_->getGlobalInfo<FuncInfo>();
 	for (auto f : m_->get_functions())
 	{
 		if (!f->is_lib_ && f->get_num_basic_blocks() > 1)
 		{
 			dom_ = manager_->getFuncInfo<Dominators>(f);
-			run(f);
+			loops_ = manager_->getFuncInfo<LoopDetection>(f);
+			GAP;
+			RUN(loops_->print());
+			GAP;
+			f_ = f;
+			runInner();
 		}
 	}
+	POP;
+	PASS_SUFFIX;
+	LOG(color::cyan("GCM Done"));
 }

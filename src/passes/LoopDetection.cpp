@@ -39,7 +39,7 @@ void LoopDetection::run()
 			continue;
 		}
 		// create loop
-		auto loop = new Loop{bb};
+		auto loop = new Loop{this, bb};
 		bb_to_loop_[bb] = loop;
 		// add latch nodes
 		for (auto& latch : latches)
@@ -91,10 +91,16 @@ BasicBlock* Loop::Iterator::toLoop(const Loop* loop) const
 
 void Loop::add_block_casecade(BasicBlock* bb, bool includeSelf)
 {
+	bool b = true;
 	auto p = includeSelf ? this : parent_;
 	while (p != nullptr)
 	{
 		p->add_block(bb);
+		if (b)
+		{
+			detect_->setLoopOfBlock(bb, p);
+			b = false;
+		}
 		p = p->parent_;
 	}
 }

@@ -11,6 +11,7 @@
 #include <climits>
 #include <stack>
 
+#include "Instruction.hpp"
 #include "Util.hpp"
 
 
@@ -540,4 +541,28 @@ void Dominators::create_dom_dfs_order()
 	}
 	dom_post_order_ = std::vector(dom_dfs_order_.rbegin(),
 	                                 dom_dfs_order_.rend());
+}
+
+
+BasicBlock* Dominators::lca(const std::unordered_set<Instruction*>& childs) const
+{
+	// L <=
+	int lid = INT_MAX;
+	// R >=
+	int rid = INT_MIN;
+	for (auto ii : childs)
+	{
+		auto i = ii->get_parent();
+		auto il = dom_tree_L_.at(i);
+		if (lid > il) lid = il;
+		auto ir = dom_tree_R_.at(i);
+		if (rid < ir) rid = ir;
+	}
+	for (int i = lid - 1; i >= 0; i--)
+	{
+		auto fd = dom_dfs_order_[i];
+		if (dom_tree_R_.at(fd) >= rid) return fd;
+	}
+	ASSERT(false);
+	return nullptr;
 }

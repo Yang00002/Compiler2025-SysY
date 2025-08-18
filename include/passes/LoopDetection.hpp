@@ -7,6 +7,7 @@
 
 #include "Instruction.hpp"
 
+class LoopDetection;
 class BasicBlock;
 class Dominators;
 class Function;
@@ -17,6 +18,7 @@ using BBvec = std::vector<BasicBlock*>;
 
 class Loop
 {
+	LoopDetection* detect_;
 	// attribute:
 	// preheader, header, blocks, parent, sub_loops, latches
 	BasicBlock* preheader_ = nullptr;
@@ -87,7 +89,7 @@ public:
 	Loop& operator=(const Loop&) = delete;
 	Loop& operator=(Loop&&) = delete;
 
-	Loop(BasicBlock* header) : header_(header)
+	Loop(LoopDetection* d, BasicBlock* header) : detect_(d), header_(header)
 	{
 		blocks_.emplace(header);
 	}
@@ -144,6 +146,8 @@ public:
 
 	void run() override;
 	void print() const;
+	Loop* loopOfBlock(BasicBlock* b) { return bb_to_loop_[b]; }
+	void setLoopOfBlock(BasicBlock* b, Loop* l) { bb_to_loop_[b] = l; }
 	std::vector<Loop*>& get_loops() { return loops_; }
 	int costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* idoms);
 	void collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlock* preHeader, Loop* innerLoop, Dominators* idoms);
