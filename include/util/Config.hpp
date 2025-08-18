@@ -74,3 +74,5 @@ extern bool useStackOffset2GetspillCost;
 extern bool loopRotateAndAddGuardInAST;
 // 即使没有循环不变量, 只要循环旋转可以消除 phi 或 cbr, 就进行旋转
 extern bool rotateLoopEvenIfNotHaveInvariant;
+// 大于等于这个数量的循环不变量才会导致循环被旋转
+extern int invariantNeed2RotateLoop;

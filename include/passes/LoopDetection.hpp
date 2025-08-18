@@ -152,4 +152,6 @@ public:
 	int costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* idoms);
 	void collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlock* preHeader, Loop* innerLoop, Dominators* idoms);
 	static void addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, BasicBlock* preOut);
+	// FuncInfo 目前是否是正确的
+	void validate();
 };

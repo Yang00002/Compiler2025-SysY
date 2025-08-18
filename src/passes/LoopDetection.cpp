@@ -4,10 +4,14 @@
 #include <iostream>
 #include <memory>
 #include <ostream>
+#include <queue>
 #include <set>
 
 #include "Constant.hpp"
 #include "Instruction.hpp"
+
+
+#define DEBUG 0
 #include "Util.hpp"
 
 
@@ -167,7 +171,8 @@ std::string Loop::print() const
 			}
 		}
 		if (latches_.count(bb)) ret += "<L>";
-		if (subs.count(bb)) ret += "<S>";
+		if (subs.count(bb)) ret += "<SH>";
+		else if (detect_->loopOfBlock(bb) != this) ret += "<S>";
 		if (exits_.count(bb))
 		{
 			ret += "<E ";
@@ -183,7 +188,6 @@ std::string Loop::print() const
 	}
 	return ret;
 }
-
 
 Loop::Iterator Loop::getIterator() const
 {
@@ -438,12 +442,15 @@ void LoopDetection::collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlo
 	innerLoop->set_parent(loop);
 	loop->set_header(preHeader);
 	bb_to_loop_[preHeader] = loop;
-	bb_to_loop_[hd] = innerLoop;
 	loops_.emplace_back(innerLoop);
 	auto hid = idoms->get_idom(hd);
 	idoms->set_idom(hd, preHeader);
 	idoms->set_idom(preHeader, hid);
 	loop->remove_latch(bb);
+	for (auto lpb : innerLoop->get_blocks())
+	{
+		if (bb_to_loop_[lpb] == loop) bb_to_loop_[lpb] = innerLoop;
+	}
 }
 
 void LoopDetection::addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, BasicBlock* preOut)
@@ -455,5 +462,27 @@ void LoopDetection::addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, Ba
 		if (lp->get_blocks().count(preOut))
 			lp->add_block(out);
 		lp = lp->get_parent();
+	}
+}
+
+void LoopDetection::validate()
+{
+	for (auto loop : loops_)
+	{
+		for (auto bb : loop->get_blocks())
+		{
+			auto bb2l = bb_to_loop_[bb];
+			if (bb2l == nullptr) throw std::runtime_error("bb2l destory");
+			auto g = bb2l;
+			while (g != loop)
+			{
+				g = g->get_parent();
+				if (g == nullptr) throw std::runtime_error("bb2l destory");
+			}
+		}
+	}
+	for (auto [i,j] : bb_to_loop_)
+	{
+		if (!j->get_blocks().count(i)) throw std::runtime_error("bb2l destory");
 	}
 }

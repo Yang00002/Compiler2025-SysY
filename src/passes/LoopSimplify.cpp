@@ -68,6 +68,7 @@ void LoopSimplify::runOnFunc()
 		}
 	}
 	if (change) manager_->flushFuncInfo<Dominators>(f_);
+	RUN(loops_->validate());
 }
 
 bool LoopSimplify::createPreHeaderAndLatchOnLoops(const std::vector<Loop*>& loops)
@@ -96,8 +97,10 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 	{
 		return l.first < r.first;
 	});
+	RUN(loops_->validate());
 	for (auto& [i, block] : latches)
 	{
+		RUN(loops_->validate());
 		LOG(color::yellow("Handling Latches ") + block->get_name());
 		int preSize = u2iNegThrow(head->get_pre_basic_blocks().size());
 		ASSERT(preSize >= 2);
@@ -117,6 +120,7 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 			auto dm = manager_->getFuncInfo<Dominators>(f_);
 			dm->set_idom(preHeader, dm->get_idom(head));
 			dm->set_idom(head, preHeader);
+			RUN(loops_->validate());
 			break;
 		}
 		auto innerLoop = new Loop{loops_, head};
@@ -124,6 +128,7 @@ bool LoopSimplify::createPreHeaderAndLatchOnLoop(Loop* loop) const
 		head = preHeader;
 		LOG(color::green("Update Loop to ") + loop->print());
 		LOG(color::green("Sub Get ") + innerLoop->print());
+		RUN(loops_->validate());
 	}
 	return ret;
 }

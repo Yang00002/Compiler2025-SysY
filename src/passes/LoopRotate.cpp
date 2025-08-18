@@ -108,7 +108,7 @@ void LoopRotate::moveHeadInst2Latch(const unordered_map<Value*, Value*>& v_map) 
 		for (auto use : ci->get_use_list())
 		{
 			auto inst = dynamic_cast<Instruction*>(use.val_);
-			if (blocksExcludeHeader.count(inst->get_parent())) needPhi.emplace_back(inst);
+			if (blocksExcludeHeader.count(inst->get_parent())) needPhi.emplace_back(ci);
 		}
 	}
 
@@ -175,9 +175,16 @@ void LoopRotate::moveHeadInst2Latch(const unordered_map<Value*, Value*>& v_map) 
 		for (auto phi : ext->get_instructions().phi_and_allocas())
 		{
 			auto pphi = dynamic_cast<PhiInst*>(phi);
-			auto pp = pphi->get_phi_val(loop_->get_header());
-			pphi->replaceAllOperandMatchs(pp, getOrDefault(moveDownInstPhiReplace, pp));
-			phi->replaceAllOperandMatchs(loop_->get_header(), latch);
+			int size = u2iNegThrow(pphi->get_operands().size());
+			for (int i = 0; i <size;i+=2)
+			{
+				auto bb = phi->get_operand(i + 1);
+				if (bb == loop_->get_header())
+				{
+					phi->set_operand(i, getOrDefault(moveDownInstPhiReplace, phi->get_operand(i)));
+					phi->set_operand(i + 1, latch);
+				}
+			}
 		}
 
 		// 维护 exit
@@ -281,7 +288,7 @@ void LoopRotate::forceRotate() const
 	copyInst2(pre, loop_->get_header(), pp, vmap);
 	auto b1 = dynamic_cast<BasicBlock*>(br->get_operand(1));
 	auto b2 = dynamic_cast<BasicBlock*>(br->get_operand(2));
-	pp->reset_suc_basic_block(getOrDefault(vmap, br->get_operand(0)),b1,b2);
+	pp->reset_suc_basic_block(getOrDefault(vmap, br->get_operand(0)), b1, b2);
 	if (b1 == loop_->exits().at(head)) b1 = b2;
 	pp->redirect_suc_basic_block(b1, pre);
 	for (auto inst : loop_->exits().at(loop_->get_header())->get_instructions().phi_and_allocas())
@@ -301,23 +308,38 @@ bool LoopRotate::runOnLoop() const
 	LOG(color::blue("Run On Loop ") + loop_->print());
 	PUSH;
 	auto pre = loop_->get_preheader();
-	if (pre == nullptr) return false;
+	if (pre == nullptr)
+	{
+		POP;
+		return false;
+	}
 	auto msg = loop_->getIterator();
 	// 没有循环不变量, 因此也不需要旋转
-	if (pre->get_instructions().commonInstSize() == 1)
+	if (pre->get_instructions().commonInstSize() < 1 + invariantNeed2RotateLoop)
 	{
-		if (!rotateLoopEvenIfNotHaveInvariant) return false;
-		if (msg.notHaveIterator_) return false;
+		if (!rotateLoopEvenIfNotHaveInvariant)
+		{
+			POP;
+			return false;
+		}
+		if (msg.notHaveIterator_)
+		{
+			POP;
+			return false;
+		}
 		if (msg.outIterateInsteadOfIn_)
 		{
 			toWhileTrue(msg);
+			POP;
 			return true;
 		}
 		if (msg.phiDefinedByOut_)
 		{
 			erasePhi(msg);
+			POP;
 			return true;
 		}
+		POP;
 		return false;
 	}
 	// 无法插入 guard
@@ -326,15 +348,17 @@ bool LoopRotate::runOnLoop() const
 		if (loop_->exits().count(loop_->get_header()))
 		{
 			forceRotate();
+			POP;
 			return true;
 		}
+		POP;
 		return false;
 	}
 	// 插入 guard, 改为 while true
 	if (msg.outIterateInsteadOfIn_) toWhileTrue(msg);
 		// 插入 guard, 消除 phi
 	else if (msg.phiDefinedByOut_) erasePhi(msg);
-	else rotate(msg);
+	//else rotate(msg);
 	POP;
 	return true;
 }

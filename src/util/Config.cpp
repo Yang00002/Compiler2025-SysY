@@ -37,3 +37,4 @@ bool onlyMergeMulAndASWhenASUseAllReg = true;
 bool useStackOffset2GetspillCost = false;
 bool loopRotateAndAddGuardInAST = false;
 bool rotateLoopEvenIfNotHaveInvariant = false;
+int invariantNeed2RotateLoop = 4;

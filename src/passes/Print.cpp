@@ -13,6 +13,11 @@ void Print::run()
 	LOG(m_->print());
 	GAP;
 	GAP;
+	for (auto i : m_->get_functions())
+	{
+		if (i->is_lib_)continue;
+		manager_->getFuncInfo<LoopDetection>(i)->validate();
+	}
 	manager_->flushAllInfo();
 	for (auto i : m_->get_functions())
 	{
