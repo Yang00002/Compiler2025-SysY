@@ -177,11 +177,11 @@ void BasicBlock::add_block_before(BasicBlock* bb)
 
 void BasicBlock::add_block_before(BasicBlock* bb, const BasicBlock* stillGotoSelf)
 {
-	std::map<BasicBlock*, Value*> selfPhiMap;
-	std::map<BasicBlock*, Value*> bbPhiMap;
 	auto begin = instr_list_.begin();
 	while (begin != instr_list_.phi_alloca_end())
 	{
+		std::map<BasicBlock*, Value*> selfPhiMap;
+		std::map<BasicBlock*, Value*> bbPhiMap;
 		auto phi = dynamic_cast<PhiInst*>(begin.get_and_add());
 		for (auto& [i, j] : phi->get_phi_pairs())
 		{
@@ -219,11 +219,11 @@ void BasicBlock::add_block_before(BasicBlock* bb, const BasicBlock* stillGotoSel
 
 void BasicBlock::add_block_before(BasicBlock* bb, const std::unordered_set<BasicBlock*>& stillGotoSelf)
 {
-	std::map<BasicBlock*, Value*> selfPhiMap;
-	std::map<BasicBlock*, Value*> bbPhiMap;
 	auto begin = instr_list_.begin();
 	while (begin != instr_list_.phi_alloca_end())
 	{
+		std::map<BasicBlock*, Value*> selfPhiMap;
+		std::map<BasicBlock*, Value*> bbPhiMap;
 		auto phi = dynamic_cast<PhiInst*>(begin.get_and_add());
 		for (auto& [i, j] : phi->get_phi_pairs())
 		{
@@ -261,11 +261,11 @@ void BasicBlock::add_block_before(BasicBlock* bb, const std::unordered_set<Basic
 
 void BasicBlock::add_block_before(BasicBlock* bb, const std::set<BasicBlock*>& stillGotoSelf)
 {
-	std::map<BasicBlock*, Value*> selfPhiMap;
-	std::map<BasicBlock*, Value*> bbPhiMap;
 	auto begin = instr_list_.begin();
 	while (begin != instr_list_.phi_alloca_end())
 	{
+		std::map<BasicBlock*, Value*> selfPhiMap;
+		std::map<BasicBlock*, Value*> bbPhiMap;
 		auto phi = dynamic_cast<PhiInst*>(begin.get_and_add());
 		for (auto& [i, j] : phi->get_phi_pairs())
 		{

@@ -1,3 +1,4 @@
+#include "Config.hpp"
 #include <charconv>
 #include <cstring>
 #include <iomanip>
@@ -1039,7 +1040,8 @@ Value* ASTIf::accept(AST2IRVisitor* visitor)
 
 std::list<std::string> ASTWhile::toStringList()
 {
-	if (_stmt.empty())
+	if(loopRotateAndAddGuardInAST){
+		if (_stmt.empty())
 		return {"do{}while(" + _cond->toString() + ");"};
 	string str = "do{";
 	list<string> ret;
@@ -1064,6 +1066,33 @@ std::list<std::string> ASTWhile::toStringList()
 	}
 	ret.emplace_back("}while(" + cond()->toString() + ");");
 	return ret;
+	}
+	else{
+		if (_stmt.empty())
+		return {"while(" + _cond->toString() + ");"};
+	list<string> ret;
+	ret.emplace_back("while(" + cond()->toString() + "){");
+	for (auto& i : _stmt)
+	{
+		if (dynamic_cast<ASTBlock*>(i) != nullptr || dynamic_cast<ASTIf*>(i) != nullptr || dynamic_cast<ASTWhile*>(
+			    i) !=
+		    nullptr)
+		{
+			auto l = i->toStringList();
+			for (auto& j : l)
+			{
+				auto s = "    " + j;
+				ret.emplace_back(s);
+			}
+		}
+		else
+		{
+			ret.emplace_back("    " + i->toString() + ';');
+		}
+	}
+	ret.emplace_back("}");
+	return ret;
+	}
 }
 
 ASTWhile::~ASTWhile()

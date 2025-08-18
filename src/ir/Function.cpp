@@ -341,4 +341,15 @@ void Function::checkBlockRelations() const
 			if (!ok) throw std::runtime_error("branch bb not exsit in pre");
 		}
 	}
+	for (auto bb : basic_blocks_)
+	{
+		if (bb->get_parent() != this) throw std::runtime_error("block parent error");
+	}
+	for (auto bb : basic_blocks_)
+	{
+		for (auto inst : bb->get_instructions())
+		{
+			if (inst->get_parent() != bb) throw std::runtime_error("inst parent error");
+		}
+	}
 }

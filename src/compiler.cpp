@@ -21,6 +21,7 @@
 #include "GVN.hpp"
 #include "Inline.hpp"
 #include "InstructionSelect.hpp"
+#include "LCSSA.hpp"
 #include "LICM.hpp"
 #include "LoopSimplify.hpp"
 #include "MachineModule.hpp"
@@ -107,6 +108,7 @@ void addPasses4IR(PassManager *pm) {
     pm->add_pass<DeadCode>();
     pm->add_pass<LoopSimplify>();
     pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<LCSSA>();
     pm->add_pass<LoopRotate>();
     pm->add_pass<DeadCode>();
     pm->add_pass<Inline>();

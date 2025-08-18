@@ -83,7 +83,10 @@ void LoopRotate::copyInst2(const BasicBlock* enter, BasicBlock* from, BasicBlock
 	{
 		auto cp = ins->copy(v_map);
 		if (cp != nullptr)
+		{
+			cp->set_parent(to);
 			to->add_instruction(cp);
+		}
 	}
 	to->add_instruction(ed);
 }
@@ -171,6 +174,9 @@ void LoopRotate::moveHeadInst2Latch(const unordered_map<Value*, Value*>& v_map) 
 		loop_->get_header()->remove_succ_block_and_update_br(ext);
 		for (auto phi : ext->get_instructions().phi_and_allocas())
 		{
+			auto pphi = dynamic_cast<PhiInst*>(phi);
+			auto pp = pphi->get_phi_val(loop_->get_header());
+			pphi->replaceAllOperandMatchs(pp, getOrDefault(moveDownInstPhiReplace, pp));
 			phi->replaceAllOperandMatchs(loop_->get_header(), latch);
 		}
 
@@ -188,6 +194,7 @@ Value*  LoopRotate::getOrDefault(const unordered_map<Value*, Value*>& vmap, Valu
 
 void LoopRotate::toWhileTrue(const Loop::Iterator& msg) const
 {
+	LOG(color::yellow("Loop To While True"));
 	auto pre = loop_->get_preheader();
 	auto pp = pre;
 	splicePreheader();
@@ -206,17 +213,20 @@ void LoopRotate::toWhileTrue(const Loop::Iterator& msg) const
 	loop_->get_header()->remove_succ_block_and_update_br(msg.exit(loop_));
 	loop_->remove_exit_casecade(loop_->get_header());
 	moveHeadInst2Latch(vmap);
+	PREPARE_PASS_MSG;
+	LOG(color::green("Get ") + loop_->print());
 }
 
 void LoopRotate::erasePhi(const Loop::Iterator& msg) const
 {
+	LOG(color::yellow("Erase Loop Phi"));
 	auto pre = loop_->get_preheader();
 	auto pp = pre;
 	splicePreheader();
 	pre = loop_->get_preheader();
 	unordered_map<Value*, Value*> vmap;
 	copyInst2(pre, loop_->get_header(), pp, vmap);
-	pp->reset_suc_basic_block(msg.br_->get_operand(0), dynamic_cast<BasicBlock*>(msg.br_->get_operand(1)),
+	pp->reset_suc_basic_block(getOrDefault(vmap, msg.br_->get_operand(0)), dynamic_cast<BasicBlock*>(msg.br_->get_operand(1)),
 	                          dynamic_cast<BasicBlock*>(msg.br_->get_operand(2)));
 	pp->redirect_suc_basic_block(msg.toLoop(loop_), pre);
 	for (auto inst : loop_->exits().at(loop_->get_header())->get_instructions().phi_and_allocas())
@@ -226,17 +236,20 @@ void LoopRotate::erasePhi(const Loop::Iterator& msg) const
 	}
 	msg.cmp_->replaceAllOperandMatchs(msg.iterator_, msg.toLoopIterateValue(loop_));
 	moveHeadInst2Latch(vmap);
+	PREPARE_PASS_MSG;
+	LOG(color::green("Get ") + loop_->print());
 }
 
 void LoopRotate::rotate(const Loop::Iterator& msg) const
 {
+	LOG(color::yellow("Rotate Loop"));
 	auto pre = loop_->get_preheader();
 	auto pp = pre;
 	splicePreheader();
 	pre = loop_->get_preheader();
 	unordered_map<Value*, Value*> vmap;
 	copyInst2(pre, loop_->get_header(), pp, vmap);
-	pp->reset_suc_basic_block(msg.br_->get_operand(0), dynamic_cast<BasicBlock*>(msg.br_->get_operand(1)),
+	pp->reset_suc_basic_block(getOrDefault(vmap, msg.br_->get_operand(0)), dynamic_cast<BasicBlock*>(msg.br_->get_operand(1)),
 	                          dynamic_cast<BasicBlock*>(msg.br_->get_operand(2)));
 	pp->redirect_suc_basic_block(msg.toLoop(loop_), pre);
 	for (auto inst : loop_->exits().at(loop_->get_header())->get_instructions().phi_and_allocas())
@@ -245,6 +258,8 @@ void LoopRotate::rotate(const Loop::Iterator& msg) const
 		dynamic_cast<PhiInst*>(inst)->add_phi_pair_operand(getOrDefault(vmap, phi->get_phi_val(loop_->get_header())), pp);
 	}
 	moveHeadInst2Latch(vmap);
+	PREPARE_PASS_MSG;
+	LOG(color::green("Get ") + loop_->print());
 }
 
 bool LoopRotate::runOnLoop() const
