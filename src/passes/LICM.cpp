@@ -15,6 +15,7 @@
 #include "Value.hpp"
 
 #define DEBUG 0
+#include "Config.hpp"
 #include "Util.hpp"
 
 void LoopInvariantCodeMotion::run()
@@ -174,6 +175,15 @@ void LoopInvariantCodeMotion::run_on_loop(Loop* loop) const
 			auto inst = it.get_and_add();
 			LOG(color::pink("Checking ") + inst->print());
 			int idx = 0;
+			if (disableCondLICM && inst->is_cmp())
+			{
+				loop_variant.insert(inst);
+				it.remove_pre();
+				PUSH;
+				LOG(color::yellow("Cmp type, force variant"));
+				POP;
+				continue;
+			}
 			if (inst->is_store() || inst->is_ret() || inst->is_br() ||
 			    inst->is_phi() || inst->is_memcpy() || inst->is_memclear())
 			{

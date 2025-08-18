@@ -17,56 +17,6 @@ void RegisterAllocate::runOn(MFunction* function)
 	LiveMessage liveMessage{function};
 	liveMessage_ = &liveMessage;
 	currentFunc_ = function;
-	if (function->virtualIRegisterCount() > 0)
-	{
-		auto c = function->virtualIRegisterCount();
-		liveMessage.flush(true);
-		if (useCallerSaveRegsFirst)
-		{
-			for (auto reg : module_->IRegs())
-				if (reg->canAllocate() && reg->callerSave_)
-					liveMessage.addRegister(reg);
-			for (auto reg : module_->IRegs())
-				if (reg->canAllocate() && !reg->callerSave_)
-					liveMessage.addRegister(reg);
-		}
-		else
-		{
-			for (auto reg : module_->IRegs())
-				if (reg->canAllocate() && !reg->callerSave_)
-					liveMessage.addRegister(reg);
-			for (auto reg : module_->IRegs())
-				if (reg->canAllocate() && reg->callerSave_)
-					liveMessage.addRegister(reg);
-		}
-		for (auto reg : function->IVRegs())
-			if (reg->id() < c)
-				liveMessage.addRegister(reg);
-			else break;
-		while (true)
-		{
-			liveMessage.calculateLiveMessage();
-			interfereGraph_.flush();
-			interfereGraph_.build();
-			interfereGraph_.makeWorklist();
-			do
-			{
-				if (interfereGraph_.simplify())continue;
-				if (interfereGraph_.coalesce())continue;
-				if (interfereGraph_.freeze())continue;
-				interfereGraph_.selectSpill();
-			}
-			while (interfereGraph_.shouldRepeat());
-			interfereGraph_.assignColors();
-			if (interfereGraph_.needRewrite())
-				interfereGraph_.rewriteProgram();
-			else
-			{
-				interfereGraph_.applyChanges();
-				break;
-			}
-		}
-	}
 	if (function->virtualFRegisterCount() > 0)
 	{
 		auto c = function->virtualFRegisterCount();
@@ -90,6 +40,55 @@ void RegisterAllocate::runOn(MFunction* function)
 					liveMessage.addRegister(reg);
 		}
 		for (auto reg : function->FVRegs())
+			if (reg->id() < c)
+				liveMessage.addRegister(reg);
+			else break;
+		while (true)
+		{
+			liveMessage.calculateLiveMessage();
+			interfereGraph_.flush();
+			interfereGraph_.build();
+			interfereGraph_.makeWorklist();
+			do
+			{
+				if (interfereGraph_.simplify())continue;
+				if (interfereGraph_.coalesce())continue;
+				if (interfereGraph_.freeze())continue;
+				interfereGraph_.selectSpill();
+			} while (interfereGraph_.shouldRepeat());
+			interfereGraph_.assignColors();
+			if (interfereGraph_.needRewrite())
+				interfereGraph_.rewriteProgram();
+			else
+			{
+				interfereGraph_.applyChanges();
+				break;
+			}
+		}
+	}
+	if (function->virtualIRegisterCount() > 0)
+	{
+		auto c = function->virtualIRegisterCount();
+		liveMessage.flush(true);
+		if (useCallerSaveRegsFirst)
+		{
+			for (auto reg : module_->IRegs())
+				if (reg->canAllocate() && reg->callerSave_)
+					liveMessage.addRegister(reg);
+			for (auto reg : module_->IRegs())
+				if (reg->canAllocate() && !reg->callerSave_)
+					liveMessage.addRegister(reg);
+		}
+		else
+		{
+			for (auto reg : module_->IRegs())
+				if (reg->canAllocate() && !reg->callerSave_)
+					liveMessage.addRegister(reg);
+			for (auto reg : module_->IRegs())
+				if (reg->canAllocate() && reg->callerSave_)
+					liveMessage.addRegister(reg);
+		}
+		for (auto reg : function->IVRegs())
 			if (reg->id() < c)
 				liveMessage.addRegister(reg);
 			else break;

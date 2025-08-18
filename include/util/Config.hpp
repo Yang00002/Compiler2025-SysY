@@ -76,3 +76,5 @@ extern bool loopRotateAndAddGuardInAST;
 extern bool rotateLoopEvenIfNotHaveInvariant;
 // 大于等于这个数量的循环不变量才会导致循环被旋转
 extern int invariantNeed2RotateLoop;
+// 禁止条件比较变量的循环外提, 因为 i1 外提后还必须 cset 再在比较处用到
+extern bool disableCondLICM;
