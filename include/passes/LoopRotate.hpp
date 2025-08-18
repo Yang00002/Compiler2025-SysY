@@ -27,6 +27,7 @@ class LoopRotate : public Pass
 	void toWhileTrue(const Loop::Iterator& msg) const;
 	void erasePhi(const Loop::Iterator& msg) const;
 	void rotate(const Loop::Iterator& msg) const;
+	void forceRotate() const;
 	bool runOnLoop() const;
 
 public:

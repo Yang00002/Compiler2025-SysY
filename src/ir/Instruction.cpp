@@ -955,6 +955,20 @@ void PhiInst::remove_phi_operand(const Value* pre_bb, int opId)
 	ASSERT(allOpNotNull());
 }
 
+Value* PhiInst::all_same_operand_exclude_self() const
+{
+	Value* p = nullptr;
+	int size = u2iNegThrow(get_operands().size());
+	for (int i = 0; i < size; i+=2)
+	{
+		auto op = get_operand(i);
+		if (op == this) continue;
+		if (p == nullptr) p = op;
+		else if (op != p) return nullptr;
+	}
+	return p;
+}
+
 MulIntegratedInst::MulIntegratedInst(Value* ml, Value* mr, Value* s, Type* ty, OpID op,
                                      BasicBlock* bb) : BaseInst(ty, op, bb)
 {

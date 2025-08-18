@@ -568,6 +568,9 @@ public:
 
 	void remove_phi_operand(const Value* pre_bb, int opId);
 
+	// 如果所有 Value 相同, 获得那个 Value (除非 Value 与自身相同)
+	[[nodiscard]] Value* all_same_operand_exclude_self() const;
+
 	[[nodiscard]] std::vector<std::pair<Value*, BasicBlock*>> get_phi_pairs() const
 	{
 		std::vector<std::pair<Value*, BasicBlock*>> res;
