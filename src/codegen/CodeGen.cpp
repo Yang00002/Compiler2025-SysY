@@ -557,6 +557,38 @@ void CodeGen::clearV(int count, CodeString* toStr)
 	}
 }
 
+void CodeGen::mull(const Register* t, const Register* l, const Immediate* r, int len, CodeString* toStr)
+{
+	if (len == 32)
+	{
+		int i = r->asInt() - 1;
+		string use;
+		if (i < 0)
+		{
+			use = "SUB";
+			i = -i;
+		}
+		else use = "ADD";
+		int mv = m_countr_zero(i);
+		toStr->addInstruction(use, regName(t, 32), regName(l, 32), regName(l, 32),
+		                      "LSL " + to_string(mv));
+	}
+	else
+	{
+		long long i = r->as64BitsInt() - 1;
+		string use;
+		if (i < 0)
+		{
+			use = "SUB";
+			i = -i;
+		}
+		else use = "ADD";
+		int mv = m_countr_zero(i);
+		toStr->addInstruction(use, regName(t, 64), regName(l, 64), regName(l, 64),
+		                      "LSL " + to_string(mv));
+	}
+}
+
 void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
                        Instruction::OpID op,
                        int len, CodeString* toStr)
@@ -593,6 +625,7 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 						i = immL->asInt() - immR->asInt();
 						break;
 					case Instruction::mul:
+					case Instruction::mull:
 						i = immL->asInt() * immR->asInt();
 						break;
 					case Instruction::sdiv:
@@ -626,6 +659,7 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 					i = immL->as64BitsInt() - immR->as64BitsInt();
 					break;
 				case Instruction::mul:
+				case Instruction::mull:
 					i = immL->as64BitsInt() * immR->as64BitsInt();
 					break;
 				case Instruction::sdiv:
@@ -672,7 +706,8 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 	}
 	if (immL && !immR)
 	{
-		if (op == Instruction::add || op == Instruction::mul || op == Instruction::fadd || op == Instruction::fmul)
+		if (op == Instruction::add || op == Instruction::mul || op == Instruction::mull || op == Instruction::fadd || op
+		    == Instruction::fmul)
 		{
 			immR = immL;
 			l = r;
@@ -689,7 +724,8 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 				copy(target, r, len, toStr);
 				return;
 			}
-			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem || op == Instruction::fmul
+			if (op == Instruction::mul || op == Instruction::mull || op == Instruction::sdiv || op == Instruction::srem
+			    || op == Instruction::fmul
 			    ||
 			    op == Instruction::fdiv || op == Instruction::shl || op == Instruction::and_ || op == Instruction::ashr)
 			{
@@ -699,7 +735,7 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 		}
 		if (immL->isNotFloatOne(flt, len))
 		{
-			if (op == Instruction::mul)
+			if (op == Instruction::mul || op == Instruction::mull)
 			{
 				copy(target, r, len, toStr);
 				return;
@@ -715,7 +751,7 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 				copy(target, l, len, toStr);
 				return;
 			}
-			if (op == Instruction::mul || op == Instruction::fmul || op == Instruction::and_)
+			if (op == Instruction::mul || op == Instruction::mull || op == Instruction::fmul || op == Instruction::and_)
 			{
 				copy(target, zeroRegister(), len, toStr);
 				return;
@@ -723,7 +759,7 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 		}
 		if (immR->isNotFloatOne(flt, len))
 		{
-			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem)
+			if (op == Instruction::mul || op == Instruction::mull || op == Instruction::sdiv || op == Instruction::srem)
 			{
 				return copy(target, l, len, toStr);
 			}
@@ -827,6 +863,13 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 		releaseIP(regL);
 		return;
 	}
+	if (op == Instruction::mull)
+	{
+		ASSERT(immR);
+		mull(target, regL, immR, len, toStr);
+		releaseIP(regL);
+		return;
+	}
 	if (immR && op == Instruction::srem)
 	{
 		if (len == 32)
@@ -840,11 +883,29 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 				makeImmediate(immR, false, 32, rr, toStr);
 				toStr->addInstruction("SDIV", regName(ip, 32), regName(regL, 32),
 				                      regName(rr, 32));
-				lsl32(ip, ip, m_countr_zero(av), toStr);
+				lsl32(rr, ip, m_countr_zero(av), toStr);
 				if (val < 0)
-					mathRRInst(target, regL, ip, Instruction::add, 32, toStr);
+					mathRRInst(target, regL, rr, Instruction::add, 32, toStr);
 				else
-					mathRRInst(target, regL, ip, Instruction::sub, 32, toStr);
+					mathRRInst(target, regL, rr, Instruction::sub, 32, toStr);
+				releaseIP(rr);
+				releaseIP(ip);
+				return;
+			}
+			int val2 = val - 1;
+			int av2 = val2 < 0 ? -val2 : val2;
+			if ((av2 & (av2 - 1)) == 0)
+			{
+				auto rr = getIP();
+				auto ip = getIP();
+				makeImmediate(immR, false, 32, rr, toStr);
+				toStr->addInstruction("SDIV", regName(ip, 32), regName(regL, 32),
+				                      regName(rr, 32));
+				mull(rr, ip, immR, len, toStr);
+				if (val < 0)
+					mathRRInst(target, regL, rr, Instruction::add, 32, toStr);
+				else
+					mathRRInst(target, regL, rr, Instruction::sub, 32, toStr);
 				releaseIP(rr);
 				releaseIP(ip);
 				return;
@@ -861,11 +922,29 @@ void CodeGen::mathInst(const MOperand* t, const MOperand* l, const MOperand* r,
 				makeImmediate(immR, false, 64, rr, toStr);
 				toStr->addInstruction("SDIV", regName(ip, 64), regName(regL, 64),
 				                      regName(rr, 64));
-				lsl64(ip, ip, m_countr_zero(av), toStr);
+				lsl64(rr, ip, m_countr_zero(av), toStr);
 				if (val < 0)
-					mathRRInst(target, regL, ip, Instruction::add, 64, toStr);
+					mathRRInst(target, regL, rr, Instruction::add, 64, toStr);
 				else
-					mathRRInst(target, regL, ip, Instruction::sub, 64, toStr);
+					mathRRInst(target, regL, rr, Instruction::sub, 64, toStr);
+				releaseIP(rr);
+				releaseIP(ip);
+				return;
+			}
+			long long val2 = val - 1;
+			long long av2 = val2 < 0 ? -val2 : val2;
+			if ((av2 & (av2 - 1)) == 0)
+			{
+				auto rr = getIP();
+				auto ip = getIP();
+				makeImmediate(immR, false, 64, rr, toStr);
+				toStr->addInstruction("SDIV", regName(ip, 64), regName(regL, 64),
+					regName(rr, 64));
+				mull(rr, ip, immR,len, toStr);
+				if (val < 0)
+					mathRRInst(target, regL, rr, Instruction::add, 64, toStr);
+				else
+					mathRRInst(target, regL, rr, Instruction::sub, 64, toStr);
 				releaseIP(rr);
 				releaseIP(ip);
 				return;
@@ -907,7 +986,8 @@ bool CodeGen::mathInstImmediateCanInline(const MOperand* l, const MOperand* r,
 	if (immL && immR) return true;
 	if (immL && !immR)
 	{
-		if (op == Instruction::add || op == Instruction::mul || op == Instruction::fadd || op == Instruction::fmul)
+		if (op == Instruction::add || op == Instruction::mul || op == Instruction::mull || op == Instruction::fadd || op
+		    == Instruction::fmul)
 		{
 			immR = immL;
 			l = r;
@@ -920,14 +1000,15 @@ bool CodeGen::mathInstImmediateCanInline(const MOperand* l, const MOperand* r,
 		if (immL->isZero(flt, len))
 		{
 			if (op == Instruction::add || op == Instruction::fadd) return true;
-			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem || op == Instruction::fmul
+			if (op == Instruction::mul || op == Instruction::mull || op == Instruction::sdiv || op == Instruction::srem
+			    || op == Instruction::fmul
 			    ||
 			    op == Instruction::fdiv || op == Instruction::shl || op == Instruction::and_ || op == Instruction::ashr)
 				return true;
 		}
 		if (immL->isNotFloatOne(flt, len))
 		{
-			if (op == Instruction::mul) return true;
+			if (op == Instruction::mul || op == Instruction::mull) return true;
 		}
 	}
 	if (immR)
@@ -936,11 +1017,13 @@ bool CodeGen::mathInstImmediateCanInline(const MOperand* l, const MOperand* r,
 		{
 			if (op == Instruction::add || op == Instruction::fadd || op == Instruction::shl || op == Instruction::ashr)
 				return true;
-			if (op == Instruction::mul || op == Instruction::fmul || op == Instruction::and_)return true;
+			if (op == Instruction::mul || op == Instruction::mull || op == Instruction::fmul || op == Instruction::and_)
+				return true;
 		}
 		if (immR->isNotFloatOne(flt, len))
 		{
-			if (op == Instruction::mul || op == Instruction::sdiv || op == Instruction::srem)return true;
+			if (op == Instruction::mul || op == Instruction::mull || op == Instruction::sdiv || op == Instruction::srem)
+				return true;
 		}
 	}
 	auto regL = dynamic_cast<const Register*>(l);
@@ -957,6 +1040,7 @@ bool CodeGen::mathInstImmediateCanInline(const MOperand* l, const MOperand* r,
 	if (op == Instruction::shl) return true;
 	if (op == Instruction::ashr) return true;
 	if (op == Instruction::and_) return true;
+	if (op == Instruction::mull) return true;
 	if (immR && op == Instruction::srem) return false;
 	if (immR && (op == Instruction::add || op == Instruction::sub))
 	{
@@ -1426,7 +1510,8 @@ void CodeGen::mathRRInst(const Register* to, const Register* l, const Register* 
 	{
 		case Instruction::add: return add(to, l, r, len, toStr);
 		case Instruction::sub: return sub(to, l, r, len, toStr);
-		case Instruction::mul: return toStr->addInstruction("MUL", regName(to, len), regName(l, len), regName(r, len));
+		case Instruction::mul:
+		case Instruction::mull: return toStr->addInstruction("MUL", regName(to, len), regName(l, len), regName(r, len));
 		case Instruction::sdiv: return toStr->
 				addInstruction("SDIV", regName(to, len), regName(l, len), regName(r, len));
 		case Instruction::srem:

@@ -138,6 +138,11 @@ IBinaryInst* IBinaryInst::create_mul(Value* v1, Value* v2, BasicBlock* bb)
 	return create(mul, v1, v2, bb);
 }
 
+IBinaryInst* IBinaryInst::create_mull(Value* v1, Value* v2, BasicBlock* bb)
+{
+	return create(mull, v1, v2, bb);
+}
+
 IBinaryInst* IBinaryInst::create_sdiv(Value* v1, Value* v2, BasicBlock* bb)
 {
 	return create(sdiv, v1, v2, bb);

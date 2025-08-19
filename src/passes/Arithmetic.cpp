@@ -61,6 +61,7 @@ void Arithmetic::simplify(Instruction* i)
 		case Instruction::fsub:
 			return optimize_addsub(i);
 		case Instruction::mul:
+		case Instruction::mull:
 			return optimize_mul(dynamic_cast<IBinaryInst*>(i));
 		case Instruction::fmul:
 			return optimize_fmul(dynamic_cast<FBinaryInst*>(i));
@@ -72,9 +73,41 @@ void Arithmetic::simplify(Instruction* i)
 			return optimize_rem(dynamic_cast<IBinaryInst*>(i));
 		case Instruction::shl:
 			return optimize_shl(dynamic_cast<IBinaryInst*>(i));
+		case Instruction::ashr:
+			return optimize_ashr(dynamic_cast<IBinaryInst*>(i));
 		case Instruction::and_:
 			return optimize_and(dynamic_cast<IBinaryInst*>(i));
-		default: break;
+		case Instruction::ret:
+		case Instruction::br:
+		case Instruction::alloca_:
+		case Instruction::load:
+		case Instruction::store:
+		case Instruction::ge:
+		case Instruction::gt:
+		case Instruction::le:
+		case Instruction::lt:
+		case Instruction::eq:
+		case Instruction::ne:
+		case Instruction::fge:
+		case Instruction::fgt:
+		case Instruction::fle:
+		case Instruction::flt:
+		case Instruction::feq:
+		case Instruction::fne:
+		case Instruction::phi:
+		case Instruction::call:
+		case Instruction::getelementptr:
+		case Instruction::zext:
+		case Instruction::fptosi:
+		case Instruction::sitofp:
+		case Instruction::memcpy_:
+		case Instruction::memclear_:
+		case Instruction::nump2charp:
+		case Instruction::global_fix:
+		case Instruction::msub:
+		case Instruction::madd:
+		case Instruction::mneg:
+			break;
 	}
 }
 
@@ -294,6 +327,16 @@ void Arithmetic::optimize_mul(IBinaryInst* i)
 			}
 			return;
 		}
+		if (i->is_mull()) return;
+		int t = const_op - 1;
+		if (t < 0) t = -t;
+		if ((t & (t-1)) == 0)
+		{
+			i->set_operand(0, op1);
+			i->set_operand(1, op0);
+			i->setOp(Instruction::mull);
+			return;
+		}
 	}
 	if (c1)
 	{
@@ -358,6 +401,15 @@ void Arithmetic::optimize_mul(IBinaryInst* i)
 					break;
 				}
 			}
+		}
+		if (i->is_mull()) return;
+		int t = const_op - 1;
+		if (t < 0) t = -t;
+		if ((t & (t - 1)) == 0)
+		{
+			i->set_operand(0, op1);
+			i->set_operand(1, op0);
+			i->setOp(Instruction::mull);
 		}
 	}
 }
@@ -686,6 +738,7 @@ void Arithmetic::decideSignal(Instruction* i)
 		case Instruction::add:
 		case Instruction::sub:
 		case Instruction::mul:
+		case Instruction::mull:
 		case Instruction::sdiv:
 		case Instruction::srem:
 		case Instruction::shl:
@@ -919,6 +972,7 @@ Arithmetic::CCTuple Arithmetic::infer2Op(unsigned t, unsigned l, unsigned r, Ins
 				return {ret.l, ret.t, ret.r};
 			}
 		case Instruction::mul:
+		case Instruction::mull:
 		case Instruction::fmul:
 			return inferMul(t, l, r);
 		case Instruction::sdiv:

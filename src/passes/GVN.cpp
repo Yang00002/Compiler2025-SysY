@@ -99,6 +99,7 @@ GVN::ValueHash::ValueHash(const Instruction* inst)
 			return;
 		case Instruction::add:
 		case Instruction::mul:
+		case Instruction::mull:
 		case Instruction::and_:
 		case Instruction::fadd:
 		case Instruction::fmul:

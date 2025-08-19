@@ -43,6 +43,7 @@ void MBasicBlock::accept(BasicBlock* block,
 			case Instruction::add:
 			case Instruction::sub:
 			case Instruction::mul:
+			case Instruction::mull:
 			case Instruction::sdiv:
 			case Instruction::srem:
 			case Instruction::shl:
@@ -452,40 +453,8 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				if (immA != nullptr)
 				{
 					auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
-					if (use64BitsMathOperationInPointerOp)
-					{
-						long long c = immA->as64BitsInt();
-						if ((c & (c - 1)) == 0)
-						{
-							auto n = m_countr_zero(c);
-							auto inst = new MMathInst{
-								block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
-							};
-							instructions_.emplace_back(inst);
-						}
-						else
-						{
-							auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
-							instructions_.emplace_back(inst);
-						}
-					}
-					else
-					{
-						int c = immA->asInt();
-						if ((c & (c - 1)) == 0)
-						{
-							auto n = m_countr_zero(c);
-							auto inst = new MMathInst{
-								block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
-							};
-							instructions_.emplace_back(inst);
-						}
-						else
-						{
-							auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
-							instructions_.emplace_back(inst);
-						}
-					}
+					auto inst = MMathInst::createOptimizedNNegMul(block, immA, operand, reg, width);
+					instructions_.emplace_back(inst);
 					operand = reg;
 					immA = nullptr;
 				}
@@ -525,41 +494,9 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 	{
 		if (immA != nullptr)
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
-			if (use64BitsMathOperationInPointerOp)
-			{
-				long long c = immA->as64BitsInt();
-				if ((c & (c - 1)) == 0)
-				{
-					auto n = m_countr_zero(c);
-					auto inst = new MMathInst{
-						block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
-					};
-					instructions_.emplace_back(inst);
-				}
-				else
-				{
-					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
-					instructions_.emplace_back(inst);
-				}
-			}
-			else
-			{
-				int c = immA->asInt();
-				if ((c & (c - 1)) == 0)
-				{
-					auto n = m_countr_zero(c);
-					auto inst = new MMathInst{
-						block, Instruction::shl, operand, Immediate::getImmediate(n, module()), reg, width
-					};
-					instructions_.emplace_back(inst);
-				}
-				else
-				{
-					auto inst = new MMathInst{block, Instruction::mul, immA, operand, reg, width};
-					instructions_.emplace_back(inst);
-				}
-			}
+			auto reg = VirtualRegister::createVirtualIRegister(function(), width);
+			auto inst = MMathInst::createOptimizedNNegMul(block, reg, immA, operand, width);
+			instructions_.emplace_back(inst);
 			operand = reg;
 		}
 		if (immB != nullptr)

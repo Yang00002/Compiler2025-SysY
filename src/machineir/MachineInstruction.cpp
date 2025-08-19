@@ -9,6 +9,8 @@
 #include "Type.hpp"
 #include <Util.hpp>
 
+#include "CountLZ.hpp"
+
 using namespace std;
 
 
@@ -135,7 +137,8 @@ M2SIMDCopy::M2SIMDCopy(MBasicBlock* block, MOperand* regLike, MOperand* fregLike
 
 std::string M2SIMDCopy::print()
 {
-	return string("FSIMDMOV ") + (ld_ ? "LD " : "ST ") + operands_[0]->print() + " " + operands_[1]->print() + " " + to_string(lane_);
+	return string("FSIMDMOV ") + (ld_ ? "LD " : "ST ") + operands_[0]->print() + " " + operands_[1]->print() + " " +
+	       to_string(lane_);
 }
 
 std::string MB::print()
@@ -323,6 +326,59 @@ void MMathInst::stayUseReplace(const MOperand* from, MOperand* to, MFunction* pa
 	MInstruction::stayUseReplace(from, to, parent);
 	if (use_.size() == 2 && operands_[1] == operands_[2])
 		use_.pop_back();
+}
+
+MInstruction* MMathInst::createOptimizedNNegMul(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, int width)
+{
+	auto imml = dynamic_cast<Immediate*>(l);
+	auto immr = dynamic_cast<Immediate*>(r);
+	if (imml && immr)
+	{
+		if (width == 64)
+			return new MCopy{
+				block, Immediate::getImmediate(imml->as64BitsInt() * immr->as64BitsInt(), block->module()), t, 64
+			};
+		return new MCopy{
+			block, Immediate::getImmediate(imml->asInt() * immr->asInt(), block->module()), t, 64
+		};
+	}
+	if (imml)
+	{
+		auto op = l;
+		l = r;
+		r = op;
+		immr = imml;
+	}
+	if (!immr) return new MMathInst{block, Instruction::mul, l, r, t, width};
+	if (width == 64)
+	{
+		long long c = immr->as64BitsInt();
+		if (c == 0) return new MCopy{block, Immediate::getImmediate(0, block->module()), t, width};
+		if (c == 1) return new MCopy{block, l, t, width};
+		if ((c & (c - 1)) == 0)
+		{
+			auto n = m_countr_zero(c);
+			return new MMathInst{
+				block, Instruction::shl, l, Immediate::getImmediate(n, block->module()), t, width
+			};
+		}
+		long long c1 = c - 1;
+		if ((c1 & (c1 - 1)) == 0) return new MMathInst{block, Instruction::mull, l, r, t, width};
+		return new MMathInst{block, Instruction::mul, l, r, t, width};
+	}
+	int c = immr->asInt();
+	if (c == 0) return new MCopy{block, Immediate::getImmediate(0, block->module()), t, width};
+	if (c == 1) return new MCopy{block, l, t, width};
+	if ((c & (c - 1)) == 0)
+	{
+		auto n = m_countr_zero(c);
+		return new MMathInst{
+			block, Instruction::shl, l, Immediate::getImmediate(n, block->module()), t, width
+		};
+	}
+	int c1 = c - 1;
+	if ((c1 & (c1 - 1)) == 0) return new MMathInst{block, Instruction::mull, l, r, t, width};
+	return new MMathInst{block, Instruction::mul, l, r, t, width};
 }
 
 std::string MMathInst::print()

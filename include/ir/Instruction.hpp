@@ -32,6 +32,7 @@ public:
 		add,
 		sub,
 		mul,
+		mull,
 		sdiv,
 		srem,
 		shl,
@@ -129,6 +130,7 @@ public:
 	[[nodiscard]] bool is_add() const { return op_id_ == add; }
 	[[nodiscard]] bool is_sub() const { return op_id_ == sub; }
 	[[nodiscard]] bool is_mul() const { return op_id_ == mul; }
+	[[nodiscard]] bool is_mull() const { return op_id_ == mull; }
 	[[nodiscard]] bool is_div() const { return op_id_ == sdiv; }
 	[[nodiscard]] bool is_rem() const { return op_id_ == srem; }
 	[[nodiscard]] bool is_shl() const { return op_id_ == shl; }
@@ -157,7 +159,7 @@ public:
 
 	[[nodiscard]] bool isBinary() const
 	{
-		return (is_add() || is_sub() || is_mul() || is_div() || is_shl() || is_ashr() || is_and() || is_fadd() ||
+		return (is_add() || is_sub() || is_mul() || is_mull() || is_div() || is_shl() || is_ashr() || is_and() || is_fadd() ||
 		        is_fsub() || is_fmul() || is_fdiv()) &&
 		       (get_num_operand() == 2);
 	}
@@ -199,6 +201,7 @@ public:
 	static IBinaryInst* create_add(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_sub(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_mul(Value* v1, Value* v2, BasicBlock* bb);
+	static IBinaryInst* create_mull(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_sdiv(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_srem(Value* v1, Value* v2, BasicBlock* bb);
 	static IBinaryInst* create_shl(Value* v1, Value* v2, BasicBlock* bb);
@@ -597,7 +600,7 @@ public:
 	Instruction* copy(std::unordered_map<Value*, Value*>& valMap) override;
 	static MulIntegratedInst* create_msub(Value* ml, Value* mr, Value* val, BasicBlock* bb);
 	static MulIntegratedInst* create_madd(Value* ml, Value* mr, Value* val, BasicBlock* bb);
-	static MulIntegratedInst* create_mneg(Value* ml, Value* mr,  BasicBlock* bb);
+	static MulIntegratedInst* create_mneg(Value* ml, Value* mr, BasicBlock* bb);
 
 	std::string print() override;
 };
