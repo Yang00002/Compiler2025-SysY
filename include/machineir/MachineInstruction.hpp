@@ -314,6 +314,7 @@ public:
 	MCMP* tiedWith_ = nullptr;
 
 	Instruction::OpID op_;
+	bool disable_ = false;
 	explicit MCSET(MBasicBlock* block, Instruction::OpID op, MOperand* t);
 	std::string print() override;
 };

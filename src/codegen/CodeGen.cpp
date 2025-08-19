@@ -1291,12 +1291,18 @@ void CodeGen::compare(const MCMP* inst, const MOperand* l, const MOperand* r, bo
 		if (lm && lm->isZero(true, 32))
 		{
 			reverseCmpOp(inst);
-			toStr->addInstruction("FCMP", regName(rr, 32), immediate(0));
+			auto reg = getFIP();
+			copy(reg, zeroRegister(), 32, toStr);
+			toStr->addInstruction("FCMP", regName(rr, 32), regName(reg, 32));
+			releaseIP(reg);
 			return;
 		}
 		if (rm && rm->isZero(true, 32))
 		{
-			toStr->addInstruction("FCMP", regName(lr, 32), immediate(0));
+			auto reg = getFIP();
+			copy(reg, zeroRegister(), 32, toStr);
+			toStr->addInstruction("FCMP", regName(lr, 32), regName(reg, 32));
+			releaseIP(reg);
 			return;
 		}
 		lr = op2reg(l, 32, false, toStr);
@@ -1336,16 +1342,36 @@ void CodeGen::compare(const MCMP* inst, const MOperand* l, const MOperand* r, bo
 	if (lm && (inUImm12(lm->asInt()) || inUImm12L12(lm->asInt())))
 	{
 		reverseCmpOp(inst);
-		toStr->addInstruction("CMP", regName(rr, 32), immediate(lm->asInt()));
+		if (inst->tiedC_)
+		{
+			toStr->addInstruction("SUBS", regName(dynamic_cast<const Register*>(inst->tiedC_->def(0)), 32),
+			                      regName(rr, 32), immediate(lm->asInt()));
+			inst->tiedC_->disable_ = true;
+		}
+		else
+			toStr->addInstruction("CMP", regName(rr, 32), immediate(lm->asInt()));
 		return;
 	}
 	if (rm && (inUImm12(rm->asInt()) || inUImm12L12(rm->asInt())))
 	{
-		toStr->addInstruction("CMP", regName(lr, 32), immediate(rm->asInt()));
+		if (inst->tiedC_)
+		{
+			toStr->addInstruction("SUBS", regName(dynamic_cast<const Register*>(inst->tiedC_->def(0)), 32),
+			                      regName(lr, 32), immediate(rm->asInt()));
+			inst->tiedC_->disable_ = true;
+		}
+		else
+			toStr->addInstruction("CMP", regName(lr, 32), immediate(rm->asInt()));
 		return;
 	}
 	lr = op2reg(l, 32, true, toStr);
 	rr = op2reg(r, 32, true, toStr);
+	if (inst->tiedC_)
+	{
+		toStr->addInstruction("SUBS", regName(dynamic_cast<const Register*>(inst->tiedC_->def(0)), 32),
+		                      regName(lr, 32), regName(rr, 32));
+		inst->tiedC_->disable_ = true;
+	}
 	toStr->addInstruction("CMP", regName(lr, 32), regName(rr, 32));
 	releaseIP(lr);
 	releaseIP(rr);
@@ -1559,7 +1585,10 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 	else if (auto i12 = dynamic_cast<MCMP*>(instruction); i12 != nullptr)
 		compare(i12, i12->operands()[0], i12->operands()[1], !i12->itff_, toStr);
 	else if (auto i13 = dynamic_cast<MCSET*>(instruction); i13 != nullptr)
-		cset(i13->operands()[0], i13->op_, toStr);
+	{
+		if (!i13->disable_)
+			cset(i13->operands()[0], i13->op_, toStr);
+	}
 	else if (auto i14 = dynamic_cast<MFCVTZS*>(instruction); i14 != nullptr)
 		f2i(i14->operands()[1], i14->operands()[0], toStr);
 	else if (auto i15 = dynamic_cast<MSCVTF*>(instruction); i15 != nullptr)

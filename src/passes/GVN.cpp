@@ -7,6 +7,7 @@
 #include <iostream>
 
 #define DEBUG 0
+#include "Config.hpp"
 #include "Util.hpp"
 
 void GVN::run()
@@ -81,7 +82,7 @@ GVN::ValueHash::ValueHash()
 
 GVN::ValueHash::ValueHash(const Instruction* inst)
 {
-	switch (auto op = inst->get_instr_type())
+	switch (const auto op = inst->get_instr_type())
 	{
 		case Instruction::ret:
 		case Instruction::br:
@@ -126,6 +127,15 @@ GVN::ValueHash::ValueHash(const Instruction* inst)
 		case Instruction::ashr:
 		case Instruction::fsub:
 		case Instruction::fdiv:
+		case Instruction::mneg:
+			{
+				Value* op1 = inst->get_operand(0);
+				Value* op2 = inst->get_operand(1);
+				vals_ = new Value*[2]{op1, op2};
+				vc_ = 2;
+				type_ = op;
+				return;
+			}
 		case Instruction::ge:
 		case Instruction::gt:
 		case Instruction::le:
@@ -135,6 +145,13 @@ GVN::ValueHash::ValueHash(const Instruction* inst)
 		case Instruction::fle:
 		case Instruction::flt:
 			{
+				if (disableCondLICM)
+				{
+					vals_ = nullptr;
+					vc_ = 0;
+					type_ = op;
+					return;
+				}
 				Value* op1 = inst->get_operand(0);
 				Value* op2 = inst->get_operand(1);
 				vals_ = new Value*[2]{op1, op2};
@@ -161,6 +178,17 @@ GVN::ValueHash::ValueHash(const Instruction* inst)
 				Value* op1 = inst->get_operand(0);
 				vals_ = new Value*[1]{op1};
 				vc_ = 1;
+				type_ = op;
+				return;
+			}
+		case Instruction::msub:
+		case Instruction::madd:
+			{
+				Value* op1 = inst->get_operand(0);
+				Value* op2 = inst->get_operand(1);
+				Value* op3 = inst->get_operand(2);
+				vals_ = new Value*[3]{op1, op2, op3};
+				vc_ = 3;
 				type_ = op;
 				return;
 			}
