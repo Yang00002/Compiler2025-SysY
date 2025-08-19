@@ -251,7 +251,7 @@ public:
 	void replace(MOperand* from, MOperand* to, MFunction* parent) override;
 	void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;
 	void stayUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;
-	static MInstruction* createOptimizedNNegMul(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, int width);
+	static MInstruction* createOptimizedNNegMul(MBasicBlock* block, MOperand* l, MOperand* r, MOperand* t, int width);
 	std::string print() override;
 };
 

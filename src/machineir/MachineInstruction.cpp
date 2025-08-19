@@ -284,6 +284,7 @@ MMathInst::MMathInst(MBasicBlock* block, Instruction::OpID op, MOperand* l, MOpe
 	ASSERT(l != nullptr);
 	ASSERT(r != nullptr);
 	ASSERT(t != nullptr);
+	ASSERT(t->isRegisterLike());
 	operands_.resize(3);
 	operands_[0] = t;
 	operands_[1] = l;
@@ -328,7 +329,7 @@ void MMathInst::stayUseReplace(const MOperand* from, MOperand* to, MFunction* pa
 		use_.pop_back();
 }
 
-MInstruction* MMathInst::createOptimizedNNegMul(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, int width)
+MInstruction* MMathInst::createOptimizedNNegMul(MBasicBlock* block,  MOperand* l, MOperand* r, MOperand* t, int width)
 {
 	auto imml = dynamic_cast<Immediate*>(l);
 	auto immr = dynamic_cast<Immediate*>(r);

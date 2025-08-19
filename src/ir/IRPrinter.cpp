@@ -119,6 +119,10 @@ std::string print_instr_op_name(Instruction::OpID id)
 			return "memclear";
 		case Instruction::msub:
 			return "msub";
+		case Instruction::madd:
+			return "madd";
+		case Instruction::mneg:
+			return "mneg";
 	}
 	// mem 系列指令是某些复杂指令的包装, 单独获得指令名称不具有相同意义
 	ASSERT(false && "Must be bug");

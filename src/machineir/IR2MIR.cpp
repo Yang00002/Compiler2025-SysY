@@ -495,7 +495,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		if (immA != nullptr)
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function(), width);
-			auto inst = MMathInst::createOptimizedNNegMul(block, reg, immA, operand, width);
+			auto inst = MMathInst::createOptimizedNNegMul(block, immA, operand, reg, width);
 			instructions_.emplace_back(inst);
 			operand = reg;
 		}
