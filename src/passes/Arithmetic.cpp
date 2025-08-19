@@ -495,6 +495,29 @@ void Arithmetic::optimize_rem(IBinaryInst* i)
 			i->replace_all_use_with(Constant::create(m_, 0));
 			i->get_parent()->erase_instr(i);
 			delete i;
+			return;
+		}
+		int cop2 = const_op < 0 ? -const_op : const_op;
+		if ((cop2 & (cop2 - 1)) == 0)
+		{
+			auto& ul = i->get_use_list();
+			if (ul.size() == 1)
+			{
+				auto use = i->get_use_list().front();
+				auto inst = dynamic_cast<ICmpInst*>(use.val_);
+				if (inst != nullptr)
+				{
+					auto c = dynamic_cast<Constant*>(inst->get_operand(use.arg_no_ == 0 ? 1 : 0));
+					if (c != nullptr && c->getIntConstant() == 0 && (
+						inst->get_instr_type() == Instruction::eq || inst->get_instr_type() == Instruction::ne))
+					{
+						LOG(color::green("simplify ") + i->print());
+						i->set_operand(1, Constant::create(m_, cop2 - 1));
+						i->setOp(Instruction::and_);
+						return;
+					}
+				}
+			}
 		}
 		if ((signalOf(op0) & 1) == 0)
 		{
