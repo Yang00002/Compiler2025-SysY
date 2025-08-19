@@ -39,5 +39,5 @@ bool loopRotateAndAddGuardInAST = false;
 bool rotateLoopEvenIfNotHaveInvariant = false;
 int invariantNeed2RotateLoop = 4;
 bool disableCondLICM = true;
-int useSinkGate = 10;
-bool useFloatRegAsStack2Spill = false;
+int useSinkGate = 8;
+bool useFloatRegAsStack2Spill = true;
