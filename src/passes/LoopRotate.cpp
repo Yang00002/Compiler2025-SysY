@@ -2,6 +2,7 @@
 #include "LoopDetection.hpp"
 
 #define DEBUG 0
+#include "BarrierLock.hpp"
 #include "Config.hpp"
 #include "Util.hpp"
 using namespace std;
@@ -42,7 +43,11 @@ void LoopRotate::runOnFunc()
 			ret |= runOnLoop();
 		}
 	}
-	if (ret) manager_->flushFuncInfo<Dominators>();
+	if (ret)
+	{
+		manager_->flushFuncInfo<Dominators>();
+		manager_->flushFuncInfo<BarrierLock>();
+	}
 }
 
 bool LoopRotate::runOnLoops(const std::vector<Loop*>& loops)

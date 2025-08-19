@@ -9,7 +9,24 @@
 #include "LoopDetection.hpp"
 #include "Tensor.hpp"
 #include "Type.hpp"
+#include "BarrierLock.hpp"
+
+#define DEBUG 0
 #include "Util.hpp"
+
+
+bool GlobalArrayReverse::isOnlyFunc(const Function* f, int argNo)
+{
+	Value* v = nullptr;
+	for (auto use : f->get_use_list())
+	{
+		auto val = dynamic_cast<CallInst*>(use.val_);
+		auto arg = ptrFrom(val->get_operand(argNo + 1));
+		if (v == nullptr) v = arg;
+		else if (v != arg) return false;
+	}
+	return true;
+}
 
 bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 {
@@ -29,6 +46,7 @@ bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 					auto callF = dynamic_cast<Function*>(val2->get_operand(0));
 					if (callF->is_lib_) return false;
 					auto arg = callF->get_arg(use.arg_no_ - 1);
+					if (!isOnlyFunc(callF, use.arg_no_ - 1)) return false;
 					if (!legalGlobalVar(arg, true)) return false;
 					break;
 				}
@@ -37,6 +55,7 @@ bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 					if (val2->get_operands().size() == 2)
 					{
 						if (val2->get_operand(1) != c0) return false;
+						if (!legalGlobalVar(val2, inCall)) return false;
 					}
 					else
 					{
@@ -44,7 +63,7 @@ bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 						{
 							if (u2iNegThrow(val2->get_operands().size()) == varDimSize_ + 1)
 							{
-								importance_.emplace_back(dynamic_cast<GetElementPtrInst*>(val2));
+								importance_.emplace(dynamic_cast<GetElementPtrInst*>(val2));
 							}
 							else return false;
 						}
@@ -52,11 +71,12 @@ bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 						{
 							if (u2iNegThrow(val2->get_operands().size()) == varDimSize_ + 2)
 							{
-								importance_.emplace_back(dynamic_cast<GetElementPtrInst*>(val2));
+								importance_.emplace(dynamic_cast<GetElementPtrInst*>(val2));
 							}
 							else if (u2iNegThrow(val2->get_operands().size()) == 3)
 							{
 								if (val2->get_operand(1) != c0 || val2->get_operand(2) != c0) return false;
+								if (!legalGlobalVar(val2, inCall)) return false;
 							}
 							else return false;
 						}
@@ -81,6 +101,7 @@ bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 
 void GlobalArrayReverse::run()
 {
+	//PASS_SUFFIX;
 	info_ = manager_->getGlobalInfo<FuncInfo>();
 	std::list<GlobalVariable*>& globs = m_->get_global_variable();
 	for (auto glob : globs)
@@ -96,8 +117,14 @@ void GlobalArrayReverse::run()
 		if (dims[0] != dims[1]) continue;
 		if (importance_.empty()) continue;
 		int needCount = 0;
+		LOG(color::yellow("Check ") + glob->print());
+		PUSH;
 		for (auto i : importance_)
 		{
+			auto bb = i->get_parent();
+			auto bl = manager_->getFuncInfo<BarrierLock>(bb->get_parent());
+			if (!bl->isInner(bb)) continue;
+			LOG(color::yellow("Check ") + i->print());
 			int begin = 1;
 			if (u2iNegThrow(i->get_operands().size()) == varDimSize_ + 2) begin = 2;
 			Value* arg0 = i->get_operand(begin);
@@ -113,10 +140,16 @@ void GlobalArrayReverse::run()
 			if (i1 == nullptr) l1 = nullptr;
 			else l1 = ld->loopOfBlock(i1->get_parent());
 			int dd = Loop::depthTo(l0, l1);
-			needCount -= dd;
+			PUSH;
+			LOGIF(color::red("Bad"), dd > 0);
+			LOGIF(color::green("Good"), dd < 0);
+			POP;
+			needCount += dd;
 		}
+		POP;
 		if (needCount > 0)
 		{
+			LOG(color::pink("Reverse ") + glob->print());
 			for (auto i : importance_)
 			{
 				int begin = 1;
@@ -128,4 +161,5 @@ void GlobalArrayReverse::run()
 			}
 		}
 	}
+	//PASS_SUFFIX;
 }

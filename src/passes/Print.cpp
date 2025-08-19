@@ -17,8 +17,9 @@ void Print::run()
 	{
 		if (i->is_lib_)continue;
 		manager_->getFuncInfo<LoopDetection>(i)->validate();
+		manager_->getFuncInfo<Dominators>(i)->validate();
 	}
-	manager_->flushAllInfo();
+	//manager_->flushAllInfo();
 	for (auto i : m_->get_functions())
 	{
 		if (i->is_lib_)continue;

@@ -125,13 +125,13 @@ void Inline::run()
 	auto funcinfo = manager_->getGlobalInfoIfPresent<FuncInfo>();
 	for (auto i : removedFunc_)
 	{
-		manager_->flushFuncInfo(i);
 		if (funcinfo != nullptr) funcinfo->removeFunc(i);
 		delete i;
 	}
 	POP;
 	PASS_SUFFIX;
 	LOG(color::cyan("Inline Done"));
+	manager_->flushAllInfo();
 }
 
 Inline::~Inline()
@@ -619,12 +619,10 @@ void Inline::runOnFunc()
 {
 	LOG(color::blue("Begin Inline of ") + f_->get_name());
 	PUSH;
-	bool c = false;
 	collectNodes();
-	c |= mergeBlocks();
-	c |= mergeReturns();
-	c |= mergeBranchs();
-	if (c) manager_->flushFuncInfo(f_);
+	mergeBlocks();
+	mergeReturns();
+	mergeBranchs();
 	if (f_->get_basic_blocks().size() == 1)
 	{
 		auto& insts = f_->get_entry_block()->get_instructions();

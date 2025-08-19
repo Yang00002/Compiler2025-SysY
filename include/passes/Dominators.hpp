@@ -56,4 +56,5 @@ public:
 	// for debug
 	void print_idom(Function* f) const;
 	void print_dominance_frontier(Function* f);
+	void validate() const;
 };

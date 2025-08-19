@@ -151,7 +151,7 @@ public:
 
 	void run() override;
 	void print() const;
-	Loop* loopOfBlock(BasicBlock* b) { return bb_to_loop_[b]; }
+	Loop* loopOfBlock(BasicBlock* b) const;
 	void setLoopOfBlock(BasicBlock* b, Loop* l) { bb_to_loop_[b] = l; }
 	std::vector<Loop*>& get_loops() { return loops_; }
 	int costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* idoms);

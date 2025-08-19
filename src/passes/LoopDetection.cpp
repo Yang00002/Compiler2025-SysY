@@ -421,6 +421,12 @@ void LoopDetection::print() const
 	}
 }
 
+Loop* LoopDetection::loopOfBlock(BasicBlock* b) const
+{
+	if (bb_to_loop_.count(b)) return bb_to_loop_.at(b);
+	return nullptr;
+}
+
 int LoopDetection::costOfLatch(Loop* loop, BasicBlock* bb, const Dominators* idoms)
 {
 	bool out = false;

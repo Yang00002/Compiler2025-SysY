@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <queue>
 
+#include "BarrierLock.hpp"
 #include "Instruction.hpp"
 #include "Util.hpp"
 
@@ -67,7 +68,11 @@ void LoopSimplify::runOnFunc()
 			change |= createLatchOnLoop(l);
 		}
 	}
-	if (change) manager_->flushFuncInfo<Dominators>(f_);
+	if (change)
+	{
+		manager_->flushFuncInfo<Dominators>(f_);
+		manager_->flushFuncInfo<BarrierLock>(f_);
+	}
 	RUN(loops_->validate());
 }
 

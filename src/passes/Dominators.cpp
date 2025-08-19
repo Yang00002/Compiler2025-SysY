@@ -253,7 +253,7 @@ namespace
  */
 void Dominators::run()
 {
-	LTDominatorTreeSolver solver{ f_ };
+	LTDominatorTreeSolver solver{f_};
 	solver.solve();
 	solver.dumpIdom(idom_);
 	solver.dumpTreeSucc(dom_tree_succ_blocks_);
@@ -365,6 +365,17 @@ void Dominators::print_dominance_frontier(Function* f)
 			}
 		}
 		printf("%s\n", output.c_str());
+	}
+}
+
+void Dominators::validate() const
+{
+	std::unordered_set<BasicBlock*> bbs;
+	for (auto i : f_->get_basic_blocks()) bbs.emplace(i);
+	if (bbs.size() != dom_dfs_order_.size()) throw std::runtime_error("wrong");
+	for (auto bb : dom_dfs_order_)
+	{
+		if (!bbs.count(bb)) throw std::runtime_error("wrong");
 	}
 }
 
@@ -540,7 +551,7 @@ void Dominators::create_dom_dfs_order()
 		}
 	}
 	dom_post_order_ = std::vector(dom_dfs_order_.rbegin(),
-	                                 dom_dfs_order_.rend());
+	                              dom_dfs_order_.rend());
 }
 
 
