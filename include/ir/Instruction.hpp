@@ -69,7 +69,8 @@ public:
 		sitofp,
 		// float binary operators Logical operators
 
-		// mem 系列, 对内存使用 SIMD 快速填充
+		// mem 系列, 对内存使用 
+		// 快速填充
 		// 内存复制
 		memcpy_,
 		// 内存填充

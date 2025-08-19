@@ -302,7 +302,7 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 			if (in != nullptr && in->def(0) == vreg)
 			{
 				inst.erase(inst.begin() + i);
-				removeUse(vreg, in);
+				in->removeAllUse();
 				delete in;
 				break;
 			}
@@ -330,8 +330,7 @@ void MFunction::spill(VirtualRegister* vreg, LiveMessage* message)
 				ASSERT(u->operands()[0] == vreg && u->operands()[1] ==
 					vreg->replacePrefer_);
 				insts.erase(insts.begin() + i);
-				removeUse(vreg, u);
-				removeUse(vreg->replacePrefer_, u);
+				u->removeAllUse();
 				delete u;
 				break;
 			}
@@ -445,7 +444,7 @@ void MFunction::rewriteDestroyRegs()
 			if (!inst->def().empty())
 			{
 				auto df = dynamic_cast<Register*>(inst->def(0));
-				if (df == nullptr)continue;
+				if (df == nullptr || !df->callerSave_)continue;
 				int id = df->isIntegerRegister() ? df->id() : df->id() + module_->IRegisterCount();
 				destroyRegs_.set(id);
 			}
@@ -504,6 +503,13 @@ void MFunction::checkValidUseList()
 	}
 	for (auto& [i,j] : useList_)
 	{
-		if (j.size() != nul[i].size()) throw runtime_error("wrong");
+		auto& ni = nul[i];
+		int jsize = u2iNegThrow(j.size());
+		int nsize = u2iNegThrow(ni.size());
+		if (jsize != nsize) throw runtime_error("wrong");
+	}
+	for (auto i : stack_)
+	{
+		if (useList()[i].empty()) throw runtime_error("useless stack");
 	}
 }

@@ -415,13 +415,16 @@ void CodeGen::simdcp(const MOperand* regLike, const MOperand* fregLike, int len,
 		if (ld)
 		{
 			if (ll->isIntegerRegister())
-				toStr->addInstruction("umov", regName(ll, 32), simd32RegName(rr, lane));
+				toStr->addInstruction("UMOV", regName(ll, 32), simd32RegName(rr, lane));
 			else
-				toStr->addInstruction("mov", regName(ll, 32), simd32RegName(rr, lane));
+				toStr->addInstruction("MOV", regName(ll, 32), simd32RegName(rr, lane));
 		}
 		else
 		{
-			toStr->addInstruction("ins", simd32RegName(rr, lane), regName(ll, 32));
+			if (ll->isIntegerRegister())
+				toStr->addInstruction("INS", simd32RegName(rr, lane), regName(ll, 32));
+			else
+				toStr->addInstruction("INS", simd32RegName(rr, lane), simd32RegName(ll, 0));
 		}
 	}
 }
