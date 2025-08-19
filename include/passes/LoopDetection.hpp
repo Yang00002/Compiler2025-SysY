@@ -32,6 +32,11 @@ class Loop
 	bool valueInLoop(Value* val) const;
 
 public:
+	// 该循环比目标循环深多少
+	int depthTo(Loop* l) const;
+	// A 循环比目标循环深多少
+	static int depthTo(Loop* a, Loop* l);
+
 	struct Iterator
 	{
 		// 循环没有从入口的出边或者循环的出判断的两个变量都在循环内计算

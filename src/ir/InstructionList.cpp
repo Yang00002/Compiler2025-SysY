@@ -43,6 +43,13 @@ Instruction* InstructionListIterator::operator*() const
 	return current_->instruction;
 }
 
+Instruction* InstructionListIterator::set(Instruction* instruction) const
+{
+	if (current_ == nullptr) return nullptr;
+	auto ret = current_->instruction;
+	current_->instruction = instruction;
+	return ret;
+}
 // ReSharper disable once CppMemberFunctionMayBeConst
 Instruction* InstructionListIterator::remove_next()
 {

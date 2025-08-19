@@ -62,6 +62,57 @@ bool Loop::valueInLoop(Value* val) const
 	return blocks_.count(inst->get_parent());
 }
 
+int Loop::depthTo(Loop* l) const
+{
+	int d = 0;
+	Loop* p = const_cast<Loop*>(this);
+	while (p != l && p != nullptr)
+	{
+		d++;
+		p = p->parent_;
+	}
+	if (l == nullptr || p != nullptr) return d;
+	int d1 = 0;
+	if (p == nullptr && l != nullptr)
+	{
+		p = l;
+		while (p != this && p != nullptr)
+		{
+			d1--;
+			p = p->parent_;
+		}
+	}
+	return d1;
+}
+
+int Loop::depthTo(Loop* a, Loop* l)
+{
+	if (a == nullptr && l == nullptr) return 0;
+	Loop* p = nullptr;
+	if (a != nullptr)
+	{
+		int d = 0;
+		p = a;
+		while (p != l && p != nullptr)
+		{
+			d++;
+			p = p->parent_;
+		}
+		if (l == nullptr || p != nullptr) return d;
+	}
+	int d1 = 0;
+	if (p == nullptr && l != nullptr)
+	{
+		p = l;
+		while (p != a && p != nullptr)
+		{
+			d1--;
+			p = p->parent_;
+		}
+	}
+	return d1;
+}
+
 Value* Loop::Iterator::toLoopIterateValue(const Loop* loop) const
 {
 	auto phi = dynamic_cast<PhiInst*>(iterator_);

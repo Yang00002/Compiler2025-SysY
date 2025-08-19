@@ -130,19 +130,7 @@ public:
 
 	GetElementPtrInst* create_gep(Value* ptr, const std::vector<Value*>& idxs) const
 	{
-		if (idxs.size() == 1) return GetElementPtrInst::create_gep(ptr, idxs, this->BB_);
-		if (auto c = dynamic_cast<Constant*>(idxs[0]); c == nullptr || c->getIntConstant() != 0)
-			ptr = GetElementPtrInst::create_gep(ptr, {idxs.begin(), idxs.begin() + 1}, this->BB_);
-		std::vector<Value*> idx;
-		idx.resize(2);
-		idx[0] = Constant::create(m_, 0);
-		int s = u2iNegThrow(idxs.size());
-		for (int i = 1; i < s; i++)
-		{
-			idx[1] = idxs[i];
-			ptr = GetElementPtrInst::create_gep(ptr, idx, this->BB_);
-		}
-		return dynamic_cast<GetElementPtrInst*>(ptr);
+		return GetElementPtrInst::create_gep(ptr, idxs, this->BB_);
 	}
 
 	MemCpyInst* create_memcpy(Value* from, Value* to, int bytes) const

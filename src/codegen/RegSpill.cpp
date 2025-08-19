@@ -4,7 +4,7 @@
 #include "MachineOperand.hpp"
 #include "MachineInstruction.hpp"
 #include "MachineBasicBlock.hpp"
-#define DEBUG 1
+#define DEBUG 0
 #include <algorithm>
 
 #include "Config.hpp"

@@ -39,6 +39,8 @@ public:
 	InstructionListIterator& operator--();
 
 	Instruction* operator*() const;
+	// 设置迭代器当前位置的指令, 返回原来的指令
+	Instruction* set(Instruction* instruction) const;
 	/**
 	 * 去掉迭代器下一个指向的指令, 只会更新迭代器自身和 InstructionList, 如果不指向指令则不去掉.
 	 * 注意其不检查迭代器是否越界, 一般配合 while 和 get_and_sub 使用

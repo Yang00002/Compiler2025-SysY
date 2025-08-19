@@ -549,7 +549,12 @@ MLD1V16B::MLD1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offse
 {
 	operands_.resize(1 + count);
 	operands_[0] = stackLike;
-	for (int i = 0; i < count; i++) operands_[i + 1] = Register::getFParameterRegister(i, block->module());
+	block->function()->useList()[stackLike].emplace(this);
+	for (int i = 0; i < count; i++)
+	{
+		operands_[i + 1] = Register::getFParameterRegister(i, block->module());
+		block->function()->useList()[operands_[i + 1]].emplace(this);
+	}
 	def_.resize(count);
 	for (int i = 0; i < count; i++) def_[i] = i + 1;
 	if (offset > 0)
@@ -576,7 +581,11 @@ std::string MLD1V16B::print()
 MST1ZTV16B::MST1ZTV16B(MBasicBlock* block, int count) : MInstruction(block)
 {
 	operands_.resize(count);
-	for (int i = 0; i < count; i++) operands_[i] = Register::getFParameterRegister(i, block->module());
+	for (int i = 0; i < count; i++)
+	{
+		operands_[i] = Register::getFParameterRegister(i, block->module());
+		block->function()->useList()[operands_[i]].emplace(this);
+	}
 	def_.resize(count);
 	for (int i = 0; i < count; i++) def_[i] = i;
 	loadCount_ = count;
@@ -597,7 +606,12 @@ MST1V16B::MST1V16B(MBasicBlock* block, MOperand* stackLike, int count, int offse
 {
 	operands_.resize(1 + count);
 	operands_[0] = stackLike;
-	for (int i = 0; i < count; i++) operands_[i + 1] = Register::getFParameterRegister(i, block->module());
+	block->function()->useList()[stackLike].emplace(this);
+	for (int i = 0; i < count; i++)
+	{
+		operands_[i + 1] = Register::getFParameterRegister(i, block->module());
+		block->function()->useList()[operands_[i + 1]].emplace(this);
+	}
 	use_.resize(count + 1);
 	for (int i = 0; i < count + 1; i++) use_[i] = i;
 	if (offset > 0)
@@ -628,6 +642,8 @@ MSXTW::MSXTW(MBasicBlock* block, MOperand* from, MOperand* to) : MInstruction(bl
 	use_[0] = 0;
 	def_.resize(1);
 	def_[0] = 1;
+	block->function()->useList()[from].emplace(this);
+	block->function()->useList()[to].emplace(this);
 }
 
 std::string MSXTW::print()
