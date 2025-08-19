@@ -34,6 +34,8 @@ class Loop
 public:
 	// 该循环比目标循环深多少
 	int depthTo(Loop* l) const;
+	// 该循环比目标循环深多少
+	int depth() const;
 	// A 循环比目标循环深多少
 	static int depthTo(Loop* a, Loop* l);
 

@@ -139,7 +139,11 @@ void GlobalArrayReverse::run()
 			else l0 = ld->loopOfBlock(i0->get_parent());
 			if (i1 == nullptr) l1 = nullptr;
 			else l1 = ld->loopOfBlock(i1->get_parent());
-			int dd = Loop::depthTo(l0, l1);
+			int l0d = l0 == nullptr ? 0 : l0->depth();
+			int l1d = l1 == nullptr ? 0 : l1->depth();
+			int md = l0d > l1d ? l0d : l1d;
+			int dd = l0d > l1d ? md : -md;
+			if (l0d == l1d) dd = 0;
 			PUSH;
 			LOGIF(color::red("Bad"), dd > 0);
 			LOGIF(color::green("Good"), dd < 0);

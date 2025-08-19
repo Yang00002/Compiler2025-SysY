@@ -85,6 +85,18 @@ int Loop::depthTo(Loop* l) const
 	return d1;
 }
 
+int Loop::depth() const
+{
+	int d = 0;
+	Loop* p = const_cast<Loop*>(this);
+	while (p != nullptr)
+	{
+		d++;
+		p = p->parent_;
+	}
+	return d;
+}
+
 int Loop::depthTo(Loop* a, Loop* l)
 {
 	if (a == nullptr && l == nullptr) return 0;
