@@ -112,8 +112,8 @@ void LoadStoreEliminate::runInner()
 		auto load = dynamic_cast<MLDR*>(inst);
 		if (load != nullptr)
 		{
-			auto stack = store->operand(1);
-			auto def = store->operand(0);
+			auto stack = load->operand(1);
+			auto def = load->operand(0);
 			if (storeDataRegUnchange(stack))
 			{
 				inst->removeAllUse();
@@ -135,7 +135,7 @@ void LoadStoreEliminate::runInner()
 		}
 		for (auto def : inst->def())
 		{
-			updateReg(inst->def(def));
+			updateReg(inst->operand(def));
 			continue;
 		}
 		for (auto def : inst->imp_def())
