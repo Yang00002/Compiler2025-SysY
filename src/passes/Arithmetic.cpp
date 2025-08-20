@@ -31,7 +31,7 @@ void Arithmetic::run()
 	PASS_SUFFIX;
 	LOG(color::cyan("Run Arithmetic Pass"));
 	PUSH;
-	manager_->flushAndGetGlobalInfo<SignalSpread>();
+	constType_ = manager_->flushAndGetGlobalInfo<SignalSpread>()->constType_;
 	for (auto [i,j] : constType_)
 	{
 		if (j == 0)
@@ -760,6 +760,8 @@ void Arithmetic::optimize_and(IBinaryInst* i)
 
 void Arithmetic::decideSignal(Instruction* i)
 {
+	/*
+	
 	switch (const auto op = i->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 	{
 		case Instruction::add:
@@ -910,6 +912,7 @@ void Arithmetic::decideSignal(Instruction* i)
 			}
 		default: break;
 	}
+	*/
 }
 
 bool Arithmetic::haveConstType(Value* val)

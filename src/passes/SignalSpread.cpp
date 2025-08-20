@@ -6,7 +6,7 @@
 #include "Constant.hpp"
 #include "Type.hpp"
 
-
+#define DEBUG 0
 #include "Util.hpp"
 
 using namespace std;
@@ -29,7 +29,8 @@ namespace
 
 void SignalSpread::run()
 {
-	signalSpread();
+	PREPARE_PASS_MSG;
+	//signalSpread();
 }
 
 
@@ -55,52 +56,52 @@ void SignalSpread::signalSpread()
 			{
 				switch (inst->get_instr_type())
 				{
-					case Instruction::ret:
-					case Instruction::add:
-					case Instruction::sub:
-					case Instruction::mul:
-					case Instruction::mull:
-					case Instruction::sdiv:
-					case Instruction::srem:
-					case Instruction::shl:
-					case Instruction::ashr:
-					case Instruction::and_:
-					case Instruction::fadd:
-					case Instruction::fsub:
-					case Instruction::fmul:
-					case Instruction::fdiv:
-					case Instruction::load:
-					case Instruction::phi:
-					case Instruction::fptosi:
-					case Instruction::sitofp:
-					case Instruction::call:
-						addToSignalWorkList(inst);
-						break;
-					case Instruction::br:
-					case Instruction::alloca_:
-					case Instruction::store:
-					case Instruction::ge:
-					case Instruction::gt:
-					case Instruction::le:
-					case Instruction::lt:
-					case Instruction::eq:
-					case Instruction::ne:
-					case Instruction::fge:
-					case Instruction::fgt:
-					case Instruction::fle:
-					case Instruction::flt:
-					case Instruction::feq:
-					case Instruction::fne:
-					case Instruction::zext:
-					case Instruction::memcpy_:
-					case Instruction::memclear_:
-					case Instruction::nump2charp:
-					case Instruction::global_fix:
-					case Instruction::msub:
-					case Instruction::madd:
-					case Instruction::mneg:
-					case Instruction::getelementptr:
-						break;
+				case Instruction::ret:
+				case Instruction::add:
+				case Instruction::sub:
+				case Instruction::mul:
+				case Instruction::mull:
+				case Instruction::sdiv:
+				case Instruction::srem:
+				case Instruction::shl:
+				case Instruction::ashr:
+				case Instruction::and_:
+				case Instruction::fadd:
+				case Instruction::fsub:
+				case Instruction::fmul:
+				case Instruction::fdiv:
+				case Instruction::load:
+				case Instruction::phi:
+				case Instruction::fptosi:
+				case Instruction::sitofp:
+				case Instruction::call:
+					addToSignalWorkList(inst);
+					break;
+				case Instruction::br:
+				case Instruction::alloca_:
+				case Instruction::store:
+				case Instruction::ge:
+				case Instruction::gt:
+				case Instruction::le:
+				case Instruction::lt:
+				case Instruction::eq:
+				case Instruction::ne:
+				case Instruction::fge:
+				case Instruction::fgt:
+				case Instruction::fle:
+				case Instruction::flt:
+				case Instruction::feq:
+				case Instruction::fne:
+				case Instruction::zext:
+				case Instruction::memcpy_:
+				case Instruction::memclear_:
+				case Instruction::nump2charp:
+				case Instruction::global_fix:
+				case Instruction::msub:
+				case Instruction::madd:
+				case Instruction::mneg:
+				case Instruction::getelementptr:
+					break;
 				}
 			}
 		}
@@ -112,80 +113,80 @@ void SignalSpread::signalSpread()
 		inSigList_.erase(work);
 		switch (work->get_instr_type())
 		{
-			case Instruction::ret:
-				spreadRet(work);
-				break;
-			case Instruction::add:
-			case Instruction::fadd:
-				spreadAdd(work);
-				break;
-			case Instruction::sub:
-			case Instruction::fsub:
-				spreadSub(work);
-				break;
-			case Instruction::mul:
-			case Instruction::mull:
-			case Instruction::fmul:
-				spreadMul(work);
-				break;
-			case Instruction::sdiv:
-				spreadSdiv(work);
-				break;
-			case Instruction::srem:
-				spreadSrem(work);
-				break;
-			case Instruction::shl:
-				spreadShl(work);
-				break;
-			case Instruction::ashr:
-				spreadAshr(work);
-				break;
-			case Instruction::and_:
-				spreadAnd(work);
-				break;
-			case Instruction::fdiv:
-				spreadFDiv(work);
-				break;
-			case Instruction::load:
-				spreadLoad(work);
-				break;
-			case Instruction::phi:
-				spreadPhi(work);
-				break;
-			case Instruction::fptosi:
-				spreadFP2SI(work);
-				break;
-			case Instruction::sitofp:
-				spreadSI2FP(work);
-				break;
-			case Instruction::call:
-				spreadCall(work);
-				break;
-			case Instruction::br:
-			case Instruction::alloca_:
-			case Instruction::store:
-			case Instruction::ge:
-			case Instruction::gt:
-			case Instruction::le:
-			case Instruction::lt:
-			case Instruction::eq:
-			case Instruction::ne:
-			case Instruction::fge:
-			case Instruction::fgt:
-			case Instruction::fle:
-			case Instruction::flt:
-			case Instruction::feq:
-			case Instruction::fne:
-			case Instruction::zext:
-			case Instruction::memcpy_:
-			case Instruction::memclear_:
-			case Instruction::nump2charp:
-			case Instruction::global_fix:
-			case Instruction::msub:
-			case Instruction::madd:
-			case Instruction::mneg:
-			case Instruction::getelementptr:
-				break;
+		case Instruction::ret:
+			spreadRet(work);
+			break;
+		case Instruction::add:
+		case Instruction::fadd:
+			spreadAdd(work);
+			break;
+		case Instruction::sub:
+		case Instruction::fsub:
+			spreadSub(work);
+			break;
+		case Instruction::mul:
+		case Instruction::mull:
+		case Instruction::fmul:
+			spreadMul(work);
+			break;
+		case Instruction::sdiv:
+			spreadSdiv(work);
+			break;
+		case Instruction::srem:
+			spreadSrem(work);
+			break;
+		case Instruction::shl:
+			spreadShl(work);
+			break;
+		case Instruction::ashr:
+			spreadAshr(work);
+			break;
+		case Instruction::and_:
+			spreadAnd(work);
+			break;
+		case Instruction::fdiv:
+			spreadFDiv(work);
+			break;
+		case Instruction::load:
+			spreadLoad(work);
+			break;
+		case Instruction::phi:
+			spreadPhi(work);
+			break;
+		case Instruction::fptosi:
+			spreadFP2SI(work);
+			break;
+		case Instruction::sitofp:
+			spreadSI2FP(work);
+			break;
+		case Instruction::call:
+			spreadCall(work);
+			break;
+		case Instruction::br:
+		case Instruction::alloca_:
+		case Instruction::store:
+		case Instruction::ge:
+		case Instruction::gt:
+		case Instruction::le:
+		case Instruction::lt:
+		case Instruction::eq:
+		case Instruction::ne:
+		case Instruction::fge:
+		case Instruction::fgt:
+		case Instruction::fle:
+		case Instruction::flt:
+		case Instruction::feq:
+		case Instruction::fne:
+		case Instruction::zext:
+		case Instruction::memcpy_:
+		case Instruction::memclear_:
+		case Instruction::nump2charp:
+		case Instruction::global_fix:
+		case Instruction::msub:
+		case Instruction::madd:
+		case Instruction::mneg:
+		case Instruction::getelementptr:
+			break;
 		}
 	}
 	for (auto i : constType_)
@@ -201,6 +202,8 @@ void SignalSpread::designateSignal(Value* val, unsigned ty)
 
 void SignalSpread::spreadRet(Instruction* inst)
 {
+	/*
+	
 	if (inst->get_type() == Types::VOID) return;
 	auto sig = signalOf2Spread(inst->get_operand(0));
 	if (sig == 0) return;
@@ -216,6 +219,7 @@ void SignalSpread::spreadRet(Instruction* inst)
 				addToSignalWorkList(use2.val_);
 		}
 	}
+	*/
 }
 
 void SignalSpread::spreadUseIfSetSig(Value* inst, unsigned sig)
@@ -297,45 +301,24 @@ namespace
 
 	bool greaterOrEqual(unsigned sig0, unsigned sig1)
 	{
-		if (sig0 & 1u)
-		{
-			if (sig1 == 1u) return true;
-			return false;
-		}
-		if (sig0 & 2u)
-		{
-			if ((sig1 & 4u) == 0) return true;
-			return false;
-		}
-		return true;
+		bool ret = true;
+		if (sig0 & 1u) ret = false;
+		if (sig1 & 4u) ret = false;
+		return ret;
 	}
 
 	bool greaterThan(unsigned sig0, unsigned sig1)
 	{
-		if (sig0 & 1u) return false;
-		if (sig0 & 2u)
-		{
-			if (sig1 == 1u) return true;
-			return false;
-		}
-		return (sig1 & 4u) == 0;
+		bool ret = greaterOrEqual(sig0, sig1);
+		if (sig0 & sig1 & 2u) ret = false;
+		return ret;
 	}
 
 	bool equal(unsigned sig0, unsigned sig1)
 	{
-		if (sig0 == 1u)
-		{
-			if (sig1 == 1u) return true;
-			return false;
-		}
 		if (sig0 == 2u)
 		{
 			if (sig1 == 2u) return true;
-			return false;
-		}
-		if (sig0 == 4u)
-		{
-			if (sig1 == 4u) return true;
 			return false;
 		}
 		return false;
@@ -380,7 +363,7 @@ void SignalSpread::spreadSub(Instruction* inst)
 
 unsigned SignalSpread::flipSignal(unsigned i)
 {
-	static constexpr unsigned rets[8] = {0u, 4u, 2u, 6u, 1u, 5u, 3u, 7u};
+	static constexpr unsigned rets[8] = { 0u, 4u, 2u, 6u, 1u, 5u, 3u, 7u };
 	return rets[i];
 }
 
@@ -417,6 +400,7 @@ void SignalSpread::spreadMul(Instruction* inst)
 		return;
 	}
 	spreadUseIfSetSig(inst, multiplySignal(sig0, sig1));
+
 }
 
 unsigned SignalSpread::multiplySignal(unsigned l, unsigned r)
@@ -438,6 +422,7 @@ void SignalSpread::spreadSdiv(Instruction* inst)
 		return;
 	}
 	spreadUseIfSetSig(inst, sdivideSignal(sig0, sig1));
+
 }
 
 unsigned SignalSpread::sdivideSignal(unsigned l, unsigned r)
@@ -456,6 +441,7 @@ unsigned SignalSpread::sdivideSignal(unsigned l, unsigned r)
 void SignalSpread::spreadSrem(Instruction* inst)
 {
 	auto sig0 = signalOf2Spread(inst->get_operand(0));
+	if (sig0 == 0) return;
 	spreadUseIfSetSig(inst, sig0 | zeroSig());
 }
 
@@ -540,6 +526,7 @@ void SignalSpread::spreadSI2FP(Instruction* inst)
 
 void SignalSpread::spreadCall(const Instruction* inst)
 {
+	
 	auto callF = dynamic_cast<Function*>(inst->get_operand(0));
 	if (callF->is_lib_)
 	{
@@ -581,54 +568,52 @@ void SignalSpread::decideConds()
 				if (inst->is_cmp())
 				{
 					auto icmp = dynamic_cast<ICmpInst*>(inst);
-					if (icmp->get_parent()->get_parent()->get_name() == "revert")
-						int iii = 0;
 					auto sig0 = signalOf2Spread(icmp->get_operand(0));
 					if (sig0 == 0u) sig0 = 7u;
 					auto sig1 = signalOf2Spread(icmp->get_operand(1));
 					if (sig1 == 0u) sig1 = 7u;
 					switch (icmp->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 					{
-						case Instruction::gt:
-						case Instruction::le:
-							if (greaterThan(sig0, sig1))
-							{
-								icmp->set_operand(0, Constant::create(m_, 1));
-								icmp->set_operand(1, Constant::create(m_, 0));
-							}
-							else if (greaterOrEqual(sig1, sig0)) // NOLINT(readability-suspicious-call-argument)
-							{
-								icmp->set_operand(1, Constant::create(m_, 1));
-								icmp->set_operand(0, Constant::create(m_, 0));
-							}
-							break;
-						case Instruction::lt:
-						case Instruction::ge:
-							if (greaterOrEqual(sig0, sig1))
-							{
-								icmp->set_operand(0, Constant::create(m_, 1));
-								icmp->set_operand(1, Constant::create(m_, 0));
-							}
-							else if (greaterThan(sig1, sig0)) // NOLINT(readability-suspicious-call-argument)
-							{
-								icmp->set_operand(1, Constant::create(m_, 1));
-								icmp->set_operand(0, Constant::create(m_, 0));
-							}
-							break;
-						case Instruction::eq:
-						case Instruction::ne:
-							if (equal(sig0, sig1))
-							{
-								icmp->set_operand(0, Constant::create(m_, 0));
-								icmp->set_operand(1, Constant::create(m_, 0));
-							}
-							else if (notEqual(sig0, sig1))
-							{
-								icmp->set_operand(0, Constant::create(m_, 0));
-								icmp->set_operand(1, Constant::create(m_, 1));
-							}
-							break;
-						default: break;
+					case Instruction::gt:
+					case Instruction::le:
+						if (greaterThan(sig0, sig1))
+						{
+							icmp->set_operand(0, Constant::create(m_, 1));
+							icmp->set_operand(1, Constant::create(m_, 0));
+						}
+						else if (greaterOrEqual(sig1, sig0)) // NOLINT(readability-suspicious-call-argument)
+						{
+							icmp->set_operand(1, Constant::create(m_, 1));
+							icmp->set_operand(0, Constant::create(m_, 0));
+						}
+						break;
+					case Instruction::lt:
+					case Instruction::ge:
+						if (greaterOrEqual(sig0, sig1))
+						{
+							icmp->set_operand(0, Constant::create(m_, 1));
+							icmp->set_operand(1, Constant::create(m_, 0));
+						}
+						else if (greaterThan(sig1, sig0)) // NOLINT(readability-suspicious-call-argument)
+						{
+							icmp->set_operand(1, Constant::create(m_, 1));
+							icmp->set_operand(0, Constant::create(m_, 0));
+						}
+						break;
+					case Instruction::eq:
+					case Instruction::ne:
+						if (equal(sig0, sig1))
+						{
+							icmp->set_operand(0, Constant::create(m_, 0));
+							icmp->set_operand(1, Constant::create(m_, 0));
+						}
+						else if (notEqual(sig0, sig1))
+						{
+							icmp->set_operand(0, Constant::create(m_, 0));
+							icmp->set_operand(1, Constant::create(m_, 1));
+						}
+						break;
+					default: break;
 					}
 				}
 			}
