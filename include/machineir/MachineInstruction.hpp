@@ -370,8 +370,9 @@ public:
 class MMAddSUB final : public MInstruction
 {
 public:
+	int width_;
 	bool add_;
-	explicit MMAddSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s, bool isAdd);
+	explicit MMAddSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s, bool isAdd, int width);
 	std::string print() override;
 	void replace(MOperand* from, MOperand* to, MFunction* parent) override;
 	void onlyAddUseReplace(const MOperand* from, MOperand* to, MFunction* parent) override;

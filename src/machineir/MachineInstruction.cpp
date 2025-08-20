@@ -708,8 +708,8 @@ std::string MSXTW::print()
 	return operands_[1]->print() + " = SXTW " + operands_[0]->print();
 }
 
-MMAddSUB::MMAddSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s, bool isAdd) : MInstruction(
-		block), add_(isAdd)
+MMAddSUB::MMAddSUB(MBasicBlock* block, MOperand* t, MOperand* l, MOperand* r, MOperand* s, bool isAdd, int width) : MInstruction(
+	block), width_(width), add_(isAdd)
 {
 	operands_.resize(4);
 	operands_[0] = t;

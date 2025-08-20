@@ -1531,7 +1531,7 @@ void CodeGen::mathRRInst(const Register* to, const Register* l, const Register* 
 }
 
 
-void CodeGen::maddsub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, bool isAdd, CodeString* toStr)
+void CodeGen::maddsub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, bool isAdd, int width, CodeString* toStr)
 {
 	auto tor = dynamic_cast<Register*>(to);
 	ASSERT(tor != nullptr);
@@ -1544,15 +1544,15 @@ void CodeGen::maddsub(MOperand* to, MOperand* l, MOperand* r, MOperand* s, bool 
 	const Register* sr = dynamic_cast<Register*>(s);
 	ASSERT((si || sr) && (li || lr) && (ri || rr));
 	bool isI = tor->isIntegerRegister();
-	lr = op2reg(l, 32, isI, toStr);
-	rr = op2reg(r, 32, isI, toStr);
-	sr = op2reg(s, 32, isI, toStr);
+	lr = op2reg(l, width, isI, toStr);
+	rr = op2reg(r, width, isI, toStr);
+	sr = op2reg(s, width, isI, toStr);
 	if (isAdd)
-		toStr->addInstruction(isI ? "MADD" : "FMADD", regName(tor, 32), regName(lr, 32), regName(rr, 32),
-		                      regName(sr, 32));
+		toStr->addInstruction(isI ? "MADD" : "FMADD", regName(tor, width), regName(lr, width), regName(rr, width),
+		                      regName(sr, width));
 	else
-		toStr->addInstruction(isI ? "MSUB" : "FMSUB", regName(tor, 32), regName(lr, 32), regName(rr, 32),
-		                      regName(sr, 32));
+		toStr->addInstruction(isI ? "MSUB" : "FMSUB", regName(tor, width), regName(lr, width), regName(rr, width),
+		                      regName(sr, width));
 	releaseIP(sr);
 	releaseIP(lr);
 	releaseIP(rr);
@@ -1684,7 +1684,7 @@ void CodeGen::makeInstruction(MInstruction* instruction)
 	{
 	}
 	else if (auto i11 = dynamic_cast<MMAddSUB*>(instruction); i11 != nullptr)
-		maddsub(i11->operand(0), i11->operand(1), i11->operand(2), i11->operand(3), i11->add_, toStr);
+		maddsub(i11->operand(0), i11->operand(1), i11->operand(2), i11->operand(3), i11->add_, i11->width_, toStr);
 	else if (auto i17 = dynamic_cast<MNeg*>(instruction); i17 != nullptr)
 		mneg(i17->operand(0), i17->operand(1), i17->operand(2), toStr);
 	else if (auto i18 = dynamic_cast<M2SIMDCopy*>(instruction); i18 != nullptr)

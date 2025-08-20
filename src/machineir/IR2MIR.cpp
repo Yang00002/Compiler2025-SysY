@@ -180,7 +180,7 @@ void MBasicBlock::acceptMAddSubInst(Instruction* instruction, std::map<Value*, M
 	auto l = block->function()->getOperandFor(l0, opMap);
 	auto r = block->function()->getOperandFor(r0, opMap);
 	auto s = block->function()->getOperandFor(s0, opMap);
-	auto m = new MMAddSUB{block, t, l, r, s, instruction->get_instr_type() == Instruction::madd};
+	auto m = new MMAddSUB{block, t, l, r, s, instruction->get_instr_type() == Instruction::madd, 32};
 	instructions_.emplace_back(m);
 }
 
@@ -360,6 +360,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
 void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Value*, MOperand*>& opMap,
                                           MBasicBlock* block)
 {
+	vector<MInstruction*> vec;
 	auto gep = dynamic_cast<GetElementPtrInst*>(instruction);
 	auto type = gep->get_operand(0)->get_type()->toPointerType();
 	auto& ops = gep->get_operands();
@@ -413,7 +414,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 			{
 				auto r = VirtualRegister::createVirtualIRegister(function_, 64);
 				auto exp = new MSXTW{block, vr, r};
-				instructions_.emplace_back(exp);
+				vec.emplace_back(exp);
 				mop = r;
 			}
 		}
@@ -454,13 +455,13 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 				{
 					auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
 					auto inst = MMathInst::createOptimizedNNegMul(block, immA, operand, reg, width);
-					instructions_.emplace_back(inst);
+					vec.emplace_back(inst);
 					operand = reg;
 					immA = nullptr;
 				}
 				auto reg2 = VirtualRegister::createVirtualIRegister(function(), (width));
 				auto inst = new MMathInst{block, Instruction::add, operand, mop, reg2, width};
-				instructions_.emplace_back(inst);
+				vec.emplace_back(inst);
 				operand = reg2;
 			}
 		}
@@ -487,7 +488,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		else
 		{
 			auto inst = new MMathInst{block, Instruction::add, frameIndex, immOperand, targetReg, 64};
-			instructions_.emplace_back(inst);
+			vec.emplace_back(inst);
 		}
 	}
 	else
@@ -496,14 +497,14 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function(), width);
 			auto inst = MMathInst::createOptimizedNNegMul(block, immA, operand, reg, width);
-			instructions_.emplace_back(inst);
+			vec.emplace_back(inst);
 			operand = reg;
 		}
 		if (immB != nullptr)
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function(), (width));
 			auto inst = new MMathInst{block, Instruction::add, immB, operand, reg, width};
-			instructions_.emplace_back(inst);
+			vec.emplace_back(inst);
 			operand = reg;
 		}
 		auto vop = dynamic_cast<VirtualRegister*>(operand);
@@ -512,11 +513,84 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 		{
 			auto reg = VirtualRegister::createVirtualIRegister(function(), 64);
 			auto exp = new MSXTW{block, operand, reg};
-			instructions_.emplace_back(exp);
+			vec.emplace_back(exp);
 			operand = reg;
 		}
 		auto inst = new MMathInst{block, Instruction::add, frameIndex, operand, targetReg, 64};
-		instructions_.emplace_back(inst);
+		vec.emplace_back(inst);
+	}
+	int size = u2iNegThrow(vec.size());
+	for (int i = 0; i < size - 1; i++)
+	{
+		auto inst = vec[i];
+		if (auto m = dynamic_cast<MMathInst*>(inst); m != nullptr && m->op() == Instruction::mul)
+		{
+			auto& ul = block->function()->useList(inst->operand(0));
+			if (ul.size() != 1) continue;
+			auto use = *ul.begin();
+			if (auto m1 = dynamic_cast<MMathInst*>(inst); m1 != nullptr && m1->op() == Instruction::add)
+			{
+				int midx = 0;
+				for (int j = i + 1; j < size; j++)
+				{
+					if (vec[j] == m1) midx = j;
+				}
+				if (midx == 0) continue;
+				int unsame;
+				if (use->operand(1) == inst->operand(0))
+				{
+					unsame = 2;
+				}
+				else
+				{
+					unsame = 1;
+				}
+				if (onlyMergeMulAndASWhenASUseAllReg)
+				{
+					auto c = dynamic_cast<Immediate*>(use->operand(unsame));
+					if (c != nullptr && c->as64BitsInt() != 0) continue;
+				}
+				MCopy* cp = nullptr;
+				if (!use->operand(unsame)->isRegisterLike())
+				{
+					cp = new MCopy{
+						block, use->operand(unsame), VirtualRegister::createVirtualIRegister(function_, m1->width_),
+						m1->width_
+					};
+				}
+				LOG(color::yellow("Merge"));
+				LOG(inst->print());
+				LOG(use->print());
+				auto ninst = new MMAddSUB{
+					block, m1->def(0), inst->operand(1), inst->operand(2),
+					cp != nullptr ? cp->def(0) : m1->operand(unsame), true, m1->width_
+				};
+				LOG(color::green("Get"));
+				LOG(ninst->print());
+				LOG("");
+				if (cp)
+				{
+					vec[i] = cp;
+					vec[midx] = ninst;
+					inst->removeAllUse();
+					use->removeAllUse();
+					delete inst;
+					delete use;
+				}
+				else
+				{
+
+					vec[midx] = ninst;
+					inst->removeAllUse();
+					use->removeAllUse();
+					delete inst;
+					delete use;
+					vec.erase(vec.begin() + i);
+					i--;
+					size--;
+				}
+			}
+		}
 	}
 }
 

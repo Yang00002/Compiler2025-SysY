@@ -80,22 +80,53 @@ void InstructionSelect::runInner() const
 				}
 				if (use->is_add())
 				{
-					if (id != 1) continue;
-					LOG(color::yellow("Merge"));
-					LOG(inst->print());
-					LOG(use->print());
-					auto ninst = MulIntegratedInst::create_madd(inst->get_operand(0), inst->get_operand(1),
-					                                            use->get_operand(0),
-					                                            nullptr);
-					ninst->set_parent(b_);
-					use->replace_all_use_with(ninst);
-					LOG(color::green("Get"));
-					LOG(ninst->print());
-					LOG("");
-					--it;
-					b_->erase_instr(use);
-					delete use;
-					delete it.replaceWith(ninst);
+					if (id == 1)
+					{
+						if (onlyMergeMulAndASWhenASUseAllReg)
+						{
+							auto c = dynamic_cast<Constant*>(use->get_operand(0));
+							if (c != nullptr && c->getIntConstant() != 0) continue;
+						}
+						LOG(color::yellow("Merge"));
+						LOG(inst->print());
+						LOG(use->print());
+						auto ninst = MulIntegratedInst::create_madd(inst->get_operand(0), inst->get_operand(1),
+							use->get_operand(0),
+							nullptr);
+						ninst->set_parent(b_);
+						use->replace_all_use_with(ninst);
+						LOG(color::green("Get"));
+						LOG(ninst->print());
+						LOG("");
+						--it;
+						b_->erase_instr(use);
+						delete use;
+						delete it.replaceWith(ninst);
+					}
+					else
+					{
+
+						if (onlyMergeMulAndASWhenASUseAllReg)
+						{
+							auto c = dynamic_cast<Constant*>(use->get_operand(1));
+							if (c != nullptr && c->getIntConstant() != 0) continue;
+						}
+						LOG(color::yellow("Merge"));
+						LOG(inst->print());
+						LOG(use->print());
+						auto ninst = MulIntegratedInst::create_madd(inst->get_operand(0), inst->get_operand(1),
+							use->get_operand(1),
+							nullptr);
+						ninst->set_parent(b_);
+						use->replace_all_use_with(ninst);
+						LOG(color::green("Get"));
+						LOG(ninst->print());
+						LOG("");
+						--it;
+						b_->erase_instr(use);
+						delete use;
+						delete it.replaceWith(ninst);
+					}
 				}
 				continue;
 			}
