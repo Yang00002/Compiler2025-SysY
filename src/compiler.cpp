@@ -27,6 +27,7 @@
 #include "LCSSA.hpp"
 #include "LICM.hpp"
 #include "LocalConstGlobalMatching.hpp"
+#include "LoadStoreEliminate.hpp"
 #include "LoopRotate.hpp"
 #include "LoopSimplify.hpp"
 #include "MachineModule.hpp"
@@ -39,6 +40,7 @@
 #include "RegisterAllocate.hpp"
 #include "ReturnMerge.hpp"
 #include "SCCP.hpp"
+#include "RegSpill.hpp"
 #include <ARM_codegen.hpp>
 
 #include "Ast.hpp"
@@ -261,7 +263,12 @@ void compiler(std::string infile, std::string outfile) {
     mng->add_pass<RegPrefill>();
   }
   mng->add_pass<RegisterAllocate>();
+  
+  if (o1Optimization){
+	mng->add_pass<LoadStoreEliminate>();
+	mng->add_pass<RegSpill>();
   mng->add_pass<CleanCode>();
+}
   mng->add_pass<FrameOffset>();
   mng->add_pass<CodeGen>();
   mng->add_pass<ReturnMerge>();
