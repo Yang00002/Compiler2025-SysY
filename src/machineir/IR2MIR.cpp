@@ -592,6 +592,7 @@ void MBasicBlock::acceptGetElementPtrInst(Instruction* instruction, std::map<Val
 			}
 		}
 	}
+	for (auto i : vec) instructions_.emplace_back(i);
 }
 
 namespace

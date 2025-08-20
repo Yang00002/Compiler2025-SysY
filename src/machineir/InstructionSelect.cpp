@@ -73,10 +73,16 @@ void InstructionSelect::runInner() const
 					LOG(ninst->print());
 					LOG("");
 					--it;
+					auto itt = it;
+					while (itt != ed)
+					{
+						++itt;
+						if (*itt == use) break;
+					}
+					delete itt.replaceWith(ninst);
+					++it;
+					delete it.remove_pre();
 					b_->erase_instr(use);
-					delete use;
-					delete it.replaceWith(ninst);
-					continue;
 				}
 				if (use->is_add())
 				{
@@ -99,13 +105,19 @@ void InstructionSelect::runInner() const
 						LOG(ninst->print());
 						LOG("");
 						--it;
+						auto itt = it;
+						while (itt != ed)
+						{
+							++itt;
+							if (*itt == use) break;
+						}
+						delete itt.replaceWith(ninst);
+						++it;
+						delete it.remove_pre();
 						b_->erase_instr(use);
-						delete use;
-						delete it.replaceWith(ninst);
 					}
 					else
 					{
-
 						if (onlyMergeMulAndASWhenASUseAllReg)
 						{
 							auto c = dynamic_cast<Constant*>(use->get_operand(1));
@@ -123,9 +135,16 @@ void InstructionSelect::runInner() const
 						LOG(ninst->print());
 						LOG("");
 						--it;
+						auto itt = it;
+						while (itt != ed)
+						{
+							++itt;
+							if (*itt == use) break;
+						}
+						delete itt.replaceWith(ninst);
+						++it;
+						delete it.remove_pre();
 						b_->erase_instr(use);
-						delete use;
-						delete it.replaceWith(ninst);
 					}
 				}
 				continue;
