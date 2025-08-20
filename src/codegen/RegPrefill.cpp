@@ -9,6 +9,8 @@
 #include "FrameOffset.hpp"
 
 #define DEBUG 0
+#include "Ast.hpp"
+#include "Type.hpp"
 #include "Util.hpp"
 
 using namespace std;
@@ -28,14 +30,38 @@ void RegPrefill::runInner() const
 		}
 		if (weight >= static_cast<float>(replaceGlobalAddressWithRegisterNeedUseCount))
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(f_, 64);
-			f_->replaceAllOperands(glob, reg);
-			auto cp = new MCopy{f_->block(0), glob, reg, 64};
-			reg->replacePrefer_ = glob;
-			reg->spillCost_ = globalRegisterSpillPriority;
-			LOG(color::green("Replace GlobalAddress ") + glob->print() + color::green(" with ") + reg->print());
-			LOG(color::yellow("Priority ") + to_string(globalRegisterSpillPriority));
-			f_->block(0)->addInstBeforeLast(cp);
+			if (f_->constGlobals_.count(glob))
+			{
+				VirtualRegister* reg;
+				if (glob->data()->default_value().getType() == Types::FLOAT)
+					reg = VirtualRegister::createVirtualFRegister(f_, 32);
+				else reg = VirtualRegister::createVirtualIRegister(f_, 32);
+				auto ul = f_->useList(glob);
+				for (auto u : ul) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+				{
+					f_->replaceAllOperands(u->operand(0), reg);
+					u->removeAllUse();
+					u->block()->removeInst(u);
+				}
+				auto cp = new MLDR{f_->block(0), reg, glob, 32};
+				reg->replacePrefer_ = glob;
+				reg->spillCost_ = constGlobalRegisterSpillPriority;
+				reg->needLoad_ = true;
+				LOG(color::green("Replace GlobalAddress ") + glob->print() + color::green(" with ") + reg->print());
+				LOG(color::yellow("Priority ") + to_string(globalRegisterSpillPriority));
+				f_->block(0)->addInstBeforeLast(cp);
+			}
+			else
+			{
+				auto reg = VirtualRegister::createVirtualIRegister(f_, 64);
+				f_->replaceAllOperands(glob, reg);
+				auto cp = new MCopy{f_->block(0), glob, reg, 64};
+				reg->replacePrefer_ = glob;
+				reg->spillCost_ = globalRegisterSpillPriority;
+				LOG(color::green("Replace GlobalAddress ") + glob->print() + color::green(" with ") + reg->print());
+				LOG(color::yellow("Priority ") + to_string(globalRegisterSpillPriority));
+				f_->block(0)->addInstBeforeLast(cp);
+			}
 		}
 	}
 
@@ -45,19 +71,23 @@ void RegPrefill::runInner() const
 	{
 		if (arg->tiedWith_ != nullptr)
 		{
-			if(useStackOffset2GetspillCost){
-			float cost = static_cast<float>(CodeGen::ldrNeedInstCount(arg->offset(), u2iNegThrow(arg->size()))) * 0.2f;
-			arg->tiedWith_->spillCost_ = cost * fixFrameIndexParameterRegisterSpillPriority;
-			LOG(color::green("Set Arg ")+ arg->print() + color::green(" Priority ") + to_string(cost));
+			if (useStackOffset2GetspillCost)
+			{
+				float cost = static_cast<float>(CodeGen::ldrNeedInstCount(arg->offset(), u2iNegThrow(arg->size()))) *
+				             0.2f;
+				arg->tiedWith_->spillCost_ = cost * fixFrameIndexParameterRegisterSpillPriority;
+				LOG(color::green("Set Arg ")+ arg->print() + color::green(" Priority ") + to_string(cost));
 			}
-			else{
+			else
+			{
 				arg->tiedWith_->spillCost_ = fixFrameIndexParameterRegisterSpillPriority;
-			LOG(color::green("Set Arg ")+ arg->print() + color::green(" Priority ") + to_string(fixFrameIndexParameterRegisterSpillPriority));
+				LOG(color::green("Set Arg ")+ arg->print() + color::green(" Priority ") + to_string(
+					fixFrameIndexParameterRegisterSpillPriority));
 			}
 		}
 	}
 
-	// 加载的栈参数地址 -> MOV / ADD
+	// 加载的栈变量地址 -> MOV / ADD
 	for (auto arg : f_->stackFrames())
 	{
 		auto& useList = f_->useList(arg);
@@ -66,35 +96,39 @@ void RegPrefill::runInner() const
 		{
 			weight += use->block()->weight_;
 		}
-		if(useStackOffset2GetspillCost){
-			float cost = static_cast<float>(CodeGen::copyFrameNeedInstCount(arg->offset())) * 0.2f;
-		if (cost == 0.0f) continue;
-		if (weight * cost >= static_cast<float>(replaceAllocaAddressWithRegisterNeedTotalCost))
+		if (useStackOffset2GetspillCost)
 		{
-			auto reg = VirtualRegister::createVirtualIRegister(f_, 64);
-			f_->replaceAllOperands(arg, reg);
-			auto cp = new MCopy{f_->block(0), arg, reg, 64};
-			reg->replacePrefer_ = arg;
-			reg->spillCost_ = cost;
-			LOG(color::green("Replace StackFrame ") + arg->print() + color::green(" with ") + reg->print());
-			LOG(color::yellow("Priority ") + to_string(reg->spillCost_));
-			f_->block(0)->addInstBeforeLast(cp);
-		}
-		}
-		else{
-			if(weight >= static_cast<float>(replaceAllocaAddressWithRegisterNeedUseCount)){
+			float cost = static_cast<float>(CodeGen::copyFrameNeedInstCount(arg->offset())) * 0.2f;
+			if (cost == 0.0f) continue;
+			if (weight * cost >= static_cast<float>(replaceAllocaAddressWithRegisterNeedTotalCost))
+			{
 				auto reg = VirtualRegister::createVirtualIRegister(f_, 64);
-			f_->replaceAllOperands(arg, reg);
-			auto cp = new MCopy{f_->block(0), arg, reg, 64};
-			reg->replacePrefer_ = arg;
-			if(arg->size_ >= bigAllocaVariableGate){
-				reg->spillCost_ = bigAllocaRegisterSpillPriority;
+				f_->replaceAllOperands(arg, reg);
+				auto cp = new MCopy{f_->block(0), arg, reg, 64};
+				reg->replacePrefer_ = arg;
+				reg->spillCost_ = cost;
+				LOG(color::green("Replace StackFrame ") + arg->print() + color::green(" with ") + reg->print());
+				LOG(color::yellow("Priority ") + to_string(reg->spillCost_));
+				f_->block(0)->addInstBeforeLast(cp);
 			}
-			else
-			 reg->spillCost_ = smallAllocaRegisterSpillPriority;
-			LOG(color::green("Replace StackFrame ") + arg->print() + color::green(" with ") + reg->print());
-			LOG(color::yellow("Priority ") + to_string(reg->spillCost_));
-			f_->block(0)->addInstBeforeLast(cp);
+		}
+		else
+		{
+			if (weight >= static_cast<float>(replaceAllocaAddressWithRegisterNeedUseCount))
+			{
+				auto reg = VirtualRegister::createVirtualIRegister(f_, 64);
+				f_->replaceAllOperands(arg, reg);
+				auto cp = new MCopy{f_->block(0), arg, reg, 64};
+				reg->replacePrefer_ = arg;
+				if (arg->size_ >= bigAllocaVariableGate)
+				{
+					reg->spillCost_ = bigAllocaRegisterSpillPriority;
+				}
+				else
+					reg->spillCost_ = smallAllocaRegisterSpillPriority;
+				LOG(color::green("Replace StackFrame ") + arg->print() + color::green(" with ") + reg->print());
+				LOG(color::yellow("Priority ") + to_string(reg->spillCost_));
+				f_->block(0)->addInstBeforeLast(cp);
 			}
 		}
 	}

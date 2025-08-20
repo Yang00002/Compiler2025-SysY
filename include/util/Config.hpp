@@ -12,6 +12,8 @@ extern float prefillConstantNeedTotalCost;
 extern int useMultiplierPerLoop;
 // 全局变量存在寄存器中的地址在寄存器不够时放弃使用寄存器加载地址的优先级, 值越低则优先级越高(全局变量一般使用文字池加载地址)
 extern float globalRegisterSpillPriority;
+// 常全局变量存在寄存器中的地址在寄存器不够时放弃使用寄存器加载地址的优先级, 值越低则优先级越高(全局变量一般使用文字池加载地址)
+extern float constGlobalRegisterSpillPriority;
 // 大的 alloca 变量存在寄存器中的地址在寄存器不够时放弃使用寄存器加载地址的优先级, 值越低则优先级越高
 extern float bigAllocaRegisterSpillPriority;
 // 小的 alloca 变量存在寄存器中的地址在寄存器不够时放弃使用寄存器加载地址的优先级, 值越低则优先级越高

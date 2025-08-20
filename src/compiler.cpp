@@ -20,6 +20,8 @@
 #include "GCM.hpp"
 #include "GVN.hpp"
 #include "GetElementSplit.hpp"
+#include "ConstGlobalEliminate.hpp"
+#include "LocalConstGlobalMatching.hpp"
 #include "GlobalArrayReverse.hpp"
 #include "Inline.hpp"
 #include "InstructionSelect.hpp"
@@ -103,16 +105,18 @@ void toggleNO1DefaultSettings() {
 }
 
 void addPasses4IR(PassManager *pm) {
+  if(o1Optimization) 
+	pm->add_pass<ConstGlobalEliminate>();
   pm->add_pass<Mem2Reg>();
   pm->add_pass<DeadCode>();
   if (o1Optimization) {
 	pm->add_pass<SCCP>();
 	pm->add_pass<DeadCode>();
+	pm->add_pass<ConstGlobalEliminate>();
 	pm->add_pass<Arithmetic>();
 	pm->add_pass<DeadCode>();
 	pm->add_pass<Inline>();
 	pm->add_pass<LoopSimplify>();
-	pm->add_pass<Print>();
 	pm->add_pass<GlobalArrayReverse>();
 	pm->add_pass<GetElementSplit>();
 	pm->add_pass<LoopInvariantCodeMotion>();
@@ -136,6 +140,7 @@ void addPasses4IR2MIR(PassManager *pm) {
   pm->add_pass<CmpCombine>();
   if (o1Optimization)
     pm->add_pass<InstructionSelect>();
+    pm->add_pass<LocalConstGlobalMatching>();
 }
 
 void stack(std::string infile, std::string outfile) {

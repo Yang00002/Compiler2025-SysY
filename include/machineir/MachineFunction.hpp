@@ -69,10 +69,12 @@ private:
 	std::vector<std::pair<Register*, long long>> calleeSaved;
 	std::vector<VirtualRegister*> virtual_iregs_;
 	std::vector<VirtualRegister*> virtual_fregs_;
+public:
+	std::unordered_set<GlobalAddress*> constGlobals_;
+private:
 	long long stackMoveOffset_;
 	long long fixMoveOffset_;
 	int id_;
-
 public:
 	MFunction(const MFunction& other) = delete;
 	MFunction(MFunction&& other) noexcept = delete;

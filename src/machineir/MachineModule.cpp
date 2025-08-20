@@ -9,7 +9,6 @@
 #include "Constant.hpp"
 #include "CountLZ.hpp"
 #include "Instruction.hpp"
-#include "LoopDetection.hpp"
 #include "MachineBasicBlock.hpp"
 #include "MachineOperand.hpp"
 #include "Module.hpp"

@@ -3,9 +3,11 @@
 #include <cassert>
 #include <list>
 #include <map>
+#include <unordered_set>
 
 #include "Value.hpp"
 
+class GlobalVariable;
 class AllocaInst;
 class MBasicBlock;
 class FuncType;
@@ -72,7 +74,7 @@ private:
 	Module* parent_;
 	int seq_cnt_; // print use
 public:
-
+	std::unordered_set<GlobalVariable*> constForSelf_;
 	// 是否是库函数, 以对函数参数进行不同的处理
 	bool is_lib_;
 };
@@ -105,6 +107,7 @@ public:
 	}
 
 	std::string print() override;
+
 private:
 	Function* parent_;
 	int arg_no_; // argument No.

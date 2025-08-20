@@ -105,6 +105,10 @@ void MFunction::preprocess(Function* function)
 void MFunction::accept(Function* function, std::map<Function*, MFunction*>& funcMap,
                        std::map<GlobalVariable*, GlobalAddress*>& global_address)
 {
+	for (auto g : function->constForSelf_)
+	{
+		constGlobals_.emplace(global_address.at(g));
+	}
 	const auto& bbs = function->get_basic_blocks();
 	std::map<BasicBlock*, MBasicBlock*> cache;
 	int bbc = 0;

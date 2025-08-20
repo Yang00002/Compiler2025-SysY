@@ -69,6 +69,7 @@ public:
 	bool sinked = false;
 	// 使用替换时, 是否需要加载一次(即寄存器存的是值而非地址)
 	bool needLoad_ = false;
+
 private:
 	explicit VirtualRegister(int id, bool ireg_t_freg_f, int size);
 
@@ -198,6 +199,7 @@ class GlobalAddress final : public MOperand
 	explicit GlobalAddress(MModule* module, GlobalVariable* var);
 
 public:
+	[[nodiscard]] PlainTensor<ConstantValue>* data() const { return data_; }
 	GlobalAddress(const GlobalAddress& other) = delete;
 	GlobalAddress(GlobalAddress&& other) noexcept = delete;
 	GlobalAddress& operator=(const GlobalAddress& other) = delete;
