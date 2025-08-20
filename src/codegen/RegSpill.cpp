@@ -24,6 +24,23 @@ void RegSpill::runInner() const
 			r64.emplace_back(freg);
 		}
 	}
+	unordered_set<Register*> impdef;
+	for (auto bb : f_->blocks())
+	{
+		for (auto inst : bb->instructions())
+		{
+			for (auto def : inst->imp_def())
+			{
+				impdef.emplace(def);
+			}
+		}
+	}
+	auto b64 = r64;
+	r64.clear();
+	for (auto i : b64)
+	{
+		if (!impdef.count(i)) r64.emplace_back(i);
+	}
 	std::vector<std::pair<FrameIndex*, float>> spilledFrames;
 	for (auto stack_frame : f_->stackFrames())
 	{
@@ -101,7 +118,7 @@ void RegSpill::runInner() const
 					auto freg = rpm[stackLike];
 					auto regLike = st->operand(0);
 					auto simd = new M2SIMDCopy{
-						inst->block(), regLike, freg.first, u2iNegThrow(st->width()), freg.second ? 0 : 1, false
+						inst->block(), regLike, freg.first, u2iNegThrow(st->width()), freg.second ? 1 : 0, false
 					};
 					instructions[i] = simd;
 					st->removeAllUse();

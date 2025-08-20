@@ -9,7 +9,6 @@
 #include "LoopDetection.hpp"
 #include "Tensor.hpp"
 #include "Type.hpp"
-#include "BarrierLock.hpp"
 
 #define DEBUG 0
 #include "Util.hpp"
@@ -99,6 +98,27 @@ bool GlobalArrayReverse::legalGlobalVar(const Value* val, bool inCall)
 	return true;
 }
 
+// IO 操作耗费时间很多, 忽略这部分影响不大的部分
+bool GlobalArrayReverse::noValueForReverse(BasicBlock* bb)
+{
+	auto loop = manager_->getFuncInfo<LoopDetection>(bb->get_parent());
+	auto l = loop->loopOfBlock(bb);
+	if (l == nullptr) return false;
+	if (noValue_.count(l)) return true;
+	for (auto bbb : l->get_blocks())
+	{
+		for (auto inst : bbb->get_instructions())
+		{
+			if (inst->is_call() && dynamic_cast<Function*>(inst->get_operand(0))->is_lib_)
+			{
+				noValue_.emplace(l);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
 void GlobalArrayReverse::run()
 {
 	//PASS_SUFFIX;
@@ -122,8 +142,7 @@ void GlobalArrayReverse::run()
 		for (auto i : importance_)
 		{
 			auto bb = i->get_parent();
-			auto bl = manager_->getFuncInfo<BarrierLock>(bb->get_parent());
-			if (!bl->isInner(bb)) continue;
+			if (noValueForReverse(bb)) continue;
 			LOG(color::yellow("Check ") + i->print());
 			int begin = 1;
 			if (u2iNegThrow(i->get_operands().size()) == varDimSize_ + 2) begin = 2;
