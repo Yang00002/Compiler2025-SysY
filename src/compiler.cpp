@@ -12,6 +12,7 @@
 #include "CmpCombine.hpp"
 #include "CodeGen.hpp"
 #include "Config.hpp"
+#include "ConstGlobalEliminate.hpp"
 #include "CountLZ.hpp"
 #include "CriticalEdgeRemove.hpp"
 #include "DeadCode.hpp"
@@ -20,25 +21,24 @@
 #include "GCM.hpp"
 #include "GVN.hpp"
 #include "GetElementSplit.hpp"
-#include "ConstGlobalEliminate.hpp"
-#include "LocalConstGlobalMatching.hpp"
 #include "GlobalArrayReverse.hpp"
 #include "Inline.hpp"
 #include "InstructionSelect.hpp"
 #include "LCSSA.hpp"
 #include "LICM.hpp"
+#include "LocalConstGlobalMatching.hpp"
+#include "LoopRotate.hpp"
 #include "LoopSimplify.hpp"
 #include "MachineModule.hpp"
 #include "Mem2Reg.hpp"
 #include "Module.hpp"
 #include "PassManager.hpp"
+#include "PhiEliminate.hpp"
 #include "Print.hpp"
 #include "RegPrefill.hpp"
 #include "RegisterAllocate.hpp"
 #include "ReturnMerge.hpp"
 #include "SCCP.hpp"
-#include "LoopRotate.hpp"
-#include "PhiEliminate.hpp"
 #include <ARM_codegen.hpp>
 
 #include "Ast.hpp"
@@ -105,33 +105,35 @@ void toggleNO1DefaultSettings() {
 }
 
 void addPasses4IR(PassManager *pm) {
-  if(o1Optimization) 
-	pm->add_pass<ConstGlobalEliminate>();
+  if (o1Optimization)
+    pm->add_pass<ConstGlobalEliminate>(false);
   pm->add_pass<Mem2Reg>();
   pm->add_pass<DeadCode>();
   if (o1Optimization) {
-	pm->add_pass<SCCP>();
-	pm->add_pass<DeadCode>();
-	pm->add_pass<ConstGlobalEliminate>();
-	pm->add_pass<Arithmetic>();
-	pm->add_pass<DeadCode>();
-	pm->add_pass<Inline>();
-	pm->add_pass<LoopSimplify>();
-	pm->add_pass<GlobalArrayReverse>();
-	pm->add_pass<GetElementSplit>();
-	pm->add_pass<LoopInvariantCodeMotion>();
-	pm->add_pass<LCSSA>();
-	pm->add_pass<LoopRotate>();
-	pm->add_pass<SCCP>();
-	pm->add_pass<DeadCode>();
-	pm->add_pass<Arithmetic>();
-	pm->add_pass<DeadCode>();
-	pm->add_pass<PhiEliminate>();
-	pm->add_pass<DeadCode>();
-	pm->add_pass<GlobalCodeMotion>();
-	pm->add_pass<Inline>();
-	pm->add_pass<GVN>();
-	pm->add_pass<DeadCode>();
+    pm->add_pass<SCCP>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Inline>();
+    pm->add_pass<ConstGlobalEliminate>(false);
+    pm->add_pass<Mem2Reg>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<LoopSimplify>();
+    pm->add_pass<GlobalArrayReverse>();
+    pm->add_pass<GetElementSplit>();
+    pm->add_pass<LoopInvariantCodeMotion>();
+    pm->add_pass<LCSSA>();
+    pm->add_pass<LoopRotate>();
+    pm->add_pass<SCCP>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<Arithmetic>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<PhiEliminate>();
+    pm->add_pass<DeadCode>();
+    pm->add_pass<GlobalCodeMotion>();
+    pm->add_pass<Inline>();
+    pm->add_pass<GVN>();
+    pm->add_pass<DeadCode>();
   }
 }
 
@@ -140,7 +142,7 @@ void addPasses4IR2MIR(PassManager *pm) {
   pm->add_pass<CmpCombine>();
   if (o1Optimization)
     pm->add_pass<InstructionSelect>();
-    pm->add_pass<LocalConstGlobalMatching>();
+  pm->add_pass<LocalConstGlobalMatching>();
 }
 
 void stack(std::string infile, std::string outfile) {

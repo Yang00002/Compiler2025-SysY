@@ -17,6 +17,7 @@
 #include "Module.hpp"
 #include "Type.hpp"
 #include "Util.hpp"
+#include "MachineLoopDetection.hpp"
 
 using namespace std;
 
@@ -137,19 +138,6 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 
 	lrGuard_ = VirtualRegister::createVirtualIRegister(this, 64);
 
-	PassManager* mng = new PassManager{function->get_parent()};
-	LoopDetection* detection = mng->getFuncInfo<LoopDetection>(function);
-
-	for (auto loop : detection->get_loops())
-	{
-		for (auto bb : loop->get_blocks())
-		{
-			cache[bb]->weight_ *= static_cast<float>(useMultiplierPerLoop);
-		}
-	}
-
-	delete mng;
-
 	map<MBasicBlock*, list<MCopy*>> phiMap;
 
 	entryMBB->acceptAllocaInsts(entryBB, opMap);
@@ -238,6 +226,19 @@ void MFunction::accept(Function* function, std::map<Function*, MFunction*>& func
 	{
 		i->id_ = id++;
 	}
+
+
+	MachineLoopDetection* detection = new MachineLoopDetection(module_);
+	detection->run_on_func(this);
+	for (auto loop : detection->get_loops())
+	{
+		for (auto bb : loop->get_blocks())
+		{
+			blocks_[bb]->weight_ *= static_cast<float>(useMultiplierPerLoop);
+		}
+	}
+
+	delete detection;
 }
 
 MModule* MFunction::module() const
