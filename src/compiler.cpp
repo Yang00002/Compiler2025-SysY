@@ -266,7 +266,7 @@ void compiler(std::string infile, std::string outfile) {
 
   if (o1Optimization) {
     mng->add_pass<LoadStoreEliminate>();
-    //mng->add_pass<RegSpill>();
+    mng->add_pass<RegSpill>();
     mng->add_pass<CleanCode>();
   }
   mng->add_pass<FrameOffset>();
