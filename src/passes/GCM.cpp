@@ -176,7 +176,7 @@ void GlobalCodeMotion::run()
 	{
 		if (!f->is_lib_ && f->get_num_basic_blocks() > 1)
 		{
-			dom_ = manager_->getFuncInfo<Dominators>(f);
+ 			dom_ = manager_->getFuncInfo<Dominators>(f);
 			loops_ = manager_->getFuncInfo<LoopDetection>(f);
 			GAP;
 			RUN(loops_->print());

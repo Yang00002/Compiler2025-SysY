@@ -114,7 +114,7 @@ public:
 		for (auto& [i, infos] : funcMsg_)
 		{
 			auto fd = infos.find(f);
-			if (fd == infos.end()) return;
+			if (fd == infos.end()) continue;
 			delete fd->second;
 			infos.erase(fd);
 		}

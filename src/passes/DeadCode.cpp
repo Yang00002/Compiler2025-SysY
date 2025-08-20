@@ -182,7 +182,8 @@ bool DeadCode::clear_basic_blocks(Function* func) const
 
 	POP;
 
-	if (c) manager_->flushFuncInfo(func);
+	if (c) 
+		manager_->flushFuncInfo(func);
 	return c;
 }
 

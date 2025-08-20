@@ -13,11 +13,14 @@
 #include "Value.hpp"
 
 #define DEBUG 0
+#include "FuncInfo.hpp"
+#include "SignalSpread.hpp"
 #include "Util.hpp"
 
 void SCCP::run()
 {
 	LOG(color::blue("Run SCCP Pass"));
+	manager_->flushAndGetGlobalInfo<SignalSpread>()->decideConds();
 	// 以函数为单元遍历实现 SCCP 算法
 	m_->set_print_name();
 	for (const auto f : m_->get_functions())
@@ -229,7 +232,7 @@ void SCCP::replace_with_constant(Function* f)
 	}
 }
 
-void SCCP::convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* invalid)
+void SCCP::convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* invalid) const
 {
 	LOG(color::cyan("Visiting branch: ")+i->print());
 	auto br = dynamic_cast<BranchInst*>(i);
@@ -244,6 +247,7 @@ void SCCP::convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* inval
 		auto p = dynamic_cast<PhiInst*>(phi);
 		p->remove_phi_operand(bb);
 	}
+	manager_->flushFuncInfo(target->get_parent());
 }
 
 void SCCPVisitor::visit(Instruction* i)

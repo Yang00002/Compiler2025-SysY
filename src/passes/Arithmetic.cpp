@@ -7,12 +7,36 @@
 #include "CountLZ.hpp"
 
 #define DEBUG 0
+#include "SignalSpread.hpp"
+#include "Type.hpp"
 #include "Util.hpp"
+
+namespace
+{
+	std::string printSig(unsigned s)
+	{
+		std::string ret;
+		if (s & 1u) ret += "1";
+		else ret += "0";
+		if (s & 2u) ret += "1";
+		else ret += "0";
+		if (s & 4u) ret += "1";
+		else ret += "0";
+		return ret;
+	}
+}
 
 void Arithmetic::run()
 {
+	PASS_SUFFIX;
 	LOG(color::cyan("Run Arithmetic Pass"));
 	PUSH;
+	manager_->flushAndGetGlobalInfo<SignalSpread>();
+	for (auto [i,j] : constType_)
+	{
+		if (j == 0)
+			constType_.erase(i);
+	}
 	for (auto f : m_->get_functions())
 		if (!f->is_declaration() && !f->is_lib_)
 			run(f);
@@ -25,6 +49,8 @@ void Arithmetic::run(Function* f)
 {
 	inlist_.clear();
 	inSigList_.clear();
+	LOG(color::cyan("Run on ") + f->get_name());
+	PUSH;
 	for (auto b : f->get_basic_blocks())
 	{
 		for (auto i : b->get_instructions())
@@ -49,6 +75,7 @@ void Arithmetic::run(Function* f)
 		inlist_.erase(i);
 		simplify(i);
 	}
+	POP;
 }
 
 void Arithmetic::simplify(Instruction* i)
@@ -330,7 +357,7 @@ void Arithmetic::optimize_mul(IBinaryInst* i)
 		if (i->is_mull()) return;
 		int t = const_op - 1;
 		if (t < 0) t = -t;
-		if ((t & (t-1)) == 0)
+		if ((t & (t - 1)) == 0)
 		{
 			i->set_operand(0, op1);
 			i->set_operand(1, op0);
@@ -561,7 +588,7 @@ void Arithmetic::optimize_rem(IBinaryInst* i)
 				{
 					auto c = dynamic_cast<Constant*>(inst->get_operand(use.arg_no_ == 0 ? 1 : 0));
 					if (c != nullptr && c->getIntConstant() == 0 && (
-						inst->get_instr_type() == Instruction::eq || inst->get_instr_type() == Instruction::ne))
+						    inst->get_instr_type() == Instruction::eq || inst->get_instr_type() == Instruction::ne))
 					{
 						LOG(color::green("simplify ") + i->print());
 						i->set_operand(1, Constant::create(m_, cop2 - 1));
@@ -757,14 +784,14 @@ void Arithmetic::decideSignal(Instruction* i)
 				auto tr = signalOf(r);
 				auto spread = infer2Op(ty, tl, tr, op);
 				bool c = false;
-				if (spread.t != ty)
+				if (spread.t != ty && spread.t != 0)
 				{
 					c = true;
 					designateSignal(i, spread.t);
 					addAroundToSigWorkList(i);
 					addAroundToWorkList(i);
 				}
-				if (spread.l != tl)
+				if (spread.l != tl && spread.l != 0)
 				{
 					c = true;
 					designateSignal(l, spread.l);
@@ -772,7 +799,7 @@ void Arithmetic::decideSignal(Instruction* i)
 					if (l != i)addToSignalWorkList(l);
 					addAroundToWorkList(l);
 				}
-				if (spread.r != tr)
+				if (spread.r != tr && spread.r != 0)
 				{
 					c = true;
 					designateSignal(r, spread.r);
@@ -782,19 +809,21 @@ void Arithmetic::decideSignal(Instruction* i)
 				}
 				if (c)
 				{
-					LOG("original " + std::to_string(ty) + " " + std::to_string(tl) + " " + std::to_string(tr));
-					LOG("to " + std::to_string(spread.t) + " " + std::to_string(spread.l) + " " + std::to_string(spread.
+					LOG("original " + printSig(ty) + " " + printSig(tl) + " " + printSig(tr));
+					LOG("to " + printSig(spread.t) + " " + printSig(spread.l) + " " + printSig(spread.
 						r));
 				}
 				break;
 			}
 		case Instruction::phi:
 			{
+				if (i->get_name() == "op11")
+					int aaa = 0;
 				LOG(color::yellow("decide signal of ") + i->print());
 				auto phi = dynamic_cast<PhiInst*>(i);
 				auto pairs = phi->get_phi_pairs();
 				auto ty = signalOf(i);
-				LOG("original " + std::to_string(ty));
+				LOG("original " + printSig(ty));
 				PUSH;
 				auto nty = 0u;
 				for (auto [v,j] : pairs)
@@ -802,27 +831,28 @@ void Arithmetic::decideSignal(Instruction* i)
 					auto ti = signalOf(v);
 					auto t = ti & ty;
 					nty |= t;
-					if (dynamic_cast<Instruction*>(v) && t != ti)
+					if (dynamic_cast<Instruction*>(v) && t != ti && t != 0)
 					{
-						LOG("parameter " + v->print() + " from " + std::to_string(ti) + " to " + std::to_string(t));
+						LOG("parameter " + v->print() + " from " + printSig(ti) + " to " + printSig(t));
 						designateSignal(v, t);
 						addAroundToSigWorkList(v, i);
 						if (v != i) addToSignalWorkList(v);
 						addAroundToWorkList(v);
 					}
 				}
-				POP;
-				if (nty != ty)
+				if (nty != ty && nty != 0)
 				{
-					LOG("to " + std::to_string(nty));
+					LOG("to " + printSig(nty));
 					designateSignal(i, nty);
 					addAroundToSigWorkList(i);
 					addAroundToWorkList(i);
 				}
+				POP;
 				break;
 			}
 		case Instruction::getelementptr:
 			{
+				LOG(color::yellow("decide signal from ") + i->print());
 				auto& ops = i->get_operands();
 				int size = u2iNegThrow(ops.size());
 				for (int k = 1; k < size; k++)
@@ -832,8 +862,9 @@ void Arithmetic::decideSignal(Instruction* i)
 					{
 						auto ty = signalOf(get);
 						auto nt = ty & 6;
-						if (nt != ty)
+						if (nt != ty && nt != 0)
 						{
+							LOG(get->get_name() +  color::yellow(" to ") + printSig(nt));
 							designateSignal(get, nt);
 							addAroundToSigWorkList(get, i);
 							if (get != i)
@@ -843,6 +874,37 @@ void Arithmetic::decideSignal(Instruction* i)
 							}
 						}
 					}
+				}
+				break;
+			}
+		case Instruction::sitofp:
+		case Instruction::fptosi:
+			{
+				LOG(color::yellow("decide signal of ") + i->print());
+				auto l = i->get_operand(0);
+				auto ty = signalOf(i);
+				auto tl = signalOf(l);
+				auto spread = infer1Op(ty, tl, op);
+				bool c = false;
+				if (spread.t != ty && spread.t != 0)
+				{
+					c = true;
+					designateSignal(i, spread.t);
+					addAroundToSigWorkList(i);
+					addAroundToWorkList(i);
+				}
+				if (spread.l != tl && spread.l != 0)
+				{
+					c = true;
+					designateSignal(l, spread.l);
+					addAroundToSigWorkList(l, i);
+					if (l != i)addToSignalWorkList(l);
+					addAroundToWorkList(l);
+				}
+				if (c)
+				{
+					LOG("original " + printSig(ty) + " " + printSig(tl));
+					LOG("to " + printSig(spread.t) + " " + printSig(spread.l));
 				}
 				break;
 			}
@@ -866,7 +928,7 @@ Arithmetic::CCTuple Arithmetic::inferAdd(unsigned t, unsigned l, unsigned r)
 	{
 		if (up & 1)
 		{
-			ntm = t & addSignal(l, r);
+			ntm = t & SignalSpread::addSignal(l, r);
 			if (t != ntm)
 			{
 				up = 6;
@@ -876,7 +938,7 @@ Arithmetic::CCTuple Arithmetic::inferAdd(unsigned t, unsigned l, unsigned r)
 		}
 		if (up & 2)
 		{
-			ntm = l & addSignal(t, flipSignal(r));
+			ntm = l & SignalSpread::addSignal(t, SignalSpread::flipSignal(r));
 			if (l != ntm)
 			{
 				up = 5;
@@ -886,7 +948,7 @@ Arithmetic::CCTuple Arithmetic::inferAdd(unsigned t, unsigned l, unsigned r)
 		}
 		if (up & 4)
 		{
-			ntm = r & addSignal(t, flipSignal(l));
+			ntm = r & SignalSpread::addSignal(t, SignalSpread::flipSignal(l));
 			if (r != ntm)
 			{
 				up = 3;
@@ -925,7 +987,7 @@ Arithmetic::CCTuple Arithmetic::inferAnd(unsigned t, unsigned l, unsigned r)
 	{
 		if (up & 1)
 		{
-			ntm = t & andSignal(l, r);
+			ntm = t & SignalSpread::andSignal(l, r);
 			if (t != ntm)
 			{
 				up = 6;
@@ -992,6 +1054,30 @@ Arithmetic::CCTuple Arithmetic::infer2Op(unsigned t, unsigned l, unsigned r, Ins
 	throw std::runtime_error("unexpected");
 }
 
+Arithmetic::CCTuple Arithmetic::infer1Op(unsigned t, unsigned l, Instruction::OpID op)
+{
+	switch (op) // NOLINT(clang-diagnostic-switch-enum)
+	{
+		case Instruction::sitofp:
+			{
+				t &= l;
+				l &= t;
+				return CCTuple{t, l, 0};
+			}
+		case Instruction::fptosi:
+			{
+				t &= (l | 2u);
+				if ((t & 2u) == 0)
+				{
+					l &= t;
+				}
+				return CCTuple{t, l, 0};
+			}
+		default: break;
+	}
+	throw std::runtime_error("unexpected");
+}
+
 Arithmetic::CCTuple Arithmetic::inferMul(unsigned t, unsigned l, unsigned r)
 {
 	unsigned up = 7;
@@ -1000,7 +1086,7 @@ Arithmetic::CCTuple Arithmetic::inferMul(unsigned t, unsigned l, unsigned r)
 	{
 		if (up & 1)
 		{
-			ntm = t & multiplySignal(l, r);
+			ntm = t & SignalSpread::multiplySignal(l, r);
 			if (t != ntm)
 			{
 				up = 6;
@@ -1074,7 +1160,7 @@ Arithmetic::CCTuple Arithmetic::inferSdiv(unsigned t, unsigned l, unsigned r)
 	{
 		if (up & 1)
 		{
-			ntm = t & sdivideSignal(l, r);
+			ntm = t & SignalSpread::sdivideSignal(l, r);
 			if (t != ntm)
 			{
 				up = 6;
@@ -1084,7 +1170,7 @@ Arithmetic::CCTuple Arithmetic::inferSdiv(unsigned t, unsigned l, unsigned r)
 		}
 		if (up & 2)
 		{
-			ntm = l & multiplySignal(t, r);
+			ntm = l & SignalSpread::multiplySignal(t, r);
 			if (l != ntm)
 			{
 				up = 5;
@@ -1126,7 +1212,7 @@ Arithmetic::CCTuple Arithmetic::inferFdiv(unsigned t, unsigned l, unsigned r)
 		}
 		if (up & 2)
 		{
-			ntm = l & multiplySignal(t, r);
+			ntm = l & SignalSpread::multiplySignal(t, r);
 			if (l != ntm)
 			{
 				up = 5;
@@ -1149,34 +1235,6 @@ Arithmetic::CCTuple Arithmetic::inferFdiv(unsigned t, unsigned l, unsigned r)
 	return {t, l, r};
 }
 
-unsigned Arithmetic::sdivideSignal(unsigned l, unsigned r)
-{
-	if ((r & 5u) == 0) return 0;
-	unsigned ret = 0u;
-	unsigned lra = l & r;
-	if (lra & 5u) ret |= 6u;
-	unsigned lrfa = l & flipSignal(r);
-	if (lrfa & 5u) ret |= 3u;
-	ret |= (l & 2u);
-	return ret;
-}
-
-unsigned Arithmetic::multiplySignal(unsigned l, unsigned r)
-{
-	unsigned ret = (l & 4u) ? r : 0u;
-	if (r) ret |= 2u;
-	if (l & 1u) ret |= flipSignal(r);
-	return ret;
-}
-
-unsigned Arithmetic::andSignal(unsigned l, unsigned r)
-{
-	unsigned ret = l & r;
-	unsigned orr = l | r;
-	if (orr & 4u) ret |= 2u;
-	if (l & flipSignal(r) & 5u) ret |= 4u;
-	return ret;
-}
 
 unsigned Arithmetic::andSignalL(unsigned l, unsigned r)
 {
@@ -1203,30 +1261,12 @@ unsigned Arithmetic::remSignalL(unsigned l, unsigned r)
 	return (l & 2u) ? 7u : l;
 }
 
-unsigned Arithmetic::addSignal(unsigned l, unsigned r)
-{
-	static constexpr unsigned ret[3][8] = {
-		{0u, 1u, 1u, 1u, 7u, 7u, 7u, 7u}, {0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u}, {0u, 7u, 4u, 7u, 4u, 7u, 4u, 7u}
-	};
-	unsigned get = 0;
-	if (l & 1u) get |= ret[0][r];
-	if (l & 2u) get |= ret[1][r];
-	if (l & 4u) get |= ret[2][r];
-	return get;
-}
-
 unsigned Arithmetic::mdivideCond(unsigned l, unsigned r)
 {
 	unsigned ret = (l & r) ? 4u : 0u;
-	if (l & flipSignal(r)) ret |= 1u;
+	if (l & SignalSpread::flipSignal(r)) ret |= 1u;
 	if (l & 2u) ret |= 2u;
 	return ret;
-}
-
-unsigned Arithmetic::flipSignal(unsigned i)
-{
-	static constexpr unsigned rets[8] = {0u, 4u, 2u, 6u, 1u, 5u, 3u, 7u};
-	return rets[i];
 }
 
 void Arithmetic::designateSignal(Value* val, unsigned ty)

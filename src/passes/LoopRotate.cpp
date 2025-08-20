@@ -195,9 +195,10 @@ void LoopRotate::moveHeadInst2Latch(const unordered_map<Value*, Value*>& v_map) 
 			}
 		}
 
+		auto pe = loop_->exits().at(loop_->get_header());
 		// 维护 exit
 		loop_->remove_exit_casecade(loop_->get_header());
-		loop_->add_exit_casecade(latch, ext);
+		loop_->add_exit_casecade(latch, ext, pe);
 	}
 }
 

@@ -121,7 +121,7 @@ public:
 	void remove_latch(BasicBlock* bb) { latches_.erase(bb); }
 	void remove_exit_casecade(BasicBlock* bb);
 	void add_exit(BasicBlock* from, BasicBlock* to) { exits_.emplace(from, to); }
-	void add_exit_casecade(BasicBlock* from, BasicBlock* to);
+	void add_exit_casecade(BasicBlock* from, BasicBlock* to, BasicBlock* preTo);
 	std::map<BasicBlock*, BasicBlock*>& exits() { return exits_; }
 
 	[[nodiscard]] std::string print() const;
@@ -133,6 +133,7 @@ public:
 
 class LoopDetection : public FuncInfoPass
 {
+	friend class Loop;
 	std::vector<Loop*> loops_;
 	// map from header to loop
 	std::unordered_map<BasicBlock*, Loop*> bb_to_loop_;

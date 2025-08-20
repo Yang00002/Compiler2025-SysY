@@ -32,6 +32,7 @@ public:
 	[[nodiscard]] Type* get_return_type() const;
 
 	void add_basic_block(BasicBlock* bb);
+	void updateArgType();
 
 	[[nodiscard]] int get_num_of_args() const;
 	[[nodiscard]] int get_num_basic_blocks() const;

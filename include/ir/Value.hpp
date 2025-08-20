@@ -5,6 +5,7 @@
 
 #include "System.hpp"
 
+class Function;
 class Type;
 class User;
 class Use;
@@ -13,6 +14,7 @@ class Use;
 // Value, 对值的抽象, 继承 Value 的类具有名称, 类别以及被使用列表
 class Value
 {
+	friend Function;
 public:
 	Value(const Value& other) = delete;
 	Value(Value&& other) = delete;

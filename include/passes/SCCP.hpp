@@ -125,7 +125,7 @@ public:
     ValStatus get_mapped_val(Value* key) { return value_map.get(key); }
 
     void replace_with_constant(Function* f);
-    static void convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* invalid);
+	void convert_cond_br(Instruction* i, BasicBlock* target, BasicBlock* invalid) const;
 
     auto& get_visited() { return visited; }
     auto& get_flow_worklist() { return flow_worklist; }

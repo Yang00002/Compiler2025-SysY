@@ -175,6 +175,7 @@ bool LoopSimplify::createExitOnLoop(Loop* loop) const
 				if (ok)
 				{
 					for (auto i : pres) loop->add_exit(i, suc); // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
+					RUN(loops_->validate());
 					break;
 				}
 				auto nbb = new BasicBlock{m_, "", f_};
@@ -182,6 +183,7 @@ bool LoopSimplify::createExitOnLoop(Loop* loop) const
 				for (auto i : pres) // NOLINT(bugprone-nondeterministic-pointer-iteration-order)
 					LoopDetection::addNewExitTo(loop, i, nbb, suc);
 				ret = true;
+				RUN(loops_->validate());
 				break;
 			}
 		}
@@ -210,6 +212,7 @@ bool LoopSimplify::createLatchOnLoop(Loop* loop) const
 	auto head = loop->get_header();
 	head->add_block_before(nextLatch, loop->get_preheader());
 	loop->add_block_casecade(nextLatch, true);
+	loops_->setLoopOfBlock(nextLatch,loop);
 	loop->remove_latch(preLatch);
 	loop->add_latch(nextLatch);
 	LOG(color::green("Update Loop to ") + loop->print());

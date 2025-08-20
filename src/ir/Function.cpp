@@ -79,6 +79,15 @@ void Function::remove(BasicBlock* bb)
 
 void Function::add_basic_block(BasicBlock* bb) { basic_blocks_.push_back(bb); }
 
+void Function::updateArgType()
+{
+	std::vector<Type*> args;
+	args.reserve(arguments_.size());
+	for (auto arg : arguments_) args.emplace_back(arg->get_type());
+	auto ty = Types::functionType(get_return_type(), args);
+	type_ = ty;
+}
+
 Argument* Function::removeArg(Argument* arg)
 {
 	int id = arg->get_arg_no();
@@ -88,6 +97,7 @@ Argument* Function::removeArg(Argument* arg)
 	{
 		arguments_[i]->set_arg_no(i);
 	}
+	updateArgType();
 	return arg;
 }
 
@@ -96,6 +106,7 @@ Argument* Function::removeArgWithoutUpdate(Argument* arg)
 	int id = arg->get_arg_no();
 	removeArgUse(id);
 	arguments_.erase(arguments_.begin() + id);
+	updateArgType();
 	return arg;
 }
 
@@ -322,7 +333,6 @@ void Function::checkBlockRelations() const
 		}
 		else
 		{
-
 			bool h1 = false;
 			for (auto i : bb->get_succ_basic_blocks())
 			{

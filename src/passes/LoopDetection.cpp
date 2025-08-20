@@ -203,18 +203,27 @@ void Loop::remove_exit_casecade(BasicBlock* bb)
 	}
 }
 
-void Loop::add_exit_casecade(BasicBlock* from, BasicBlock* to)
+void Loop::add_exit_casecade(BasicBlock* from, BasicBlock* to, BasicBlock* preTo)
 {
 	auto lp = this;
-	while (lp != nullptr && !lp->blocks_.count(to))
+	while (lp != nullptr)
 	{
-		lp->exits_.emplace(from, to);
-		lp = lp->parent_;
+		if (!lp->blocks_.count(preTo))
+		{
+			lp->exits_.emplace(from, to);
+			lp = lp->parent_;
+		}
+		else
+		{
+			lp->add_block_casecade(to, true);
+			break;
+		}
 	}
 }
 
 std::string Loop::print() const
 {
+	detect_->f_->get_parent()->set_print_name();
 	std::string ret;
 	std::unordered_set<BasicBlock*> subs;
 	for (auto l : sub_loops_) subs.emplace(l->header_);
@@ -524,7 +533,7 @@ void LoopDetection::collectInnerLoopMessage(Loop* loop, BasicBlock* bb, BasicBlo
 
 void LoopDetection::addNewExitTo(Loop* loop, BasicBlock* bb, BasicBlock* out, BasicBlock* preOut)
 {
-	loop->add_exit(bb, out);
+	loop->add_exit_casecade(bb, out, preOut);
 	auto lp = loop->get_parent();
 	while (lp != nullptr)
 	{
