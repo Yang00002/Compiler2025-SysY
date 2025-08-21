@@ -1,3 +1,4 @@
+# 评测机的类似编译方法
 CXX      := clang++
 INCLUDES := $(shell find include antlr -type d)
 CXXFLAGS := -std=c++17 -O2  $(addprefix -I,$(INCLUDES)) -I./extlibs

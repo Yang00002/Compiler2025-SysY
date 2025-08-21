@@ -264,7 +264,7 @@ void MBasicBlock::acceptCallInst(Instruction* instruction, std::map<Value*, MOpe
                                  std::map<Function*, MFunction*>& funcMap, MBasicBlock* block)
 {
 	Instruction* next = nullptr;
-	if (o1Optimization)
+	if (removeTailRecursive)
 	{
 		auto p = instruction->get_parent();
 		auto it = p->get_instructions().begin();

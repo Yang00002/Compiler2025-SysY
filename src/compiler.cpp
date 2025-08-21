@@ -16,7 +16,6 @@
 #include "CountLZ.hpp"
 #include "CriticalEdgeRemove.hpp"
 #include "DeadCode.hpp"
-#include "EmptyAntlrVisitor.hpp"
 #include "FrameOffset.hpp"
 #include "GCM.hpp"
 #include "GVN.hpp"
@@ -41,7 +40,6 @@
 #include "RegisterAllocate.hpp"
 #include "ReturnMerge.hpp"
 #include "SCCP.hpp"
-#include <ARM_codegen.hpp>
 
 #include "Ast.hpp"
 #include "System.hpp"
@@ -82,8 +80,6 @@ std::tuple<std::string, std::string> parseArgs(int argc, char **argv) {
       emitAST = true;
     else if (arg == "-ir")
       emitIR = true;
-    else if (arg == "-stack")
-      useStack = true;
     else if (arg == "-O1")
       o1Optimization = true;
     else
@@ -103,6 +99,7 @@ void toggleNO1DefaultSettings() {
     dangerousSignalInfer = false;
     ignoreNegativeArrayIndexes = false;
     useSinkForVirtualRegister = false;
+    removeTailRecursive = false;
   }
 }
 
@@ -142,38 +139,10 @@ void addPasses4IR(PassManager *pm) {
 void addPasses4IR2MIR(PassManager *pm) {
   pm->add_pass<CriticalEdgeRemove>();
   pm->add_pass<CmpCombine>();
-  if (o1Optimization)
+  if (o1Optimization) {
     pm->add_pass<InstructionSelect>();
-  pm->add_pass<LocalConstGlobalMatching>();
-}
-
-void stack(std::string infile, std::string outfile) {
-  std::ifstream input_file(infile);
-  antlr4::ANTLRInputStream inputStream(input_file);
-  SysYLexer lexer{&inputStream};
-  antlr4::CommonTokenStream tokens(&lexer);
-  SysYParser parser(&tokens);
-  antlr4::tree::ParseTree *ptree = parser.compUnit();
-  Antlr2AstVisitor MakeAst;
-  auto ast = MakeAst.astTree(ptree);
-  input_file.close();
-  AST2IRVisitor MakeIR;
-  MakeIR.visit(ast);
-  delete ast;
-  auto m = MakeIR.getModule();
-
-  PassManager *pm = new PassManager{m};
-  addPasses4IR(pm);
-  pm->run();
-  delete pm;
-
-  ARMCodeGen *cg = new ARMCodeGen{m};
-  cg->run();
-  std::ofstream output_file(outfile);
-  output_file << cg->print();
-  output_file.close();
-  delete cg;
-  delete m;
+    pm->add_pass<LocalConstGlobalMatching>();
+  }
 }
 
 void ir(std::string infile, std::string outfile) {
@@ -200,18 +169,6 @@ void ir(std::string infile, std::string outfile) {
   output_file << m->print();
   output_file.close();
   delete m;
-}
-
-void tree(std::string infile) {
-  std::ifstream input_file(infile);
-  antlr4::ANTLRInputStream inputStream(input_file);
-  SysYLexer lexer{&inputStream};
-  antlr4::CommonTokenStream tokens(&lexer);
-  SysYParser parser(&tokens);
-  antlr4::tree::ParseTree *ptree = parser.compUnit();
-  EmptyAntlrVisitor MakeAst;
-  MakeAst.tryVisit(ptree);
-  input_file.close();
 }
 
 void ast(std::string infile, std::string outfile) {
@@ -297,8 +254,6 @@ int main(int argc, char *argv[]) {
     ast(infile, outfile);
   else if (emitIR)
     ir(infile, outfile);
-  else if (useStack)
-    stack(infile, outfile);
   else
     compiler(infile, outfile);
   return 0;

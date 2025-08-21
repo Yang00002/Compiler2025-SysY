@@ -760,7 +760,7 @@ void Arithmetic::optimize_and(IBinaryInst* i)
 
 void Arithmetic::decideSignal(Instruction* i)
 {
-	/*
+	if(!useSignalInfer) return;
 	
 	switch (const auto op = i->get_instr_type()) // NOLINT(clang-diagnostic-switch-enum)
 	{
@@ -912,7 +912,6 @@ void Arithmetic::decideSignal(Instruction* i)
 			}
 		default: break;
 	}
-	*/
 }
 
 bool Arithmetic::haveConstType(Value* val)

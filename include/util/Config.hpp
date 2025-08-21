@@ -48,8 +48,6 @@ extern bool graphColoringWeakNodeCheck;
 extern bool emitAST;
 // 测试 IR, 生成 LLVM 文件
 extern bool emitIR;
-// 使用栈式分配
-extern bool useStack;
 // 使用 O1 优化
 extern bool o1Optimization;
 // 进行运行前检查, 检测目标架构的某些功能是否符合预期
@@ -86,3 +84,7 @@ extern bool disableCondGVN;
 extern int useSinkGate;
 // 使用浮点寄存器进行 spill, 使用 FMOV 而非 LDR/STR
 extern bool useFloatRegAsStack2Spill;
+// 使用符号推断来发掘隐藏的强度削弱机会，符号推断会在存在有符号数字溢出时出错
+extern bool useSignalInfer;
+// 使用尾递归消除
+extern bool removeTailRecursive;

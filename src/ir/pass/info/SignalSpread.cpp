@@ -2,6 +2,7 @@
 
 #include "Arithmetic.hpp"
 #include "BasicBlock.hpp"
+#include "Config.hpp"
 #include "Instruction.hpp"
 #include "Constant.hpp"
 #include "Type.hpp"
@@ -30,7 +31,8 @@ namespace
 void SignalSpread::run()
 {
 	PREPARE_PASS_MSG;
-	//signalSpread();
+	if(!useSignalInfer) return;
+	signalSpread();
 }
 
 

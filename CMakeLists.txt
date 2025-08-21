@@ -16,31 +16,39 @@ add_library(antlr_sysy SHARED ${antlr_sources})
 add_library(antlr_lib INTERFACE)
 target_link_libraries(antlr_lib INTERFACE antlr_sysy antlr4-runtime)
 
-include_directories(${PROJECT_SOURCE_DIR}/include/passes)
 include_directories(${PROJECT_SOURCE_DIR}/include/ast)
-include_directories(${PROJECT_SOURCE_DIR}/include/codegen)
 include_directories(${PROJECT_SOURCE_DIR}/include/ir)
+include_directories(${PROJECT_SOURCE_DIR}/include/ir/ir)
+include_directories(${PROJECT_SOURCE_DIR}/include/ir/pass)
+include_directories(${PROJECT_SOURCE_DIR}/include/ir/pass/info)
+include_directories(${PROJECT_SOURCE_DIR}/include/ir/pass/util)
+include_directories(${PROJECT_SOURCE_DIR}/include/ir/util)
 include_directories(${PROJECT_SOURCE_DIR}/include/machineir)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir/machineir)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir/translate)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir/pass)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir/pass/info)
+include_directories(${PROJECT_SOURCE_DIR}/include/machineir/pass/util)
 include_directories(${PROJECT_SOURCE_DIR}/include/util)
-include_directories(${PROJECT_SOURCE_DIR}/include/machineir)
 include_directories(${PROJECT_SOURCE_DIR}/antlr)
 
-# util 源文件集 
-aux_source_directory(src/util utilSource)
-# ast 源文件集 
-aux_source_directory(src/ast astSource)
-# ir 源文件集 
-aux_source_directory(src/ir irSource)
-aux_source_directory(src/machineir mirSource)
-# codegen 源文件集 
-aux_source_directory(src/codegen codegenSource)
-# passes 源文件集
-aux_source_directory(src/passes passesSource)
-# machineir 源文件集
-aux_source_directory(src/machineir machineirSource)
-
+aux_source_directory(src/ast srcdir)
+aux_source_directory(src/ir srcdir)
+aux_source_directory(src/ir/ir srcdir)
+aux_source_directory(src/ir/pass srcdir)
+aux_source_directory(src/ir/pass/info srcdir)
+aux_source_directory(src/ir/pass/util srcdir)
+aux_source_directory(src/ir/util srcdir)
+aux_source_directory(src/machineir srcdir)
+aux_source_directory(src/machineir/machineir srcdir)
+aux_source_directory(src/machineir/translate srcdir)
+aux_source_directory(src/machineir/pass srcdir)
+aux_source_directory(src/machineir/pass/info srcdir)
+aux_source_directory(src/machineir/pass/util srcdir)
+aux_source_directory(src/util srcdir)
+aux_source_directory(antlr srcdir)
 
 # 添加源文件
-add_executable(compiler src/compiler.cpp ${utilSource} ${astSource} ${irSource} ${codegenSource} ${passesSource} ${machineirSource})
+add_executable(compiler src/compiler.cpp ${srcdir})
 
 target_link_libraries(compiler PRIVATE antlr_lib)
